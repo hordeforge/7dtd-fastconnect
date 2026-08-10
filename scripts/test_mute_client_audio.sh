@@ -14,7 +14,12 @@ assert "mute helper executable" test -x "$ROOT/scripts/mute_client_audio.sh"
 assert "launch_client references mute helper" grep -q 'mute_client_audio.sh' "$ROOT/scripts/launch_client.sh"
 assert "launch defaults mute on" grep -qE 'CLIENT_MUTE:-.*1|SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1' "$ROOT/scripts/launch_client.sh"
 assert "launch documents opt-out" grep -q 'CLIENT_MUTE=0' "$ROOT/README.md" || grep -q 'opt-out' "$ROOT/scripts/launch_client.sh"
-assert "launch does not exec proton (mute needs wait)" ! grep -qE 'exec "\$PROTON"' "$ROOT/scripts/launch_client.sh"
+if grep -qE 'exec "\$PROTON"' "$ROOT/scripts/launch_client.sh"; then
+	echo "FAIL launch does not exec proton (mute needs wait)" >&2
+	FAILS=$((FAILS + 1))
+else
+	echo "PASS launch does not exec proton (mute needs wait)"
+fi
 assert "launch backgrounds mute poll" grep -q 'start_mute_poll' "$ROOT/scripts/launch_client.sh"
 
 if ((FAILS > 0)); then
