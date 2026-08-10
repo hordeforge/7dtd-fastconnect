@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Mute the 7 Days To Die PipeWire/PulseAudio sink-input (opt-out for tests).
-# Used by launch_client.sh (default on). Does not touch master volume or
-# in-game sliders. WirePlumber may persist mute by application.name — run
-# with the game up and unmute via the desktop mixer, or:
+# Used by launch_client.sh (default on).
+#
+# OS-level only: pactl set-sink-input-mute on the live stream. Never touches
+# game client settings (no GamePrefs, no in-game audio sliders, no registry /
+# user.reg audio prefs, no -volume or similar argv).
+#
+# WirePlumber may persist per-app stream mute by application.name (still OS
+# audio, not the game). Unmute while running via the desktop mixer, or:
 #   pactl set-sink-input-mute <index> 0
 #
 # Env:

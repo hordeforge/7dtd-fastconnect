@@ -74,9 +74,10 @@ After the main menu opens, the mod connects once.
 
 ### Client audio mute (default on)
 
-`launch_client.sh` **mutes the game’s PipeWire/PulseAudio sink-input by
-default** so automated runs do not blast speakers. This is independent of
-master volume and in-game audio sliders. Requires `pactl` and `jq`.
+`launch_client.sh` **mutes the game process at the OS audio layer by default**
+(`pactl` sink-input mute) so automated runs do not blast speakers. This does
+**not** change game client settings (no GamePrefs / in-game audio sliders /
+registry). Independent of master volume. Requires `pactl` and `jq`.
 
 | Env | Meaning |
 |---|---|
