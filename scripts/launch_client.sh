@@ -4,13 +4,31 @@ set -euo pipefail
 
 GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 STEAM_APPID="${STEAM_APPID:-251570}"
-COMPAT="$HOME/.local/share/Steam/steamapps/compatdata/$STEAM_APPID"
+# Derive the Proton prefix from GAME, so a library on another disk works. A
+# hardcoded default path silently falls through to the `steam -applaunch`
+# branch below on such an install, which loses the environment this script was
+# given -- and passing ZDTD_CONNECT or a playtest suite variable through the
+# environment is the whole point of launching Proton directly.
+COMPAT="${COMPAT:-}"
+if [[ -z "$COMPAT" && "$GAME" == */steamapps/common/* ]]; then
+  COMPAT="${GAME%/common/*}/compatdata/$STEAM_APPID"
+fi
+COMPAT="${COMPAT:-$HOME/.local/share/Steam/steamapps/compatdata/$STEAM_APPID}"
 # Prefer Proton Experimental / GE if present; fall back to steam launch.
+STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 PROTON="${PROTON:-}"
 if [[ -z "$PROTON" ]]; then
+  # The library holding GAME is searched first, so an install on a second disk
+  # finds the Proton next to it rather than only the one in the default root.
+  GAME_LIBRARY=""
+  if [[ "$GAME" == */steamapps/common/* ]]; then
+    GAME_LIBRARY="${GAME%/common/*}"
+  fi
   for p in \
-    "$HOME/.local/share/Steam/steamapps/common/Proton - Experimental/proton" \
-    "$HOME/.local/share/Steam/steamapps/common/Proton 9.0 (Beta)/proton" \
+    ${GAME_LIBRARY:+"$GAME_LIBRARY/common/Proton - Experimental/proton"} \
+    ${GAME_LIBRARY:+"$GAME_LIBRARY/common/Proton 9.0 (Beta)/proton"} \
+    "$STEAM_ROOT/steamapps/common/Proton - Experimental/proton" \
+    "$STEAM_ROOT/steamapps/common/Proton 9.0 (Beta)/proton" \
     "$HOME/.steam/steam/steamapps/common/Proton - Experimental/proton"
   do
     if [[ -x "$p" ]]; then PROTON="$p"; break; fi
@@ -39,7 +57,7 @@ fi
 
 if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   export STEAM_COMPAT_DATA_PATH="$COMPAT"
-  export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$HOME/.local/share/Steam}"
+  export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$STEAM_ROOT}"
   echo "Proton: $PROTON"
   echo "Connect: ${CONNECT:-"(none; use F1 connect after menu)"}"
   echo "Log: $LOGFILE"

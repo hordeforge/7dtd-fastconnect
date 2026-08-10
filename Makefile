@@ -2,7 +2,11 @@ ROOT := $(CURDIR)
 GAME ?= $(HOME)/.local/share/Steam/steamapps/common/7 Days To Die
 MOD_NAME := zdtd-connect
 DIST := $(ROOT)/dist/$(MOD_NAME)
-INSTALL_DIR := $(GAME)/Mods/$(MOD_NAME)
+# Overridable so the mod can be installed into the per-user Mods directory
+# (~/.../AppData/Roaming/7DaysToDie/Mods under Proton), which the game also
+# loads. Projects that treat the game install as read-only reference need that.
+MODS_DIR ?= $(GAME)/Mods
+INSTALL_DIR := $(MODS_DIR)/$(MOD_NAME)
 
 DOTNET_ROOT ?= $(firstword \
   $(wildcard $(HOME)/.cache/dotnet-sdk) \
