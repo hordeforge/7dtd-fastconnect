@@ -33,7 +33,7 @@ Client-only mod: join by IP without Steam `steam://connect` (invalid for non-Ste
    removed in v0.9.0. Missing terrain/join behaviour is fixed in **zdtd**, not
    here.
 6. **No playtest driver here.** Scripted dig/place/combat lives in
-   `7dtd-playtest`. `restart_pair.sh` may still pass `ZDTD_PLAYTEST*` env through
+   `7dtd-playtest`. `restart_pair.sh` may still pass `PLAYTEST*` env through
    to the client for the playtest mod.
 
 ## Commands

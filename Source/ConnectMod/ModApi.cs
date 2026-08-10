@@ -17,7 +17,7 @@ namespace ZdtdConnect
 
         public void InitMod(Mod _modInstance)
         {
-            Log.Out("[zdtd-connect] InitMod v" + Version + " (connect/join only; playtest is zdtd-playtest)");
+            Log.Out("[zdtd-connect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest)");
 
             try
             {

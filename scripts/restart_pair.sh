@@ -34,13 +34,13 @@ for _ in $(seq 1 20); do
   sleep 1
 done
 
-# ZDTD_PLAYTEST / ZDTD_PLAYTEST_SUITE are inherited by Proton → the
-# **zdtd-playtest** mod (not connect). Prefer:
+# PLAYTEST / PLAYTEST_SUITE are inherited by Proton → the
+# **7dtd-playtest** mod (not connect). Prefer:
 #   make -C ../7dtd-playtest playtest-smoke
 # for scored exit codes. This script only launches the pair.
 ZDTD_CONNECT="127.0.0.1:$PORT" \
-ZDTD_PLAYTEST="${ZDTD_PLAYTEST:-}" \
-ZDTD_PLAYTEST_SUITE="${ZDTD_PLAYTEST_SUITE:-}" \
+PLAYTEST="${PLAYTEST:-}" \
+PLAYTEST_SUITE="${PLAYTEST_SUITE:-}" \
   nohup "$SCRIPTDIR/launch_client.sh" \
   > "$LOGDIR/client-launch-$(basename "$WORLD").log" 2>&1 &
 echo "client launcher pid $!"
