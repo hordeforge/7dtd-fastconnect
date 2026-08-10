@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# One stock-client auto-connect cycle against a running (or freshly started) zdtd.
+# Always terminates the Proton client process for this run before exit.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRATCH="${SCRATCH:-/tmp/grok-goal-67089ec46dbc/implementer}"
+mkdir -p "$SCRATCH"
+
+PORT="${PORT:-27025}"
+HOST="${HOST:-127.0.0.1}"
+CONNECT="${ZDTD_CONNECT:-$HOST:$PORT}"
+TIMEOUT_SEC="${TIMEOUT_SEC:-240}"
+CYCLE="${CYCLE:-1}"
+START_SERVER="${START_SERVER:-0}"
+ZDTD_BIN="${ZDTD_BIN:-$(cd "$ROOT/../zdtd" && pwd)/zig-out/bin/zdtd}"
+GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
+MAP_DIR="${MAP_DIR:-$GAME_DIR/Data/Worlds/Navezgane}"
+WORLD_DIR="${WORLD_DIR:-$(cd "$ROOT/../zdtd" && pwd)/worlds/zdtd_goal}"
+STEAM_APPID="${STEAM_APPID:-251570}"
+COMPAT="$HOME/.local/share/Steam/steamapps/compatdata/$STEAM_APPID"
+CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_zdtd_connect.txt"
+CLIENT_LOG_OUT="$SCRATCH/stock-join-${CYCLE}.log"
+SERVER_LOG_OUT="$SCRATCH/zdtd-server-${CYCLE}.log"
+LIFE_OUT="$SCRATCH/client-lifecycle-${CYCLE}.txt"
+LAUNCH="$ROOT/scripts/launch_client.sh"
+
+server_pid=""
+client_pgid=""
+client_pids_before=()
+
+log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
+
+list_client_pids() {
+  # Match real game process only (not this script's shell line containing the name).
+  pgrep -f '[/]7DaysToDie\.exe' 2>/dev/null || true
+  pgrep -f 'wine64-preloader.*7DaysToDie' 2>/dev/null || true
+}
+
+kill_clients() {
+  local pids
+  pids="$(list_client_pids)"
+  if [[ -z "$pids" ]]; then
+    log "kill_clients: no 7DaysToDie.exe"
+    return 0
+  fi
+  log "kill_clients: sending TERM to: $pids"
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null || true
+  sleep 2
+  pids="$(list_client_pids)"
+  if [[ -n "$pids" ]]; then
+    log "kill_clients: sending KILL to: $pids"
+    # shellcheck disable=SC2086
+    kill -9 $pids 2>/dev/null || true
+    sleep 1
+  fi
+  pids="$(list_client_pids)"
+  if [[ -n "$pids" ]]; then
+    log "kill_clients: STILL ALIVE: $pids"
+    return 1
+  fi
+  log "kill_clients: gone"
+  return 0
+}
+
+cleanup() {
+  local ec=$?
+  kill_clients || true
+  if [[ -n "$server_pid" ]] && kill -0 "$server_pid" 2>/dev/null; then
+    log "stopping server pid=$server_pid"
+    kill "$server_pid" 2>/dev/null || true
+    sleep 1
+    kill -9 "$server_pid" 2>/dev/null || true
+  fi
+  exit "$ec"
+}
+trap cleanup EXIT
+
+: >"$LIFE_OUT"
+log "=== one_shot_join cycle=$CYCLE connect=$CONNECT timeout=${TIMEOUT_SEC}s ==="
+log "before clients: $(list_client_pids | tr '\n' ' ')"
+
+if [[ "$START_SERVER" == "1" ]]; then
+  if [[ ! -x "$ZDTD_BIN" ]]; then
+    log "missing zdtd binary: $ZDTD_BIN"
+    exit 2
+  fi
+  mkdir -p "$WORLD_DIR"
+  : >"$SERVER_LOG_OUT"
+  log "starting $ZDTD_BIN --port $PORT"
+  "$ZDTD_BIN" \
+    --port "$PORT" \
+    --world "$WORLD_DIR" \
+    --map "$MAP_DIR" \
+    --game-dir "$GAME_DIR" \
+    --world-name Navezgane \
+    >"$SERVER_LOG_OUT" 2>&1 &
+  server_pid=$!
+  log "server_pid=$server_pid"
+  # Wait for TCP GSI port
+  for i in $(seq 1 40); do
+    if ss -tln | rg -q ":${PORT}\\b"; then
+      log "server listening on $PORT after ${i}s"
+      break
+    fi
+    sleep 0.5
+  done
+  if ! ss -tln | rg -q ":${PORT}\\b"; then
+    log "server failed to listen on $PORT"
+    tail -40 "$SERVER_LOG_OUT" | tee -a "$LIFE_OUT" || true
+    exit 3
+  fi
+  # brief settle for LiteNet
+  sleep 1
+else
+  log "START_SERVER=0; expecting existing listener on $PORT"
+  if ! ss -tln | rg -q ":${PORT}\\b"; then
+    log "no listener on $PORT"
+    exit 3
+  fi
+fi
+
+# Truncate client log so we only see this cycle.
+mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
+: >"$CLIENT_LOG_SRC"
+
+# Kill any leftover client before launch.
+kill_clients || true
+
+export ZDTD_CONNECT="$CONNECT"
+log "launching client ZDTD_CONNECT=$ZDTD_CONNECT"
+# Launch in background; capture proton/game children via pgrep after a beat.
+setsid "$LAUNCH" >"$SCRATCH/launch-${CYCLE}.log" 2>&1 &
+launch_pid=$!
+log "launch_pid=$launch_pid"
+sleep 3
+log "after_launch clients: $(list_client_pids | tr '\n' ' ')"
+
+deadline=$((SECONDS + TIMEOUT_SEC))
+result="timeout"
+while (( SECONDS < deadline )); do
+  if [[ -f "$CLIENT_LOG_SRC" ]]; then
+    # Strong success first: in-world entity exists. Later package noise must not demote this.
+    if rg -q 'Found own player entity with id|PlayerSpawnedInWorld|Spawned in world' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      result="joined"
+      # Optional settle for post-join work (local chunk gen, control unlock).
+      settle="${SETTLE_SEC:-0}"
+      if [[ "$settle" =~ ^[0-9]+$ ]] && (( settle > 0 )); then
+        log "joined; settling ${settle}s for post-join (chunks/controls)"
+        # Prefer explicit chunk-gen done signal when present.
+        settle_deadline=$((SECONDS + settle))
+        while (( SECONDS < settle_deadline )); do
+          if rg -q 'local chunks generated around player' "$CLIENT_LOG_SRC" 2>/dev/null; then
+            log "local chunks generated signal seen"
+            break
+          fi
+          sleep 1
+        done
+      fi
+      break
+    fi
+    if rg -q 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      # Only treat as fail if we never saw a good join signal
+      if ! rg -q 'PlayerSpawnedInWorld|\[zdtd-connect\] .*connected|Created player|Local Player|Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        result="kick_or_disconnect"
+        break
+      fi
+    fi
+    # Strong join bar: PlayerId ProcessPackage created local player, no parse/create failures.
+    if rg -q 'NET: LiteNetLib: Accepted by server' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if rg -q 'EntityFactory CreateEntity: unknown type|NCSimple_Deserializer|Attempted to read past the end of the stream' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        # Soft: only fail if we never found our player.
+        if ! rg -q 'Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
+          result="parse_fail"
+          break
+        fi
+      fi
+      if rg -q 'Found own player entity with id|PlayerSpawnedInWorld|Spawned in world' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        result="joined"
+        break
+      fi
+      # PlayerId processed without CreateEntity error is partial success (in-world path)
+      if rg -q 'PlayerId\([0-9]+, [0-9]+\)' "$CLIENT_LOG_SRC" 2>/dev/null \
+        && rg -q 'Allowed ChunkViewDistance' "$CLIENT_LOG_SRC" 2>/dev/null \
+        && ! rg -q 'EntityFactory CreateEntity' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        sleep 10
+        if rg -q 'Found own player entity with id|PlayerSpawnedInWorld' "$CLIENT_LOG_SRC" 2>/dev/null; then
+          result="joined"
+          break
+        fi
+        if ! rg -q 'EntityFactory CreateEntity|NCSimple_Deserializer|Kicked from server' "$CLIENT_LOG_SRC" 2>/dev/null; then
+          result="joined"
+          break
+        fi
+      fi
+    fi
+  fi
+  # Client died early
+  if ! kill -0 "$launch_pid" 2>/dev/null; then
+    if [[ -z "$(list_client_pids)" ]]; then
+      # proton launcher exited; check if log has result
+      if [[ "$result" == "timeout" ]]; then
+        result="client_exit"
+      fi
+      break
+    fi
+  fi
+  sleep 2
+done
+
+cp -f "$CLIENT_LOG_SRC" "$CLIENT_LOG_OUT" 2>/dev/null || true
+if [[ -n "$server_pid" && -f "$SERVER_LOG_OUT" ]]; then
+  :
+elif [[ -f /tmp/zdtd-stock-connect/server.log ]]; then
+  cp -f /tmp/zdtd-stock-connect/server.log "$SERVER_LOG_OUT" 2>/dev/null || true
+fi
+
+log "result=$result"
+log "client log -> $CLIENT_LOG_OUT"
+log "key client lines:"
+rg -n 'zdtd-connect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|error|ERR' \
+  "$CLIENT_LOG_OUT" 2>/dev/null | head -80 | tee -a "$LIFE_OUT" || true
+
+log "after clients before kill: $(list_client_pids | tr '\n' ' ')"
+kill_clients
+log "after kill clients: $(list_client_pids | tr '\n' ' ')"
+
+case "$result" in
+  joined) exit 0 ;;
+  *) exit 1 ;;
+esac

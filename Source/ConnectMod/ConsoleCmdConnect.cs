@@ -1,0 +1,61 @@
+using System.Collections.Generic;
+
+namespace ZdtdConnect
+{
+    /// <summary>F1 console: connect &lt;host&gt; [port] (main menu).</summary>
+    public class ConsoleCmdConnect : ConsoleCmdAbstract
+    {
+        public override string[] getCommands() => new[] { "connect", "zdtdconnect", "joinip" };
+
+        public override string getDescription() =>
+            "Connect to a server by IP (same as Connect to IP UI). Default port 27025.";
+
+        public override string getHelp() =>
+            "connect <host> [port]\n" +
+            "  Examples:\n" +
+            "    connect 127.0.0.1\n" +
+            "    connect 127.0.0.1 27025\n" +
+            "    connect 127.0.0.1:27025\n" +
+            "  Env auto-join: ZDTD_CONNECT=127.0.0.1:27025 (or 7DTD_CONNECT)\n" +
+            "  Launch arg: -connect=127.0.0.1:27025\n" +
+            "  Note: C# client mods require EAC off (-noeac).";
+
+        public override bool AllowedInMainMenu => true;
+
+        public override bool IsExecuteOnClient => true;
+
+        public override void Execute(List<string> _params, CommandSenderInfo _senderInfo)
+        {
+            if (_params == null || _params.Count < 1)
+            {
+                Out(getHelp());
+                return;
+            }
+
+            string raw = _params[0];
+            if (_params.Count >= 2 && raw.IndexOf(':') < 0)
+                raw = raw + ":" + _params[1];
+
+            if (!ConnectTarget.TryParse(raw, out string host, out int port, out string err))
+            {
+                Out("[zdtd-connect] parse failed: " + err);
+                return;
+            }
+
+            if (!ConnectTarget.TryConnect(host, port, out string msg))
+            {
+                Out("[zdtd-connect] " + msg);
+                return;
+            }
+
+            Out("[zdtd-connect] " + msg);
+        }
+
+        static void Out(string s)
+        {
+            try { SingletonMonoBehaviour<SdtdConsole>.Instance?.Output(s); }
+            catch { /* ignore */ }
+            Log.Out(s);
+        }
+    }
+}
