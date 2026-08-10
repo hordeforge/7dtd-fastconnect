@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Launch stock 7DTD client (Proton) with EAC off. Optional ZDTD_CONNECT auto-join via zdtd-connect mod.
+#
+# Client audio is muted by default (PipeWire/Pulse sink-input) for automated
+# runs. Opt out: CLIENT_MUTE=0 or SEVEN_DAYS_TO_DIE_CLIENT_MUTE=0.
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MUTE_HELPER="$SCRIPT_DIR/mute_client_audio.sh"
 
 GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 STEAM_APPID="${STEAM_APPID:-251570}"
@@ -46,6 +52,13 @@ if [[ -n "$CONNECT" ]]; then
   export ZDTD_CONNECT="$CONNECT"
 fi
 
+# Mute client audio by default (opt-out).
+MUTE_CLIENT="${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}"
+case "${MUTE_CLIENT,,}" in
+  0 | false | no | off) MUTE_CLIENT="" ;;
+esac
+MUTE_WAIT="${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}"
+
 LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
 mkdir -p "$LOGDIR"
 LOGFILE="$LOGDIR/output_log_client_zdtd_connect.txt"
@@ -55,6 +68,22 @@ if [[ ! -d "$GAME" ]]; then
   exit 1
 fi
 
+start_mute_poll() {
+  if [[ -z "$MUTE_CLIENT" ]]; then
+    return 0
+  fi
+  if [[ ! -x "$MUTE_HELPER" ]]; then
+    chmod +x "$MUTE_HELPER" 2>/dev/null || true
+  fi
+  if [[ -x "$MUTE_HELPER" ]]; then
+    echo "Client mute: on (opt-out CLIENT_MUTE=0); polling up to ${MUTE_WAIT}s"
+    # Background: audio stream appears after Unity init, not at process start.
+    CLIENT_MUTE_TIMEOUT="$MUTE_WAIT" "$MUTE_HELPER" "$MUTE_WAIT" &
+  else
+    echo "WARN: mute helper missing ($MUTE_HELPER); client audio not muted." >&2
+  fi
+}
+
 if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   export STEAM_COMPAT_DATA_PATH="$COMPAT"
   export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$STEAM_ROOT}"
@@ -62,7 +91,12 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   echo "Connect: ${CONNECT:-"(none; use F1 connect after menu)"}"
   echo "Log: $LOGFILE"
   cd "$GAME"
-  exec "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_zdtd_connect.txt" "${EXTRA_ARGS[@]}" "$@"
+  # Cannot mute after exec — run proton, mute in parallel, wait for the game.
+  "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_zdtd_connect.txt" "${EXTRA_ARGS[@]}" "$@" &
+  game_pid=$!
+  start_mute_poll
+  wait "$game_pid"
+  exit $?
 fi
 
 # Fallback: Steam app launch (may still run EAC depending on launcher settings).
@@ -70,4 +104,8 @@ echo "Proton not found; using steam -applaunch $STEAM_APPID (set UseEAC false in
 echo "Connect: ${CONNECT:-"(none)"}"
 # Steam does not reliably pass -connect=; env ZDTD_CONNECT is still set for the mod.
 export ZDTD_CONNECT="${CONNECT:-}"
-exec steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@"
+steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@" &
+steam_pid=$!
+start_mute_poll
+wait "$steam_pid"
+exit $?

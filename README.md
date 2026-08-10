@@ -72,6 +72,25 @@ ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 
 After the main menu opens, the mod connects once.
 
+### Client audio mute (default on)
+
+`launch_client.sh` **mutes the game’s PipeWire/PulseAudio sink-input by
+default** so automated runs do not blast speakers. This is independent of
+master volume and in-game audio sliders. Requires `pactl` and `jq`.
+
+| Env | Meaning |
+|---|---|
+| `CLIENT_MUTE` / `SEVEN_DAYS_TO_DIE_CLIENT_MUTE` | Default `1` (muted). Set `0` / `false` / `no` / `off` to leave audio on |
+| `CLIENT_MUTE_TIMEOUT` | Seconds to wait for the audio stream after launch (default 60) |
+
+```bash
+# Keep sound for a manual session
+CLIENT_MUTE=0 ./scripts/launch_client.sh
+```
+
+WirePlumber may persist mute by `application.name`. Unmute while the client
+is running (desktop volume UI, or `pactl set-sink-input-mute <index> 0`).
+
 ## With zdtd
 
 ```bash
