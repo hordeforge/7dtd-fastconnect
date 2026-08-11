@@ -12,6 +12,7 @@ namespace ZdtdConnect
     {
         public const string HarmonyId = "com.zdtd.connect";
         public const string Version = "0.9.3";
+        public const string PlayerNameEnv = "ZDTD_PLAYER_NAME";
         static bool _autoTried;
         static Harmony _harmony;
 
@@ -32,6 +33,7 @@ namespace ZdtdConnect
 
             try
             {
+                ApplyPlayerNameOverride();
                 GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                 GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
                 GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
@@ -88,6 +90,29 @@ namespace ZdtdConnect
             catch (Exception ex)
             {
                 Log.Error("[zdtd-connect] MainMenuOpened register failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Selects a real stock Local-platform identity before auto-join.
+        /// The server still authenticates and persists this identity normally;
+        /// this only selects the stock player's configured display/name key.
+        /// </summary>
+        static void ApplyPlayerNameOverride()
+        {
+            string requested = Environment.GetEnvironmentVariable(PlayerNameEnv);
+            if (string.IsNullOrWhiteSpace(requested)) return;
+
+            requested = requested.Trim();
+            try
+            {
+                GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
+                GamePrefs.Instance?.Save();
+                Log.Out("[zdtd-connect] player name from " + PlayerNameEnv + "=" + requested);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[zdtd-connect] player name override failed: " + ex.Message);
             }
         }
 

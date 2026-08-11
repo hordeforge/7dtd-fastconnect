@@ -72,6 +72,22 @@ ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 
 After the main menu opens, the mod connects once.
 
+### Local player identity for an isolated test client
+
+The stock Local platform derives its identity from `GamePrefs.PlayerName`.
+Set `ZDTD_PLAYER_NAME` before launch to select that identity before the
+auto-join runs. This is useful only for an isolated second client in a real
+multi-client test: the server sees and authorizes a normal distinct player,
+and will reject a duplicate identity. It persists the chosen name in that
+client profile, so use a dedicated Proton profile for automation rather than
+the player's everyday profile.
+
+Launch a peer named `atomic-peer`:
+
+```bash
+ZDTD_PLAYER_NAME=atomic-peer ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
+```
+
 ### Client audio mute (default on)
 
 `launch_client.sh` **mutes the game’s PipeWire/PulseAudio sink-input by
@@ -108,6 +124,7 @@ Or with client already running: F1 → `connect 127.0.0.1 27025`.
 
 ```text
 [zdtd-connect] InitMod ...
+[zdtd-connect] player name from ZDTD_PLAYER_NAME=atomic-peer
 [zdtd-connect] auto-join from ZDTD_CONNECT=127.0.0.1:27025
 [zdtd-connect] Connect by IP 127.0.0.1:27025 ...
 ```
