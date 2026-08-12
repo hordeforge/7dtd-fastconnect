@@ -72,6 +72,42 @@ ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 
 After the main menu opens, the mod connects once.
 
+### Local player identity for an isolated test client
+
+The stock Local platform derives its identity from `GamePrefs.PlayerName`.
+Set `ZDTD_PLAYER_NAME` before launch to select that identity before the
+auto-join runs. This is useful only for an isolated second client in a real
+multi-client test: the server sees and authorizes a normal distinct player,
+and will reject a duplicate identity. It persists the chosen name in that
+client profile, so use a dedicated Proton profile for automation rather than
+the player's everyday profile.
+
+Launch a peer named `atomic-peer`:
+
+```bash
+ZDTD_PLAYER_NAME=atomic-peer ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
+```
+
+### Client audio mute (default on)
+
+`launch_client.sh` **mutes the game process at the OS audio layer by default**
+(`pactl` sink-input mute) so automated runs do not blast speakers. This does
+**not** change game client settings (no GamePrefs / in-game audio sliders /
+registry). Independent of master volume. Requires `pactl` and `jq`.
+
+| Env | Meaning |
+|---|---|
+| `CLIENT_MUTE` / `SEVEN_DAYS_TO_DIE_CLIENT_MUTE` | Default `1` (muted). Set `0` / `false` / `no` / `off` to leave audio on |
+| `CLIENT_MUTE_TIMEOUT` | Seconds to wait for the audio stream after launch (default 60) |
+
+```bash
+# Keep sound for a manual session
+CLIENT_MUTE=0 ./scripts/launch_client.sh
+```
+
+WirePlumber may persist mute by `application.name`. Unmute while the client
+is running (desktop volume UI, or `pactl set-sink-input-mute <index> 0`).
+
 ## With zdtd
 
 ```bash
@@ -89,6 +125,7 @@ Or with client already running: F1 → `connect 127.0.0.1 27025`.
 
 ```text
 [zdtd-connect] InitMod ...
+[zdtd-connect] player name from ZDTD_PLAYER_NAME=atomic-peer
 [zdtd-connect] auto-join from ZDTD_CONNECT=127.0.0.1:27025
 [zdtd-connect] Connect by IP 127.0.0.1:27025 ...
 ```
