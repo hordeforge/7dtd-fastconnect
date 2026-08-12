@@ -59,6 +59,41 @@ case "${MUTE_CLIENT,,}" in
 esac
 MUTE_WAIT="${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}"
 
+# Optional no-Steam client mode (see loadgen/docs/STOCK_AUTH.md Option A):
+# CLIENT_PLATFORM=local backs up the game's platform.cfg, selects the Local
+# platform with EOS crossplay off, and restores the original on exit. The
+# stock dedicated accepts Local clients with no ticket (serverplatforms
+# includes Local; loadgen bots ride this path), so the real client can join a
+# test server without valid Steam auth and without any server-side bypass mod.
+LOCAL_PLATFORM=0
+case "${CLIENT_PLATFORM:-}" in
+  1 | local | Local | LAN) LOCAL_PLATFORM=1 ;;
+esac
+PLATFORM_CFG="$GAME/platform.cfg"
+PLATFORM_BAK="$GAME/platform.cfg.re-localbak"
+
+swap_local_platform() {
+  if [[ ! -f "$PLATFORM_CFG" ]]; then
+    echo "WARN: $PLATFORM_CFG missing; cannot switch to Local platform" >&2
+    return 0
+  fi
+  [[ -f "$PLATFORM_BAK" ]] || cp "$PLATFORM_CFG" "$PLATFORM_BAK"
+  printf 'platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n' >"$PLATFORM_CFG"
+  echo "Client platform: Local (no Steam auth; restored on exit)"
+}
+
+restore_platform() {
+  if [[ -f "$PLATFORM_BAK" ]]; then
+    mv "$PLATFORM_BAK" "$PLATFORM_CFG"
+    echo "Client platform.cfg restored"
+  fi
+}
+
+if [[ "$LOCAL_PLATFORM" == 1 ]]; then
+  swap_local_platform
+  trap restore_platform EXIT INT TERM
+fi
+
 LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
 mkdir -p "$LOGDIR"
 LOGFILE="$LOGDIR/output_log_client_zdtd_connect.txt"

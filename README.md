@@ -99,6 +99,7 @@ registry). Independent of master volume. Requires `pactl` and `jq`.
 |---|---|
 | `CLIENT_MUTE` / `SEVEN_DAYS_TO_DIE_CLIENT_MUTE` | Default `1` (muted). Set `0` / `false` / `no` / `off` to leave audio on |
 | `CLIENT_MUTE_TIMEOUT` | Seconds to wait for the audio stream after launch (default 60) |
+| `CLIENT_PLATFORM=local` | No-Steam client mode: backs up the game's `platform.cfg`, selects the `Local` platform with EOS crossplay off, restores on exit. Lets the real client join a test server without valid Steam auth and without a server-side bypass mod (loadgen bots already ride this path). See `../7dtd-loadgen/docs/STOCK_AUTH.md` |
 
 ```bash
 # Keep sound for a manual session
