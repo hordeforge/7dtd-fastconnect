@@ -224,7 +224,8 @@ namespace ZdtdConnect
 
     /// <summary>
     /// If EULA window still opens (default XML path), skip it and open main menu.
-    /// Stock Open(xui, viewMode): viewMode=false is the gate path that leads to MainMenu on close.
+    /// Stock has XUiC_EulaWindow.Open(XUi,bool) but GUIWindowManager opens "windowEula" via the 3-arg (string,bool,bool) path,
+    /// so we must patch both. Log shows wt open3 windowEula after CheckLogin force-open.
     /// </summary>
     [HarmonyPatch(typeof(XUiC_EulaWindow), nameof(XUiC_EulaWindow.Open), new Type[] { typeof(XUi), typeof(bool) })]
     static class Patch_EulaWindow_Open
@@ -249,6 +250,82 @@ namespace ZdtdConnect
             catch (Exception ex)
             {
                 Log.Warning("[zdtd-connect] EULA skip failed: " + ex.Message);
+                return true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GUIWindowManager), "Open", new Type[] { typeof(string), typeof(bool), typeof(bool) })]
+    static class Patch_GuiWindow_EulaAsGate
+    {
+        static bool Prefix(GUIWindowManager __instance, string _windowName, bool _bModal, bool _bIsNotEscClosable)
+        {
+            if (_windowName != "windowEula") return true;
+            try
+            {
+                Log.Out($"[zdtd-connect] blocking GUI windowEula modal={_bModal} esc={_bIsNotEscClosable}");
+                int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
+                if (latest < 1) latest = 99;
+                GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
+                GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
+                GamePrefs.Instance?.Save();
+                try
+                {
+                    var xui = __instance?.playerUI?.xui;
+                    if (xui != null) XUiC_MainMenu.Open(xui);
+                    // Also dispatch the ModEvent directly so auto-join fires even if XUi path is gated.
+                    try
+                    {
+                        var data = new ModEvents.SMainMenuOpenedData(true);
+                        ModEvents.MainMenuOpened.Invoke(ref data);
+                        Log.Out("[zdtd-connect] dispatched MainMenuOpened after Eula block (3)");
+                    }
+                    catch (Exception ex2) { Log.Warning("[zdtd-connect] MainMenuOpened dispatch failed (3): " + ex2.Message); }
+                }
+                catch { }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[zdtd-connect] windowEula block failed: " + ex.Message);
+                return true;
+            }
+        }
+    }
+
+    // Some paths open windowEula via (string,bool) - cover both arities
+    [HarmonyPatch(typeof(GUIWindowManager), "Open", new Type[] { typeof(string), typeof(bool) })]
+    static class Patch_GuiWindow_EulaAsGate2
+    {
+        static bool Prefix(GUIWindowManager __instance, string _windowName, bool _bModal)
+        {
+            if (_windowName != "windowEula") return true;
+            try
+            {
+                Log.Out($"[zdtd-connect] blocking GUI windowEula(2) modal={_bModal}");
+                int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
+                if (latest < 1) latest = 99;
+                GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
+                GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
+                GamePrefs.Instance?.Save();
+                try
+                {
+                    var xui = __instance?.playerUI?.xui;
+                    if (xui != null) XUiC_MainMenu.Open(xui);
+                    try
+                    {
+                        var data = new ModEvents.SMainMenuOpenedData(true);
+                        ModEvents.MainMenuOpened.Invoke(ref data);
+                        Log.Out("[zdtd-connect] dispatched MainMenuOpened after Eula block (2)");
+                    }
+                    catch (Exception ex2) { Log.Warning("[zdtd-connect] MainMenuOpened dispatch failed (2): " + ex2.Message); }
+                }
+                catch { }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[zdtd-connect] windowEula(2) block failed: " + ex.Message);
                 return true;
             }
         }
