@@ -34,6 +34,7 @@ namespace ZdtdConnect
             try
             {
                 ApplyPlayerNameOverride();
+                try { ZdtdConnect.Patch_ClientInfo_PlayerName_Guard_FieldFallback.EnsurePrefsName(); } catch { }
                 GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                 GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
                 GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
@@ -101,9 +102,22 @@ namespace ZdtdConnect
         static void ApplyPlayerNameOverride()
         {
             string requested = Environment.GetEnvironmentVariable(PlayerNameEnv);
-            if (string.IsNullOrWhiteSpace(requested)) return;
-
-            requested = requested.Trim();
+            if (string.IsNullOrWhiteSpace(requested))
+            {
+                // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline.
+                // Ensure ClientInfo.playerName is never empty even without env.
+                try
+                {
+                    string existing = GamePrefs.GetString(EnumGamePrefs.PlayerName);
+                    if (!string.IsNullOrWhiteSpace(existing)) return;
+                }
+                catch { }
+                requested = Environment.UserName;
+                if (string.IsNullOrWhiteSpace(requested)) requested = "maci";
+                requested = requested.Trim();
+                if (requested.Length > 24) requested = requested.Substring(0, 24);
+            }
+            else requested = requested.Trim();
             try
             {
                 GamePrefs.Set(EnumGamePrefs.PlayerName, requested);

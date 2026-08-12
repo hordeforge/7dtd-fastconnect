@@ -255,6 +255,150 @@ namespace ZdtdConnect
         }
     }
 
+    /// <summary>Steam-less Proton: GetAuthTicket throws InvalidOperationException when Steamworks not init; return empty ticket so SendLogin succeeds on EAC-off LAN.</summary>
+    [HarmonyPatch(typeof(Platform.Steam.AuthenticationClient), nameof(Platform.Steam.AuthenticationClient.GetAuthTicket))]
+    static class Patch_SteamAuthTicket_Steamless
+    {
+        static bool Prefix(Platform.Steam.AuthenticationClient __instance, ref string __result)
+        {
+            try
+            {
+                // Pre-check: avoid calling SteamAPI if not running; the original's SteamUser.GetAuthSessionTicket throws InvalidOperationException.
+                try
+                {
+                    if (!Steamworks.SteamAPI.IsSteamRunning())
+                    {
+                        __result = "";
+                        Log.Out("[zdtd-connect] steam GetAuthTicket: no Steam, returning empty (EAC off LAN)");
+                        return false;
+                    }
+                }
+                catch { __result = ""; return false; }
+            }
+            catch { __result = ""; return false; }
+            return true;
+        }
+        // If original still throws, catch via Finalizer and supply empty result so SendLogin continues.
+        static Exception Finalizer(Exception __exception, ref string __result)
+        {
+            if (__exception != null)
+            {
+                Log.Warning("[zdtd-connect] GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty ticket");
+                __result = "";
+                return null;
+            }
+            return null;
+        }
+    }
+
+    /// <summary>Steam-less Proton: client has no Steam/EOS identity, but stock dedi's PlayerIdAuthorizer kicks Empty name or player ID. Inject a synthetic local Steam id so SendLogin succeeds on EAC-off LAN (loopback). </summary>
+    [HarmonyPatch(typeof(Platform.Steam.User), nameof(Platform.Steam.User.PlatformUserId), MethodType.Getter)]
+    static class Patch_SteamUserId_Synthetic
+    {
+        static PlatformUserIdentifierAbs _fake;
+        static bool Prefix(Platform.Steam.User __instance, ref PlatformUserIdentifierAbs __result)
+        {
+            try
+            {
+                if (_fake == null) _fake = new Platform.Steam.UserIdentifierSteam("76561199000000042");
+                // Always return fake when Steam not running; otherwise check underlying field for null.
+                bool useFake = false;
+                try { useFake = !Steamworks.SteamAPI.IsSteamRunning(); } catch { useFake = true; }
+                if (!useFake)
+                {
+                    try
+                    {
+                        // Steam running but id may still be null (e.g., early boot). Check backing field via getter fallback.
+                        var cur = Traverse.Create(__instance).Field("_platformUserId").GetValue<PlatformUserIdentifierAbs>();
+                        if (cur == null) useFake = true;
+                    }
+                    catch { }
+                }
+                if (useFake)
+                {
+                    __result = _fake;
+                    return false;
+                }
+            }
+            catch { }
+            return true;
+        }
+        static Exception Finalizer(Exception __exception, ref PlatformUserIdentifierAbs __result)
+        {
+            if (__exception != null)
+            {
+                try
+                {
+                    if (_fake == null) _fake = new Platform.Steam.UserIdentifierSteam("76561199000000042");
+                    __result = _fake;
+                }
+                catch { }
+                return null;
+            }
+            return null;
+        }
+    }
+
+    [HarmonyPatch(typeof(ClientInfo), "playerName", MethodType.Getter)]
+    static class Patch_ClientInfo_PlayerName_Guard
+    {
+        static void Postfix(ClientInfo __instance, ref string __result)
+        {
+            if (!string.IsNullOrWhiteSpace(__result)) return;
+            try
+            {
+                // Prefer GamePrefs name, then synthetic fallback.
+                string pref = null;
+                try { pref = GamePrefs.GetString(EnumGamePrefs.PlayerName); } catch { }
+                if (!string.IsNullOrWhiteSpace(pref)) { __result = pref.Trim(); return; }
+            }
+            catch { }
+            __result = Environment.UserName;
+            if (string.IsNullOrWhiteSpace(__result)) __result = "maci";
+        }
+    }
+    // Fallback: if Harmony can't find getter by name, patch via field access pattern (ClientInfo.playerName is field, not property, in some builds)
+    static class Patch_ClientInfo_PlayerName_Guard_FieldFallback
+    {
+        // Called from ModApi if Harmony skip occurred; ensure prefs name is never empty.
+        internal static void EnsurePrefsName()
+        {
+            try
+            {
+                string pref = GamePrefs.GetString(EnumGamePrefs.PlayerName);
+                if (string.IsNullOrWhiteSpace(pref))
+                {
+                    string fallback = Environment.UserName;
+                    if (string.IsNullOrWhiteSpace(fallback)) fallback = "maci";
+                    GamePrefs.Set(EnumGamePrefs.PlayerName, fallback.Trim());
+                    Log.Out("[zdtd-connect] ensured PlayerName=" + fallback.Trim());
+                }
+            }
+            catch { }
+        }
+    }
+
+    // EOS path: patch concrete type directly (interface dispatch fails IL). The NRE is at Platform.EOS.AuthClient.GetAuthTicket when EOS not logged in.
+    [HarmonyPatch(typeof(Platform.EOS.AuthClient), "GetAuthTicket")]
+    static class Patch_EOSAuthTicket_Steamless2
+    {
+        static bool Prefix(ref string __result)
+        {
+            __result = "";
+            return false;
+        }
+        static Exception Finalizer(Exception __exception, ref string __result)
+        {
+            if (__exception != null)
+            {
+                Log.Warning("[zdtd-connect] EOS GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty");
+                __result = "";
+                return null;
+            }
+            return null;
+        }
+    }
+
     [HarmonyPatch(typeof(GUIWindowManager), "Open", new Type[] { typeof(string), typeof(bool), typeof(bool) })]
     static class Patch_GuiWindow_EulaAsGate
     {
