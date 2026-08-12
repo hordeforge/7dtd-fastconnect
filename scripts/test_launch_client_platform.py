@@ -77,3 +77,32 @@ def test_no_platform_override_leaves_config_alone(tmp_path):
     )
     assert r.returncode == 0, r.stderr
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+
+
+def test_leftover_backup_is_restored_then_reswapped(tmp_path):
+    """A hard-killed previous run leaves the cfg swapped + a backup; the next
+    launch must restore it first, then swap fresh (self-healing)."""
+    game = tmp_path / "game"
+    game.mkdir()
+    # Simulate the interrupted state: cfg swapped to Local + backup of Steam.
+    (game / "platform.cfg").write_text(LOCAL_CFG, encoding="utf-8")
+    (game / "platform.cfg.re-localbak").write_text(STEAM_CFG, encoding="utf-8")
+    exe = game / "7DaysToDie.exe"
+    exe.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
+    proton = tmp_path / "proton-stub"
+    proton.write_text("#!/usr/bin/env bash\nshift\nexec \"$@\"\n", encoding="utf-8")
+    proton.chmod(proton.stat().st_mode | stat.S_IEXEC)
+    (tmp_path / "h").mkdir()
+    (tmp_path / "c").mkdir()
+    r = subprocess.run(
+        ["bash", str(LAUNCH)],
+        env={**os.environ, "GAME": str(game), "PROTON": str(proton),
+             "COMPAT": str(tmp_path / "c"), "CLIENT_MUTE": "0",
+             "CLIENT_PLATFORM": "local", "HOME": str(tmp_path / "h")},
+        capture_output=True, text=True, timeout=60,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "restored from a previous interrupted run" in r.stdout
+    # After the clean exit the original Steam config is back.
+    assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG

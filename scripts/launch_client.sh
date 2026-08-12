@@ -73,11 +73,18 @@ PLATFORM_CFG="$GAME/platform.cfg"
 PLATFORM_BAK="$GAME/platform.cfg.re-localbak"
 
 swap_local_platform() {
+  # A previous hard-killed run (SIGKILL cannot be trapped) may have left the
+  # config swapped with a backup behind; restore it first so the swap is
+  # idempotent and self-healing.
+  if [[ -f "$PLATFORM_BAK" ]]; then
+    mv "$PLATFORM_BAK" "$PLATFORM_CFG"
+    echo "Client platform.cfg restored from a previous interrupted run"
+  fi
   if [[ ! -f "$PLATFORM_CFG" ]]; then
     echo "WARN: $PLATFORM_CFG missing; cannot switch to Local platform" >&2
     return 0
   fi
-  [[ -f "$PLATFORM_BAK" ]] || cp "$PLATFORM_CFG" "$PLATFORM_BAK"
+  cp "$PLATFORM_CFG" "$PLATFORM_BAK"
   printf 'platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n' >"$PLATFORM_CFG"
   echo "Client platform: Local (no Steam auth; restored on exit)"
 }
