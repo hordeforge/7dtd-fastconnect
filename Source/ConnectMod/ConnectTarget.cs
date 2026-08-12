@@ -276,7 +276,8 @@ namespace ZdtdConnect
                     return false;
                 }
 
-                // Crossplay path optional but EOS client login is what green baseline waited on.
+                // Crossplay/EOS login is optional for EAC-off LAN stock dedi (our BotMod target).
+                // Do not hard-block on PlatformUserId==null; just log. The server accepts LiteNet without EOS.
                 try
                 {
                     var cross = Platform.PlatformManager.CrossplatformPlatform;
@@ -285,34 +286,33 @@ namespace ZdtdConnect
                         var user = cross.User;
                         if (user != null && user.PlatformUserId == null)
                         {
-                            reason = "Crossplatform.User.PlatformUserId=null";
-                            return false;
+                            Log.Out("[zdtd-connect] note: Crossplatform.User.PlatformUserId=null but proceeding (EAC off LAN)");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    reason = "cross-user-check: " + ex.Message;
-                    return false;
+                    Log.Out("[zdtd-connect] cross-user note: " + ex.Message);
                 }
 
-                // primaryUI optional for LiteNet path; force-open CheckLogin often leaves openMM false.
-                // Do not block forever on it.
-
-                // Native steam user also used for identity; wait if present but not logged in.
+                // Native steam user also optional when EAC off; proceed after 12s even if null.
                 try
                 {
                     var nUser = native.User;
                     if (nUser != null && nUser.PlatformUserId == null)
                     {
-                        reason = "Native.User.PlatformUserId=null";
-                        return false;
+                        // Only block for first ~15s; after that, connect anyway (stock accepts unauthed LiteNet when EAC off).
+                        if (GameManager.Instance != null && UnityEngine.Time.unscaledTime < 16f)
+                        {
+                            reason = "Native.User.PlatformUserId=null (early; retry in a moment)";
+                            return false;
+                        }
+                        Log.Out("[zdtd-connect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
                     }
                 }
                 catch (Exception ex)
                 {
-                    reason = "native-user-check: " + ex.Message;
-                    return false;
+                    Log.Out("[zdtd-connect] native-user note: " + ex.Message);
                 }
 
                 if (!PermissionsManager.IsMultiplayerAllowed())
