@@ -3,17 +3,18 @@ using UnityEngine;
 
 namespace ZdtdConnect
 {
-    /// <summary>
-    /// EntityAlive.Spawned flips true on the local player without updateRespawn
-    /// ever logging "Respawn almost done", so something else sets it. Bit 0x08
-    /// of NetPackageEntityAliveFlags is the only other writer reachable over the
-    /// wire: log every one that targets the local player.
-    /// </summary>
+    /// <summary>AliveFlags trace for diagnostics — opt-in via ZDTD_CONNECT_DEBUG=1.</summary>
     [HarmonyPatch(typeof(NetPackageEntityAliveFlags), "ProcessPackage")]
     static class Patch_NetPackageEntityAliveFlags_Process
     {
         static void Prefix(NetPackageEntityAliveFlags __instance)
         {
+            try
+            {
+                var v = System.Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
+                if (v != "1" && v != "true") return;
+            }
+            catch { return; }
             try
             {
                 var gm = GameManager.Instance;

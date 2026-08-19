@@ -11,7 +11,7 @@ namespace ZdtdConnect
     public class ModApi : IModApi
     {
         public const string HarmonyId = "com.zdtd.connect";
-        public const string Version = "0.9.3";
+        public const string Version = "0.9.4";
         public const string PlayerNameEnv = "ZDTD_PLAYER_NAME";
         static bool _autoTried;
         static Harmony _harmony;

@@ -3,12 +3,7 @@ using UnityEngine;
 
 namespace ZdtdConnect
 {
-    /// <summary>
-    /// The join stalls with PlayerMoveController in WaitingForSpawnWindowToClose:
-    /// the spawn-selection window is open and updateLoadState runs every frame,
-    /// yet never reaches its Close. Log the value of every gate it returns on so
-    /// the blocking one is named rather than inferred.
-    /// </summary>
+    /// <summary>Spawn-selection heartbeat — opt-in via ZDTD_CONNECT_DEBUG=1.</summary>
     [HarmonyPatch(typeof(XUiC_SpawnSelectionWindow), "updateLoadState")]
     static class Patch_SpawnSelectionWindow_updateLoadState
     {
@@ -17,8 +12,12 @@ namespace ZdtdConnect
 
         static void Prefix(XUiC_SpawnSelectionWindow __instance)
         {
-            // Count every call: one log line per 5s cannot tell "ticking but
-            // always bailing on the chunk gate" from "stopped being ticked".
+            try
+            {
+                var v = System.Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
+                if (v != "1" && v != "true") { _calls++; return; }
+            }
+            catch { _calls++; return; }
             _calls++;
             if (Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + 5f;

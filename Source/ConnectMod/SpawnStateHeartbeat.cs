@@ -5,17 +5,32 @@ namespace ZdtdConnect
 {
     /// <summary>
     /// In-game spawn/load heartbeat: logs the exact gates the
-    /// "Starting game..." overlay (XUiC_SpawnSelectionWindow.updateLoadState)
-    /// checks, so a stuck join shows which condition never flips.
+    /// "Starting game..." overlay checks, so a stuck join shows which
+    /// condition never flips. Very chatty, so this is now opt-in via
+    /// ZDTD_CONNECT_DEBUG=1 — normal play only gets useful one-shots
+    /// (spawn position, first frame, etc; those stay unconditional).
     /// </summary>
     [HarmonyPatch(typeof(GameManager), "gmUpdate")]
     static class Patch_GameManager_Update_SpawnHeartbeat
     {
         static float _nextLog;
         static int _shots;
+        static bool Dbg
+        {
+            get
+            {
+                try
+                {
+                    var v = System.Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
+                    return v == "1" || v == "true";
+                }
+                catch { return false; }
+            }
+        }
 
         static void Postfix()
         {
+            if (!Dbg) return;
             if (Time.unscaledTime < _nextLog) return;
             _nextLog = Time.unscaledTime + 5f;
             try

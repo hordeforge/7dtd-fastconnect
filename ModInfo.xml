@@ -4,6 +4,6 @@
   <DisplayName value="zdtd Connect" />
   <Description value="Client: F1 connect command + env/CLI auto-join for local/dev servers (EAC off)." />
   <Author value="7dtd workspace" />
-  <Version value="0.9.3" />
+  <Version value="0.9.4" />
   <Website value="" />
 </xml>

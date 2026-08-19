@@ -4,17 +4,31 @@ using UnityEngine;
 namespace ZdtdConnect
 {
     /// <summary>
-    /// updateRespawn short-circuits to Done because EntityAlive.Spawned is
-    /// already true, so it never reaches the block that closes the loading
-    /// screen. Log every write to Spawned on the local player with a stack
-    /// trace: the caller identifies which server package (or client path)
-    /// flips it mid-sequence.
+    /// Spawned trace for join-diagnostics. Full stack traces every frame are
+    /// brutal in normal play, so this is now opt-in via ZDTD_CONNECT_DEBUG=1.
     /// </summary>
+    static class SpawnedTraceConfig
+    {
+        public static bool Enabled
+        {
+            get
+            {
+                try
+                {
+                    var v = System.Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
+                    return v == "1" || v == "true";
+                }
+                catch { return false; }
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(EntityAlive), "set_Spawned")]
     static class Patch_EntityAlive_SetSpawned
     {
         static void Prefix(EntityAlive __instance, bool value)
         {
+            if (!SpawnedTraceConfig.Enabled) return;
             try
             {
                 if (!(__instance is EntityPlayerLocal)) return;
@@ -27,15 +41,12 @@ namespace ZdtdConnect
         }
     }
 
-    /// <summary>
-    /// OnAddedToWorld writes bSpawned directly, bypassing the property setter,
-    /// so the setter hook alone can miss the flip.
-    /// </summary>
     [HarmonyPatch(typeof(EntityAlive), "OnAddedToWorld")]
     static class Patch_EntityAlive_OnAddedToWorld
     {
         static void Postfix(EntityAlive __instance)
         {
+            if (!SpawnedTraceConfig.Enabled) return;
             try
             {
                 if (!(__instance is EntityPlayerLocal)) return;
