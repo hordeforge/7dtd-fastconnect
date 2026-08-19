@@ -7,26 +7,15 @@ namespace ZdtdConnect
     /// <summary>
     /// Window open/close trace for join-diagnostics. Very spammy in normal play
     /// (toolTip/saveIndicator fire every tick), so this is now opt-in via
-    /// ZDTD_CONNECT_DEBUG=1 and filters the two spammy HUD windows otherwise.
+    /// ZDTD_CONNECT_DEBUG or `diag on`.
     /// </summary>
     static class WindowTraceConfig
     {
-        public static bool Enabled
-        {
-            get
-            {
-                try
-                {
-                    var v = Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
-                    return v == "1" || v == "true";
-                }
-                catch { return false; }
-            }
-        }
         public static bool ShouldLog(string id)
         {
-            if (id == "toolTip" || id == "saveIndicator") return Enabled;
-            return Enabled;
+            if (!DiagToggle.Enabled) return false;
+            // When enabled, log everything including spam (that's the point of debug).
+            return true;
         }
     }
 

@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace ZdtdConnect
 {
-    /// <summary>Spawn-selection heartbeat — opt-in via ZDTD_CONNECT_DEBUG=1.</summary>
+    /// <summary>Spawn-selection heartbeat — opt-in via ZDTD_CONNECT_DEBUG or `diag on`.</summary>
     [HarmonyPatch(typeof(XUiC_SpawnSelectionWindow), "updateLoadState")]
     static class Patch_SpawnSelectionWindow_updateLoadState
     {
@@ -12,12 +12,8 @@ namespace ZdtdConnect
 
         static void Prefix(XUiC_SpawnSelectionWindow __instance)
         {
-            try
-            {
-                var v = System.Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
-                if (v != "1" && v != "true") { _calls++; return; }
-            }
-            catch { _calls++; return; }
+            _calls++;
+            if (!DiagToggle.Enabled) return;
             _calls++;
             if (Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + 5f;

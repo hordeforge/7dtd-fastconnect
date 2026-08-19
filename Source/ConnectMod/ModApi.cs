@@ -11,14 +11,15 @@ namespace ZdtdConnect
     public class ModApi : IModApi
     {
         public const string HarmonyId = "com.zdtd.connect";
-        public const string Version = "0.9.4";
+        public const string Version = "0.9.5";
         public const string PlayerNameEnv = "ZDTD_PLAYER_NAME";
         static bool _autoTried;
         static Harmony _harmony;
 
         public void InitMod(Mod _modInstance)
         {
-            Log.Out("[zdtd-connect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest)");
+            DiagToggle.AnnounceOnce();
+            Log.Out("[zdtd-connect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest) — diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or ZDTD_CONNECT_DEBUG=1)");
 
             try
             {
@@ -132,6 +133,7 @@ namespace ZdtdConnect
 
         static void OnMainMenuOpened(ref ModEvents.SMainMenuOpenedData _data)
         {
+            DiagToggle.AnnounceOnce();
             try
             {
                 XUiC_MainMenu.shownNewsScreenOnce = true;

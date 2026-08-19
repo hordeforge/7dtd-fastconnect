@@ -3,24 +3,9 @@ using UnityEngine;
 
 namespace ZdtdConnect
 {
-    /// <summary>
-    /// Spawned trace for join-diagnostics. Full stack traces every frame are
-    /// brutal in normal play, so this is now opt-in via ZDTD_CONNECT_DEBUG=1.
-    /// </summary>
     static class SpawnedTraceConfig
     {
-        public static bool Enabled
-        {
-            get
-            {
-                try
-                {
-                    var v = System.Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
-                    return v == "1" || v == "true";
-                }
-                catch { return false; }
-            }
-        }
+        public static bool Enabled => DiagToggle.Enabled;
     }
 
     [HarmonyPatch(typeof(EntityAlive), "set_Spawned")]

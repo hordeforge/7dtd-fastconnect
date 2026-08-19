@@ -3,18 +3,13 @@ using UnityEngine;
 
 namespace ZdtdConnect
 {
-    /// <summary>AliveFlags trace for diagnostics — opt-in via ZDTD_CONNECT_DEBUG=1.</summary>
+    /// <summary>AliveFlags trace — opt-in via ZDTD_CONNECT_DEBUG or `diag on`.</summary>
     [HarmonyPatch(typeof(NetPackageEntityAliveFlags), "ProcessPackage")]
     static class Patch_NetPackageEntityAliveFlags_Process
     {
         static void Prefix(NetPackageEntityAliveFlags __instance)
         {
-            try
-            {
-                var v = System.Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
-                if (v != "1" && v != "true") return;
-            }
-            catch { return; }
+            if (!DiagToggle.Enabled) return;
             try
             {
                 var gm = GameManager.Instance;

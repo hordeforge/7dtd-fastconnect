@@ -15,22 +15,9 @@ namespace ZdtdConnect
     {
         static float _nextLog;
         static int _shots;
-        static bool Dbg
-        {
-            get
-            {
-                try
-                {
-                    var v = System.Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
-                    return v == "1" || v == "true";
-                }
-                catch { return false; }
-            }
-        }
-
         static void Postfix()
         {
-            if (!Dbg) return;
+            if (!DiagToggle.Enabled) return;
             if (Time.unscaledTime < _nextLog) return;
             _nextLog = Time.unscaledTime + 5f;
             try
