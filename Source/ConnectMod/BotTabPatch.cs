@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>
     /// Append FPS bots (zombieSoldier with [Bot] prefix) to the Tab player list.
@@ -189,11 +189,11 @@ namespace ZdtdConnect
                 catch { }
 
                 // Throttle log
-                // Log.Out($"[zdtd-connect] Tab bots injected +{added} total={sorted.Count}");
+                // Log.Out($"[7dtd-connect] Tab bots injected +{added} total={sorted.Count}");
             }
             catch (Exception ex)
             {
-                try { Log.Warning("[zdtd-connect] BotTabPatch failed: " + ex.Message); } catch { }
+                try { Log.Warning("[7dtd-connect] BotTabPatch failed: " + ex.Message); } catch { }
             }
         }
 

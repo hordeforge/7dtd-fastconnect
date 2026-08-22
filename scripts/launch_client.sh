@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch stock 7DTD client (Proton) with EAC off. Optional ZDTD_CONNECT auto-join via zdtd-connect mod.
+# Launch stock 7DTD client (Proton) with EAC off. Optional 7DTD_CONNECT auto-join via the connect mod.
 #
 # Client audio is muted by default (PipeWire/Pulse sink-input) for automated
 # runs. Opt out: CLIENT_MUTE=0 or SEVEN_DAYS_TO_DIE_CLIENT_MUTE=0.
@@ -13,7 +13,7 @@ STEAM_APPID="${STEAM_APPID:-251570}"
 # Derive the Proton prefix from GAME, so a library on another disk works. A
 # hardcoded default path silently falls through to the `steam -applaunch`
 # branch below on such an install, which loses the environment this script was
-# given -- and passing ZDTD_CONNECT or a playtest suite variable through the
+# given -- and passing 7DTD_CONNECT or a playtest suite variable through the
 # environment is the whole point of launching Proton directly.
 COMPAT="${COMPAT:-}"
 if [[ -z "$COMPAT" && "$GAME" == */steamapps/common/* ]]; then
@@ -41,14 +41,19 @@ if [[ -z "$PROTON" ]]; then
   done
 fi
 
-CONNECT="${ZDTD_CONNECT:-}"
+# Bash cannot expand or export a variable name starting with a digit, so read
+# the canonical 7DTD_CONNECT via printenv; the legacy ZDTD_CONNECT (a valid
+# bash name) is the fallback.
+CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
 if [[ -z "$CONNECT" ]]; then
-  CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
+  CONNECT="$(printenv ZDTD_CONNECT 2>/dev/null || true)"
 fi
 # Always skip TFP intro splash (before mods load) and stock news launch pref.
 EXTRA_ARGS=(-skipintro -SkipNewsScreen=true)
 if [[ -n "$CONNECT" ]]; then
   EXTRA_ARGS+=(-connect="$CONNECT")
+  # Legacy alias for older mod builds; 7DTD_CONNECT is already inherited from
+  # the caller's environment when set via `env 7DTD_CONNECT=... ./launch_client.sh`.
   export ZDTD_CONNECT="$CONNECT"
 fi
 
@@ -103,7 +108,7 @@ fi
 
 LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
 mkdir -p "$LOGDIR"
-LOGFILE="$LOGDIR/output_log_client_zdtd_connect.txt"
+LOGFILE="$LOGDIR/output_log_client_7dtd_connect.txt"
 
 if [[ ! -d "$GAME" ]]; then
   echo "Game not found: $GAME" >&2
@@ -134,7 +139,7 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   echo "Log: $LOGFILE"
   cd "$GAME"
   # Cannot mute after exec — run proton, mute in parallel, wait for the game.
-  "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_zdtd_connect.txt" "${EXTRA_ARGS[@]}" "$@" &
+  "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt" "${EXTRA_ARGS[@]}" "$@" &
   game_pid=$!
   start_mute_poll
   wait "$game_pid"
@@ -144,7 +149,8 @@ fi
 # Fallback: Steam app launch (may still run EAC depending on launcher settings).
 echo "Proton not found; using steam -applaunch $STEAM_APPID (set UseEAC false in launcher if needed)"
 echo "Connect: ${CONNECT:-"(none)"}"
-# Steam does not reliably pass -connect=; env ZDTD_CONNECT is still set for the mod.
+# Steam does not reliably pass -connect=; export the legacy name for the mod
+# (7DTD_CONNECT is inherited when the caller used `env 7DTD_CONNECT=...`).
 export ZDTD_CONNECT="${CONNECT:-}"
 steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@" &
 steam_pid=$!

@@ -1,7 +1,7 @@
 using HarmonyLib;
 using UnityEngine;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     static class SpawnedTraceConfig
     {
@@ -17,7 +17,7 @@ namespace ZdtdConnect
             try
             {
                 if (!(__instance is EntityPlayerLocal)) return;
-                Log.Out("[zdtd-connect] sp set=" + value
+                Log.Out("[7dtd-connect] sp set=" + value
                     + " was=" + __instance.Spawned
                     + " t=" + Time.unscaledTime
                     + "\n" + System.Environment.StackTrace);
@@ -35,7 +35,7 @@ namespace ZdtdConnect
             try
             {
                 if (!(__instance is EntityPlayerLocal)) return;
-                Log.Out("[zdtd-connect] sp added remote=" + __instance.isEntityRemote
+                Log.Out("[7dtd-connect] sp added remote=" + __instance.isEntityRemote
                     + " Spawned=" + __instance.Spawned
                     + " t=" + Time.unscaledTime
                     + "\n" + System.Environment.StackTrace);

@@ -1,13 +1,13 @@
 using HarmonyLib;
 using UnityEngine;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>
     /// In-game spawn/load heartbeat: logs the exact gates the
     /// "Starting game..." overlay checks, so a stuck join shows which
     /// condition never flips. Very chatty, so this is now opt-in via
-    /// ZDTD_CONNECT_DEBUG=1 — normal play only gets useful one-shots
+    /// 7DTD_CONNECT_DEBUG=1 — normal play only gets useful one-shots
     /// (spawn position, first frame, etc; those stay unconditional).
     /// </summary>
     [HarmonyPatch(typeof(GameManager), "gmUpdate")]
@@ -43,7 +43,7 @@ namespace ZdtdConnect
                 var ui = LocalPlayerUI.GetUIForPrimaryPlayer();
                 bool xuiReady = ui != null && ui.xui != null && ui.xui.IsReady;
 
-                Log.Out("[zdtd-connect] spawn hb started=" + started
+                Log.Out("[7dtd-connect] spawn hb started=" + started
                     + " cgo=" + cgo + "/" + needed
                     + " fixedSize=" + fixedSize
                     + " viewDist=" + viewDist
@@ -68,7 +68,7 @@ namespace ZdtdConnect
                     Vector3i srv = new Vector3i(srvRaw.x / 32, srvRaw.y / 32, srvRaw.z / 32);
                     Vector3i d = posI - srv;
                     bool wouldSend = Mathf.Abs(d.x) >= 2 || Mathf.Abs(d.y) >= 2 || Mathf.Abs(d.z) >= 2;
-                    Log.Out("[zdtd-connect] move hb posI=" + posI + " serverPos=" + srv + " raw=" + srvRaw
+                    Log.Out("[7dtd-connect] move hb posI=" + posI + " serverPos=" + srv + " raw=" + srvRaw
                         + " delta=" + d + " wouldSend=" + wouldSend
                         + " spawned=" + player.IsSpawned() + " Spawned=" + player.Spawned
                         + " remote=" + player.isEntityRemote
@@ -95,7 +95,7 @@ namespace ZdtdConnect
                     {
                         dens += " y" + (b.y + dy) + "=" + world.GetDensity(b.x, b.y + dy, b.z);
                     }
-                    Log.Out("[zdtd-connect] col hb at " + b.x + "," + b.z + col
+                    Log.Out("[7dtd-connect] col hb at " + b.x + "," + b.z + col
                         + " chunkLoaded=" + (world.GetChunkFromWorldPos(b) != null)
                         + " dens:" + dens);
 
@@ -108,7 +108,7 @@ namespace ZdtdConnect
                     bool hit = Physics.Raycast(
                         new Ray(player.position + Vector3.up * 1.5f, Vector3.down),
                         out RaycastHit rh, float.MaxValue, 0x10000);
-                    Log.Out("[zdtd-connect] mesh hb chunk=" + (ch != null ? ch.Key.ToString() : "null")
+                    Log.Out("[7dtd-connect] mesh hb chunk=" + (ch != null ? ch.Key.ToString() : "null")
                         + (ch != null
                             ? " needsRegen=" + ch.NeedsRegeneration
                                 + " needsLight=" + ch.NeedsLightCalculation
@@ -132,7 +132,7 @@ namespace ZdtdConnect
                         }
                         ring += "/";
                     }
-                    Log.Out("[zdtd-connect] ring hb " + ring + " (.=absent r=needsRegen o=meshed D=displayed)");
+                    Log.Out("[7dtd-connect] ring hb " + ring + " (.=absent r=needsRegen o=meshed D=displayed)");
 
                     // updateRespawn parks in ClampingToValidWorldPos, which means
                     // World.IsPositionAvailable said no. That call needs the
@@ -169,16 +169,16 @@ namespace ZdtdConnect
                     // terrain tint plus biome fog are driven by the chunk's biome id,
                     // so log what the client actually received.
                     var pch = world.GetChunkFromWorldPos(b) as Chunk;
-                    Log.Out("[zdtd-connect] biome hb chunkBiome="
+                    Log.Out("[7dtd-connect] biome hb chunkBiome="
                         + (pch != null ? pch.GetBiomeId(b.x & 15, b.z & 15).ToString() : "null")
                         + " worldBiome=" + (world.GetBiome(b.x, b.z) != null ? world.GetBiome(b.x, b.z).m_sBiomeName : "null")
                         + " dayPercent=" + SkyManager.dayPercent
                         + " indoorFog=" + SkyManager.indoorFogOn);
 
-                    Log.Out("[zdtd-connect] poi hb centre(-241,471):" + poi
+                    Log.Out("[7dtd-connect] poi hb centre(-241,471):" + poi
                         + " columnsAboveGround=" + solid + "/49");
 
-                    Log.Out("[zdtd-connect] avail hb posAvailable="
+                    Log.Out("[7dtd-connect] avail hb posAvailable="
                         + world.IsPositionAvailable(player.position) + " ring:" + avail);
 
                     // Is the delivered window centred on the player, or is the
@@ -195,7 +195,7 @@ namespace ZdtdConnect
                         if (c2.Z < minZ) minZ = c2.Z;
                         if (c2.Z > maxZ) maxZ = c2.Z;
                     }
-                    Log.Out("[zdtd-connect] cache hb n=" + cnt + " displayed=" + disp
+                    Log.Out("[7dtd-connect] cache hb n=" + cnt + " displayed=" + disp
                         + " x=[" + minX + ".." + maxX + "] z=[" + minZ + ".." + maxZ + "]"
                         + " playerChunk=" + (b.x >> 4) + "," + (b.z >> 4));
 
@@ -214,7 +214,7 @@ namespace ZdtdConnect
                         // position against spawnPosition and needs the spawn
                         // window object to exist. Log both sides.
                         var ssw = XUiC_SpawnSelectionWindow.GetWindow(LocalPlayerUI.primaryUI);
-                        Log.Out("[zdtd-connect] pmc hb spawnPos=" + pmc.spawnPosition.position
+                        Log.Out("[7dtd-connect] pmc hb spawnPos=" + pmc.spawnPosition.position
                             + " undef=" + pmc.spawnPosition.IsUndef()
                             + " playerPos=" + player.position
                             + " equal=" + (player.position == pmc.spawnPosition.position)
@@ -223,7 +223,7 @@ namespace ZdtdConnect
                             + " spawnMethod=" + (ssw != null ? ssw.spawnMethod.ToString() : "-"));
                     }
                     var wm = ui != null ? ui.windowManager : null;
-                    Log.Out("[zdtd-connect] ui hb respawnReason="
+                    Log.Out("[7dtd-connect] ui hb respawnReason="
                         + (pmc != null ? pmc.respawnReason.ToString() : "null")
                         + " spawnWindowOpened=" + (pmc != null ? pmc.spawnWindowOpened.ToString() : "-")
                         + " loadingScreen=" + (wm != null && wm.IsWindowOpen(XUiC_LoadingScreen.ID))
@@ -246,7 +246,7 @@ namespace ZdtdConnect
                             if (kv.Value != null && kv.Value.isShowing) wins += " " + kv.Key;
                         }
                     }
-                    Log.Out("[zdtd-connect] win hb frame=" + Time.frameCount
+                    Log.Out("[7dtd-connect] win hb frame=" + Time.frameCount
                         + " focused=" + Application.isFocused
                         + " open:" + (wins.Length == 0 ? " (none)" : wins));
 
@@ -260,7 +260,7 @@ namespace ZdtdConnect
                         string p = "C:/users/steamuser/AppData/Roaming/7DaysToDie/zdtd_shot_"
                             + _shots + ".png";
                         ScreenCapture.CaptureScreenshot(p);
-                        Log.Out("[zdtd-connect] shot " + _shots + " -> " + p);
+                        Log.Out("[7dtd-connect] shot " + _shots + " -> " + p);
                     }
                 }
             }

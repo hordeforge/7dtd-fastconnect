@@ -1,6 +1,6 @@
 ROOT := $(CURDIR)
 GAME ?= $(HOME)/.local/share/Steam/steamapps/common/7 Days To Die
-MOD_NAME := zdtd-connect
+MOD_NAME := 7dtd-connect
 DIST := $(ROOT)/dist/$(MOD_NAME)
 # Overridable so the mod can be installed into the per-user Mods directory
 # (~/.../AppData/Roaming/7DaysToDie/Mods under Proton), which the game also
@@ -27,10 +27,10 @@ build:
 
 install: build
 	mkdir -p "$(INSTALL_DIR)"
-	cp -f "$(DIST)/ModInfo.xml" "$(DIST)/zdtd-connect.dll" "$(INSTALL_DIR)/"
+	cp -f "$(DIST)/ModInfo.xml" "$(DIST)/7dtd-connect.dll" "$(INSTALL_DIR)/"
 	@echo "Installed → $(INSTALL_DIR)"
 	@echo "Launch client with EAC off (-noeac). Example:"
-	@echo "  ZDTD_CONNECT=127.0.0.1:27025 $(ROOT)/scripts/launch_client.sh"
+	@echo "  env 7DTD_CONNECT=127.0.0.1:27025 $(ROOT)/scripts/launch_client.sh"
 
 uninstall:
 	rm -rf "$(INSTALL_DIR)"

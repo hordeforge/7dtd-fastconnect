@@ -38,7 +38,7 @@ done
 # **7dtd-playtest** mod (not connect). Prefer:
 #   make -C ../7dtd-playtest playtest-smoke
 # for scored exit codes. This script only launches the pair.
-ZDTD_CONNECT="127.0.0.1:$PORT" \
+env 7DTD_CONNECT="127.0.0.1:$PORT" \
 PLAYTEST="${PLAYTEST:-}" \
 PLAYTEST_SUITE="${PLAYTEST_SUITE:-}" \
   nohup "$SCRIPTDIR/launch_client.sh" \

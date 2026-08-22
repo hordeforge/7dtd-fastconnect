@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <xml>
-  <Name value="zdtd-connect" />
-  <DisplayName value="zdtd Connect" />
+  <Name value="7dtd-connect" />
+  <DisplayName value="7dtd Connect" />
   <Description value="Client: F1 connect command + env/CLI auto-join for local/dev servers (EAC off)." />
   <Author value="7dtd workspace" />
-  <Version value="0.9.5" />
+  <Version value="0.10.2" />
   <Website value="" />
 </xml>

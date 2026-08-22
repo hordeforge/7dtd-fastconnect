@@ -2,12 +2,12 @@ using System;
 using HarmonyLib;
 using UnityEngine;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>
     /// Window open/close trace for join-diagnostics. Very spammy in normal play
     /// (toolTip/saveIndicator fire every tick), so this is now opt-in via
-    /// ZDTD_CONNECT_DEBUG or `diag on`.
+    /// 7DTD_CONNECT_DEBUG or `diag on`.
     /// </summary>
     static class WindowTraceConfig
     {
@@ -25,7 +25,7 @@ namespace ZdtdConnect
         static void Prefix(string _windowName)
         {
             if (!WindowTraceConfig.ShouldLog(_windowName)) return;
-            try { Log.Out("[zdtd-connect] wt open " + _windowName + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-connect] wt open " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }
 
@@ -35,7 +35,7 @@ namespace ZdtdConnect
         static void Prefix(string _windowName)
         {
             if (!WindowTraceConfig.ShouldLog(_windowName)) return;
-            try { Log.Out("[zdtd-connect] wt open3 " + _windowName + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-connect] wt open3 " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }
 
@@ -46,7 +46,7 @@ namespace ZdtdConnect
         {
             string id = _w != null ? _w.Id : "null";
             if (!WindowTraceConfig.ShouldLog(id)) return;
-            try { Log.Out("[zdtd-connect] wt openW " + id + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-connect] wt openW " + id + " t=" + Time.unscaledTime); } catch { }
         }
     }
 
@@ -57,7 +57,7 @@ namespace ZdtdConnect
         {
             string id = _w != null ? _w.Id : "null";
             if (!WindowTraceConfig.ShouldLog(id)) return;
-            try { Log.Out("[zdtd-connect] wt closeW " + id + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-connect] wt closeW " + id + " t=" + Time.unscaledTime); } catch { }
         }
     }
 
@@ -67,7 +67,7 @@ namespace ZdtdConnect
         static void Prefix(string _windowName)
         {
             if (!WindowTraceConfig.ShouldLog(_windowName)) return;
-            try { Log.Out("[zdtd-connect] wt close " + _windowName + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-connect] wt close " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }
 }

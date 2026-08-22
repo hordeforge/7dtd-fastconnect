@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>F1 console: connect &lt;host&gt; [port] (main menu).</summary>
     public class ConsoleCmdConnect : ConsoleCmdAbstract
     {
-        public override string[] getCommands() => new[] { "connect", "zdtdconnect", "joinip" };
+        public override string[] getCommands() => new[] { "connect", "7dtdconnect", "joinip" };
 
         public override string getDescription() =>
             "Connect to a server by IP (same as Connect to IP UI). Default port 27025.";
@@ -16,7 +16,7 @@ namespace ZdtdConnect
             "    connect 127.0.0.1\n" +
             "    connect 127.0.0.1 27025\n" +
             "    connect 127.0.0.1:27025\n" +
-            "  Env auto-join: ZDTD_CONNECT=127.0.0.1:27025 (or 7DTD_CONNECT)\n" +
+            "  Env auto-join: 7DTD_CONNECT=127.0.0.1:27025 (legacy ZDTD_CONNECT)\n" +
             "  Launch arg: -connect=127.0.0.1:27025\n" +
             "  Note: C# client mods require EAC off (-noeac).";
 
@@ -38,17 +38,17 @@ namespace ZdtdConnect
 
             if (!ConnectTarget.TryParse(raw, out string host, out int port, out string err))
             {
-                Out("[zdtd-connect] parse failed: " + err);
+                Out("[7dtd-connect] parse failed: " + err);
                 return;
             }
 
             if (!ConnectTarget.TryConnect(host, port, out string msg))
             {
-                Out("[zdtd-connect] " + msg);
+                Out("[7dtd-connect] " + msg);
                 return;
             }
 
-            Out("[zdtd-connect] " + msg);
+            Out("[7dtd-connect] " + msg);
         }
 
         static void Out(string s)

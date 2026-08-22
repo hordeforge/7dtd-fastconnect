@@ -1,9 +1,9 @@
 using HarmonyLib;
 using UnityEngine;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
-    /// <summary>Spawn-selection heartbeat — opt-in via ZDTD_CONNECT_DEBUG or `diag on`.</summary>
+    /// <summary>Spawn-selection heartbeat — opt-in via 7DTD_CONNECT_DEBUG or `diag on`.</summary>
     [HarmonyPatch(typeof(XUiC_SpawnSelectionWindow), "updateLoadState")]
     static class Patch_SpawnSelectionWindow_updateLoadState
     {
@@ -27,7 +27,7 @@ namespace ZdtdConnect
                 bool fixedSize = world != null && world.ChunkCache != null && world.ChunkCache.IsFixedSize;
                 int needed = fixedSize ? 0 : vd * vd - 10;
                 var cm = SingletonMonoBehaviour<ConnectionManager>.Instance;
-                Log.Out("[zdtd-connect] load hb calls=" + _calls + " started="
+                Log.Out("[7dtd-connect] load hb calls=" + _calls + " started="
                     + (gm != null && gm.gameStateManager != null && gm.gameStateManager.IsGameStarted())
                     + " gameState=" + GameStats.GetInt(EnumGameStats.GameState)
                     + " delay=" + __instance.delayCountdownTime

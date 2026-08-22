@@ -1,18 +1,20 @@
 using System;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
-    /// <summary>Runtime + persistent toggle for verbose zdtd-connect traces.</summary>
+    /// <summary>Runtime + persistent toggle for verbose 7dtd-connect traces.</summary>
     internal static class DiagToggle
     {
-        // Env flip set at launch: ZDTD_CONNECT_DEBUG=1 / true
+        // Env flip set at launch: 7DTD_CONNECT_DEBUG=1 / true (legacy ZDTD_CONNECT_DEBUG still honored)
         static bool EnvEnabled
         {
             get
             {
                 try
                 {
-                    var v = Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG");
+                    string v = Environment.GetEnvironmentVariable("7DTD_CONNECT_DEBUG");
+                    if (string.IsNullOrEmpty(v))
+                        v = Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG"); // legacy
                     return v == "1" || v == "true" || v == "True";
                 }
                 catch { return false; }
@@ -38,7 +40,7 @@ namespace ZdtdConnect
         {
             if (_reported) return;
             _reported = true;
-            if (Enabled) Log.Out("[zdtd-connect] diag verbose ON (ZDTD_CONNECT_DEBUG=1 or `diag on`)");
+            if (Enabled) Log.Out("[7dtd-connect] diag verbose ON (7DTD_CONNECT_DEBUG=1 or `diag on`)");
         }
 
         // Console command sets this via DiagToggle.Set(consoleValue, interactive: true)
@@ -50,7 +52,7 @@ namespace ZdtdConnect
             try
             {
                 // Also mirror into process env so fresh reads agree.
-                Environment.SetEnvironmentVariable("ZDTD_CONNECT_DEBUG", on ? "1" : "0");
+                Environment.SetEnvironmentVariable("7DTD_CONNECT_DEBUG", on ? "1" : "0");
             }
             catch { }
         }
@@ -58,7 +60,7 @@ namespace ZdtdConnect
         internal static string StatusLine()
         {
             string src = _consoleHasOverride ? "console" : (EnvEnabled ? "env" : "default");
-            return "[zdtd-connect] diag " + (Enabled ? "ON" : "OFF") + " (" + src + ")";
+            return "[7dtd-connect] diag " + (Enabled ? "ON" : "OFF") + " (" + src + ")";
         }
     }
 }

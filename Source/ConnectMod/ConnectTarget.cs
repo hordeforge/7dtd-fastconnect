@@ -1,13 +1,13 @@
 using System;
 using System.Net;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>Parse host:port from env / argv / console and drive stock ConnectionManager.Connect.</summary>
     public static class ConnectTarget
     {
-        public const string EnvVar = "ZDTD_CONNECT";
-        public const string EnvVarAlt = "7DTD_CONNECT";
+        public const string EnvVar = "7DTD_CONNECT";
+        public const string EnvVarAlt = "ZDTD_CONNECT"; // legacy (pre-rename)
         public const int DefaultPort = 27025;
 
         public static bool TryParse(string raw, out string host, out int port, out string error)
@@ -77,7 +77,7 @@ namespace ZdtdConnect
             return true;
         }
 
-        /// <summary>Env first (ZDTD_CONNECT, then 7DTD_CONNECT), then -connect= / +connect from argv.</summary>
+        /// <summary>Env first (7DTD_CONNECT, then legacy ZDTD_CONNECT), then -connect= / +connect from argv.</summary>
         public static bool TryFromLaunchContext(out string host, out int port, out string source)
         {
             host = null;
@@ -221,10 +221,10 @@ namespace ZdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[zdtd-connect] SkipSpawnButton set failed: " + ex.Message);
+                    Log.Warning("[7dtd-connect] SkipSpawnButton set failed: " + ex.Message);
                 }
 
-                Log.Out($"[zdtd-connect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={host})");
+                Log.Out($"[7dtd-connect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={host})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";
@@ -245,6 +245,9 @@ namespace ZdtdConnect
     /// </summary>
     public static class ConnectReady
     {
+        // Wall time (unscaled) when the cross user was first seen without an id.
+        static float _crossWaitStart = -1f;
+
         public static bool IsReady(out string reason)
         {
             reason = null;
@@ -276,8 +279,13 @@ namespace ZdtdConnect
                     return false;
                 }
 
-                // Crossplay/EOS login is optional for EAC-off LAN stock dedi (our BotMod target).
-                // Do not hard-block on PlatformUserId==null; just log. The server accepts LiteNet without EOS.
+                // EOS login must finish before connecting on Steam clients:
+                // ProtocolManager.SetupProtocols builds Platform.EOS.NetworkServerEos
+                // and NREs when the cross user has no id yet (observed racing the
+                // [EOS] Login at ~8 s of boot). Wait for the cross user (bounded),
+                // then proceed anyway so a broken or absent EOS login cannot block
+                // the join forever. Local-mode clients have no cross platform, so
+                // this gate never engages there.
                 try
                 {
                     var cross = Platform.PlatformManager.CrossplatformPlatform;
@@ -286,13 +294,24 @@ namespace ZdtdConnect
                         var user = cross.User;
                         if (user != null && user.PlatformUserId == null)
                         {
-                            Log.Out("[zdtd-connect] note: Crossplatform.User.PlatformUserId=null but proceeding (EAC off LAN)");
+                            if (_crossWaitStart < 0f)
+                                _crossWaitStart = UnityEngine.Time.unscaledTime;
+                            if (UnityEngine.Time.unscaledTime - _crossWaitStart < 30f)
+                            {
+                                reason = "cross user not logged in yet";
+                                return false;
+                            }
+                            Log.Out("[7dtd-connect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
+                        }
+                        else if (user != null)
+                        {
+                            _crossWaitStart = -1f; // logged in; reset for later rejoins
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log.Out("[zdtd-connect] cross-user note: " + ex.Message);
+                    Log.Out("[7dtd-connect] cross-user note: " + ex.Message);
                 }
 
                 // Native steam user also optional when EAC off; proceed after 12s even if null.
@@ -307,12 +326,12 @@ namespace ZdtdConnect
                             reason = "Native.User.PlatformUserId=null (early; retry in a moment)";
                             return false;
                         }
-                        Log.Out("[zdtd-connect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
+                        Log.Out("[7dtd-connect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log.Out("[zdtd-connect] native-user note: " + ex.Message);
+                    Log.Out("[7dtd-connect] native-user note: " + ex.Message);
                 }
 
                 if (!PermissionsManager.IsMultiplayerAllowed())

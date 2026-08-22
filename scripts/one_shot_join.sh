@@ -9,7 +9,13 @@ mkdir -p "$SCRATCH"
 
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
-CONNECT="${ZDTD_CONNECT:-$HOST:$PORT}"
+# Bash cannot expand/export names starting with a digit, so read the canonical
+# 7DTD_CONNECT via printenv; legacy ZDTD_CONNECT is the fallback.
+CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
+if [[ -z "$CONNECT" ]]; then
+  CONNECT="$(printenv ZDTD_CONNECT 2>/dev/null || true)"
+fi
+CONNECT="${CONNECT:-$HOST:$PORT}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-240}"
 CYCLE="${CYCLE:-1}"
 START_SERVER="${START_SERVER:-0}"
@@ -20,7 +26,7 @@ WORLD_DIR="${WORLD_DIR:-$(cd "$ROOT/../zdtd" && pwd)/worlds/zdtd_goal}"
 STEAM_APPID="${STEAM_APPID:-251570}"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 COMPAT="${COMPAT:-$STEAM_ROOT/steamapps/compatdata/$STEAM_APPID}"
-CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_zdtd_connect.txt"
+CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
 CLIENT_LOG_OUT="$SCRATCH/stock-join-${CYCLE}.log"
 SERVER_LOG_OUT="$SCRATCH/zdtd-server-${CYCLE}.log"
 LIFE_OUT="$SCRATCH/client-lifecycle-${CYCLE}.txt"
@@ -129,8 +135,8 @@ mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
 # Kill any leftover client before launch.
 kill_clients || true
 
-export ZDTD_CONNECT="$CONNECT"
-log "launching client ZDTD_CONNECT=$ZDTD_CONNECT"
+export ZDTD_CONNECT="$CONNECT"  # legacy alias (7DTD_CONNECT cannot be exported in bash)
+log "launching client connect=$CONNECT"
 # Launch in background; capture proton/game children via pgrep after a beat.
 setsid "$LAUNCH" >"$SCRATCH/launch-${CYCLE}.log" 2>&1 &
 launch_pid=$!
@@ -163,7 +169,7 @@ while (( SECONDS < deadline )); do
     fi
     if rg -q 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed' "$CLIENT_LOG_SRC" 2>/dev/null; then
       # Only treat as fail if we never saw a good join signal
-      if ! rg -q 'PlayerSpawnedInWorld|\[zdtd-connect\] .*connected|Created player|Local Player|Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if ! rg -q 'PlayerSpawnedInWorld|\[7dtd-connect\] .*connected|Created player|Local Player|Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
         result="kick_or_disconnect"
         break
       fi
@@ -220,7 +226,7 @@ fi
 log "result=$result"
 log "client log -> $CLIENT_LOG_OUT"
 log "key client lines:"
-rg -n 'zdtd-connect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|error|ERR' \
+rg -n '7dtd-connect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|error|ERR' \
   "$CLIENT_LOG_OUT" 2>/dev/null | head -80 | tee -a "$LIFE_OUT" || true
 
 log "after clients before kill: $(list_client_pids | tr '\n' ' ')"

@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text;
 using HarmonyLib;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>
     /// Optional RE dump of runtime Block.blockID values (env ZDTD_DUMP_BLOCK_IDS=1).
@@ -43,17 +43,17 @@ namespace ZdtdConnect
                 return;
             }
             _dumped = true;
-            Log.Out("[zdtd-connect] BlockIdDump reason=" + reason);
+            Log.Out("[7dtd-connect] BlockIdDump reason=" + reason);
 
             // Pins first (always visible in client log).
             foreach (var name in PinNames)
             {
                 int id = LookupId(name);
-                Log.Out("[zdtd-connect] Block.id name=" + name + " id=" + id);
+                Log.Out("[7dtd-connect] Block.id name=" + name + " id=" + id);
             }
 
             int written = DumpAllBlocks();
-            Log.Out("[zdtd-connect] BlockIdDump full rows=" + written);
+            Log.Out("[7dtd-connect] BlockIdDump full rows=" + written);
         }
 
         static int LookupId(string name)
@@ -65,7 +65,7 @@ namespace ZdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] Block.id fail name=" + name + " " + ex.Message);
+                Log.Warning("[7dtd-connect] Block.id fail name=" + name + " " + ex.Message);
                 return -1;
             }
         }
@@ -91,7 +91,7 @@ namespace ZdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] BlockIdDump map walk: " + ex.Message);
+                Log.Warning("[7dtd-connect] BlockIdDump map walk: " + ex.Message);
             }
 
             if (rows.Count == 0)
@@ -116,11 +116,11 @@ namespace ZdtdConnect
                     sb.Append('\n');
                 }
                 File.WriteAllText(outPath, sb.ToString());
-                Log.Out("[zdtd-connect] BlockIdDump wrote " + rows.Count + " rows → " + outPath);
+                Log.Out("[7dtd-connect] BlockIdDump wrote " + rows.Count + " rows → " + outPath);
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] BlockIdDump write failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] BlockIdDump write failed: " + ex.Message);
             }
             return rows.Count;
         }

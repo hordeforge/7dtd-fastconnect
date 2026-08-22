@@ -3,7 +3,7 @@ using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>
     /// Proton/headless: keep main thread + addressables moving.
@@ -25,7 +25,7 @@ namespace ZdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] frame uncap failed (" + reason + "): " + ex.Message);
+                Log.Warning("[7dtd-connect] frame uncap failed (" + reason + "): " + ex.Message);
             }
         }
 
@@ -38,16 +38,16 @@ namespace ZdtdConnect
                     BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
                 if (fi == null || fi.FieldType != typeof(bool))
                 {
-                    Log.Warning("[zdtd-connect] LoadManager.forceLoadSync field missing");
+                    Log.Warning("[7dtd-connect] LoadManager.forceLoadSync field missing");
                     return;
                 }
                 fi.SetValue(null, true);
                 _forceSyncSet = true;
-                Log.Out("[zdtd-connect] LoadManager.forceLoadSync=true (automation addressables)");
+                Log.Out("[7dtd-connect] LoadManager.forceLoadSync=true (automation addressables)");
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] forceLoadSync set failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] forceLoadSync set failed: " + ex.Message);
             }
         }
     }
@@ -59,7 +59,7 @@ namespace ZdtdConnect
         {
             BootUnblock.ApplyFrameUncap("Awake");
             BootUnblock.ApplyForceLoadSync();
-            Log.Out("[zdtd-connect] boot unblock RIB+noVSync+uncappedFPS+forceLoadSync");
+            Log.Out("[7dtd-connect] boot unblock RIB+noVSync+uncappedFPS+forceLoadSync");
         }
     }
 
@@ -114,7 +114,7 @@ namespace ZdtdConnect
                 var gm = GameManager.Instance;
                 bool loaded = gm != null && gm.bStaticDataLoaded;
                 string action = gm != null ? gm.CurrentLoadAction : "?";
-                Log.Out("[zdtd-connect] boot hb ticks=" + _ticks
+                Log.Out("[7dtd-connect] boot hb ticks=" + _ticks
                     + " focused=" + Application.isFocused
                     + " rib=" + Application.runInBackground
                     + " vsync=" + QualitySettings.vSyncCount
@@ -144,7 +144,7 @@ namespace ZdtdConnect
                 __instance.loginCheckDone = true;
                 __instance.bOpenMainMenu = true;
                 __result = true;
-                Log.Out("[zdtd-connect] CheckLogin force-open main menu (automation)");
+                Log.Out("[7dtd-connect] CheckLogin force-open main menu (automation)");
                 try
                 {
                     var xui = __instance.windowManager?.playerUI?.xui;
@@ -153,13 +153,13 @@ namespace ZdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[zdtd-connect] background Login start failed: " + ex.Message);
+                    Log.Warning("[7dtd-connect] background Login start failed: " + ex.Message);
                 }
                 return false;
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] CheckLogin patch failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] CheckLogin patch failed: " + ex.Message);
                 return true;
             }
         }
@@ -174,7 +174,7 @@ namespace ZdtdConnect
         {
             try
             {
-                Log.Out("[zdtd-connect] blocking news screen open");
+                Log.Out("[7dtd-connect] blocking news screen open");
                 XUiC_MainMenu.shownNewsScreenOnce = true;
                 // Fall through to main menu instead of news.
                 if (_xuiInstance != null)
@@ -183,7 +183,7 @@ namespace ZdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] news skip failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] news skip failed: " + ex.Message);
                 return true;
             }
         }
@@ -195,7 +195,7 @@ namespace ZdtdConnect
     {
         static bool Prefix()
         {
-            Log.Out("[zdtd-connect] skipping DiscordManager.Init");
+            Log.Out("[7dtd-connect] skipping DiscordManager.Init");
             return false;
         }
     }
@@ -240,7 +240,7 @@ namespace ZdtdConnect
                 GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
                 GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
                 GamePrefs.Instance?.Save();
-                Log.Out("[zdtd-connect] blocking EULA window viewMode=" + _viewMode + " accepted=" + latest);
+                Log.Out("[7dtd-connect] blocking EULA window viewMode=" + _viewMode + " accepted=" + latest);
                 if (_viewMode)
                     return true; // options "view EULA" path: leave alone
                 if (_xui != null)
@@ -249,7 +249,7 @@ namespace ZdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] EULA skip failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] EULA skip failed: " + ex.Message);
                 return true;
             }
         }
@@ -269,7 +269,7 @@ namespace ZdtdConnect
                     if (!Steamworks.SteamAPI.IsSteamRunning())
                     {
                         __result = "";
-                        Log.Out("[zdtd-connect] steam GetAuthTicket: no Steam, returning empty (EAC off LAN)");
+                        Log.Out("[7dtd-connect] steam GetAuthTicket: no Steam, returning empty (EAC off LAN)");
                         return false;
                     }
                 }
@@ -283,7 +283,7 @@ namespace ZdtdConnect
         {
             if (__exception != null)
             {
-                Log.Warning("[zdtd-connect] GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty ticket");
+                Log.Warning("[7dtd-connect] GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty ticket");
                 __result = "";
                 return null;
             }
@@ -291,34 +291,30 @@ namespace ZdtdConnect
         }
     }
 
-    /// <summary>Steam-less Proton: client has no Steam/EOS identity, but stock dedi's PlayerIdAuthorizer kicks Empty name or player ID. Inject a synthetic local Steam id so SendLogin succeeds on EAC-off LAN (loopback). </summary>
+    /// <summary>Steam-less Proton: client has no Steam/EOS identity, but stock dedi's PlayerIdAuthorizer kicks Empty name or player ID. Inject a synthetic local Steam id so SendLogin succeeds on EAC-off LAN (loopback). With a real Steam login present, pass through so the server sees the real id and validates the real ticket.</summary>
     [HarmonyPatch(typeof(Platform.Steam.User), nameof(Platform.Steam.User.PlatformUserId), MethodType.Getter)]
     static class Patch_SteamUserId_Synthetic
     {
         static PlatformUserIdentifierAbs _fake;
         static bool Prefix(Platform.Steam.User __instance, ref PlatformUserIdentifierAbs __result)
         {
+            // Real Steam identity available -> let the original getter return it.
+            // Direct Steamworks call (avoids re-entering this patched getter).
+            try
+            {
+                if (Steamworks.SteamAPI.IsSteamRunning())
+                {
+                    var sid = Steamworks.SteamUser.GetSteamID();
+                    if (sid.IsValid() && sid.m_SteamID != 0UL)
+                        return true;
+                }
+            }
+            catch { }
             try
             {
                 if (_fake == null) _fake = new Platform.Steam.UserIdentifierSteam("76561199000000042");
-                // Always return fake when Steam not running; otherwise check underlying field for null.
-                bool useFake = false;
-                try { useFake = !Steamworks.SteamAPI.IsSteamRunning(); } catch { useFake = true; }
-                if (!useFake)
-                {
-                    try
-                    {
-                        // Steam running but id may still be null (e.g., early boot). Check backing field via getter fallback.
-                        var cur = Traverse.Create(__instance).Field("_platformUserId").GetValue<PlatformUserIdentifierAbs>();
-                        if (cur == null) useFake = true;
-                    }
-                    catch { }
-                }
-                if (useFake)
-                {
-                    __result = _fake;
-                    return false;
-                }
+                __result = _fake;
+                return false;
             }
             catch { }
             return true;
@@ -371,7 +367,7 @@ namespace ZdtdConnect
                     string fallback = Environment.UserName;
                     if (string.IsNullOrWhiteSpace(fallback)) fallback = "maci";
                     GamePrefs.Set(EnumGamePrefs.PlayerName, fallback.Trim());
-                    Log.Out("[zdtd-connect] ensured PlayerName=" + fallback.Trim());
+                    Log.Out("[7dtd-connect] ensured PlayerName=" + fallback.Trim());
                 }
             }
             catch { }
@@ -384,6 +380,16 @@ namespace ZdtdConnect
     {
         static bool Prefix(ref string __result)
         {
+            // EOS login present -> let the original produce a real ticket so the
+            // server can validate it; only short-circuit when EOS is not logged in.
+            try
+            {
+                var cross = Platform.PlatformManager.CrossplatformPlatform;
+                var user = cross != null ? cross.User : null;
+                if (user != null && user.PlatformUserId != null)
+                    return true;
+            }
+            catch { }
             __result = "";
             return false;
         }
@@ -391,7 +397,7 @@ namespace ZdtdConnect
         {
             if (__exception != null)
             {
-                Log.Warning("[zdtd-connect] EOS GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty");
+                Log.Warning("[7dtd-connect] EOS GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty");
                 __result = "";
                 return null;
             }
@@ -407,7 +413,7 @@ namespace ZdtdConnect
             if (_windowName != "windowEula") return true;
             try
             {
-                Log.Out($"[zdtd-connect] blocking GUI windowEula modal={_bModal} esc={_bIsNotEscClosable}");
+                Log.Out($"[7dtd-connect] blocking GUI windowEula modal={_bModal} esc={_bIsNotEscClosable}");
                 int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
                 if (latest < 1) latest = 99;
                 GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
@@ -422,16 +428,16 @@ namespace ZdtdConnect
                     {
                         var data = new ModEvents.SMainMenuOpenedData(true);
                         ModEvents.MainMenuOpened.Invoke(ref data);
-                        Log.Out("[zdtd-connect] dispatched MainMenuOpened after Eula block (3)");
+                        Log.Out("[7dtd-connect] dispatched MainMenuOpened after Eula block (3)");
                     }
-                    catch (Exception ex2) { Log.Warning("[zdtd-connect] MainMenuOpened dispatch failed (3): " + ex2.Message); }
+                    catch (Exception ex2) { Log.Warning("[7dtd-connect] MainMenuOpened dispatch failed (3): " + ex2.Message); }
                 }
                 catch { }
                 return false;
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] windowEula block failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] windowEula block failed: " + ex.Message);
                 return true;
             }
         }
@@ -446,7 +452,7 @@ namespace ZdtdConnect
             if (_windowName != "windowEula") return true;
             try
             {
-                Log.Out($"[zdtd-connect] blocking GUI windowEula(2) modal={_bModal}");
+                Log.Out($"[7dtd-connect] blocking GUI windowEula(2) modal={_bModal}");
                 int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
                 if (latest < 1) latest = 99;
                 GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
@@ -460,16 +466,16 @@ namespace ZdtdConnect
                     {
                         var data = new ModEvents.SMainMenuOpenedData(true);
                         ModEvents.MainMenuOpened.Invoke(ref data);
-                        Log.Out("[zdtd-connect] dispatched MainMenuOpened after Eula block (2)");
+                        Log.Out("[7dtd-connect] dispatched MainMenuOpened after Eula block (2)");
                     }
-                    catch (Exception ex2) { Log.Warning("[zdtd-connect] MainMenuOpened dispatch failed (2): " + ex2.Message); }
+                    catch (Exception ex2) { Log.Warning("[7dtd-connect] MainMenuOpened dispatch failed (2): " + ex2.Message); }
                 }
                 catch { }
                 return false;
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] windowEula(2) block failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] windowEula(2) block failed: " + ex.Message);
                 return true;
             }
         }

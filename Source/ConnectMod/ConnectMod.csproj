@@ -4,10 +4,10 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <AssemblyName>zdtd-connect</AssemblyName>
-    <RootNamespace>ZdtdConnect</RootNamespace>
+    <AssemblyName>7dtd-connect</AssemblyName>
+    <RootNamespace>SdtdConnect</RootNamespace>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <OutputPath>$(MSBuildThisFileDirectory)../../dist/zdtd-connect/</OutputPath>
+    <OutputPath>$(MSBuildThisFileDirectory)../../dist/7dtd-connect/</OutputPath>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <PropertyGroup>

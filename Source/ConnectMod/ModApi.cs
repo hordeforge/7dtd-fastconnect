@@ -1,25 +1,26 @@
 using System;
 using HarmonyLib;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>
-    /// Client-only join helper for local/dev servers (zdtd).
-    /// Auto-join when ZDTD_CONNECT / -connect= is set; F1 connect command otherwise.
+    /// Client-only join helper for local/dev servers (7dtd dedicated, zdtd).
+    /// Auto-join when 7DTD_CONNECT / -connect= is set; F1 connect command otherwise.
     /// Does not invent world/chunk/sign/spawn state for missing server packages.
     /// </summary>
     public class ModApi : IModApi
     {
-        public const string HarmonyId = "com.zdtd.connect";
-        public const string Version = "0.9.5";
-        public const string PlayerNameEnv = "ZDTD_PLAYER_NAME";
+        public const string HarmonyId = "com.7dtd.connect";
+        public const string Version = "0.10.2";
+        public const string PlayerNameEnv = "7DTD_PLAYER_NAME";
+        const string LegacyPlayerNameEnv = "ZDTD_PLAYER_NAME"; // pre-rename
         static bool _autoTried;
         static Harmony _harmony;
 
         public void InitMod(Mod _modInstance)
         {
             DiagToggle.AnnounceOnce();
-            Log.Out("[zdtd-connect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest) — diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or ZDTD_CONNECT_DEBUG=1)");
+            Log.Out("[7dtd-connect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest) — diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
 
             try
             {
@@ -29,13 +30,13 @@ namespace ZdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] boot unblock failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] boot unblock failed: " + ex.Message);
             }
 
             try
             {
                 ApplyPlayerNameOverride();
-                try { ZdtdConnect.Patch_ClientInfo_PlayerName_Guard_FieldFallback.EnsurePrefsName(); } catch { }
+                try { SdtdConnect.Patch_ClientInfo_PlayerName_Guard_FieldFallback.EnsurePrefsName(); } catch { }
                 GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                 GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
                 GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
@@ -45,11 +46,11 @@ namespace ZdtdConnect
                 GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
                 GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
                 GamePrefs.Instance?.Save();
-                Log.Out("[zdtd-connect] EULA prefs accepted=" + latest);
+                Log.Out("[7dtd-connect] EULA prefs accepted=" + latest);
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] Discord/intro/eula prefs set failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] Discord/intro/eula prefs set failed: " + ex.Message);
             }
 
             try
@@ -68,15 +69,15 @@ namespace ZdtdConnect
                     catch (Exception ex)
                     {
                         fail++;
-                        Log.Warning("[zdtd-connect] Harmony skip " + t.Name + ": " + ex.Message);
+                        Log.Warning("[7dtd-connect] Harmony skip " + t.Name + ": " + ex.Message);
                     }
                 }
-                Log.Out("[zdtd-connect] Harmony patches applied ok=" + ok + " fail=" + fail
+                Log.Out("[7dtd-connect] Harmony patches applied ok=" + ok + " fail=" + fail
                     + " (news/discord skip for automation only)");
             }
             catch (Exception ex)
             {
-                Log.Error("[zdtd-connect] Harmony failed: " + ex.Message);
+                Log.Error("[7dtd-connect] Harmony failed: " + ex.Message);
             }
 
             try
@@ -91,7 +92,7 @@ namespace ZdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Error("[zdtd-connect] MainMenuOpened register failed: " + ex.Message);
+                Log.Error("[7dtd-connect] MainMenuOpened register failed: " + ex.Message);
             }
         }
 
@@ -103,6 +104,8 @@ namespace ZdtdConnect
         static void ApplyPlayerNameOverride()
         {
             string requested = Environment.GetEnvironmentVariable(PlayerNameEnv);
+            if (string.IsNullOrWhiteSpace(requested))
+                requested = Environment.GetEnvironmentVariable(LegacyPlayerNameEnv); // legacy
             if (string.IsNullOrWhiteSpace(requested))
             {
                 // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline.
@@ -123,11 +126,11 @@ namespace ZdtdConnect
             {
                 GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
                 GamePrefs.Instance?.Save();
-                Log.Out("[zdtd-connect] player name from " + PlayerNameEnv + "=" + requested);
+                Log.Out("[7dtd-connect] player name from " + PlayerNameEnv + "=" + requested);
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] player name override failed: " + ex.Message);
+                Log.Warning("[7dtd-connect] player name override failed: " + ex.Message);
             }
         }
 
@@ -147,54 +150,58 @@ namespace ZdtdConnect
 
             if (!ConnectTarget.TryFromLaunchContext(out string host, out int port, out string source))
             {
-                Log.Out("[zdtd-connect] no ZDTD_CONNECT / -connect= ; use F1: connect 127.0.0.1 27025");
+                Log.Out("[7dtd-connect] no 7DTD_CONNECT / -connect= ; use F1: connect 127.0.0.1 27025");
                 return;
             }
 
-            Log.Out("[zdtd-connect] auto-join from " + source);
+            Log.Out("[7dtd-connect] auto-join from " + source);
             try
             {
                 ThreadManager.StartCoroutine(DelayedConnect(host, port));
             }
             catch (Exception ex)
             {
-                Log.Warning("[zdtd-connect] coroutine failed, connecting immediately: " + ex.Message);
+                Log.Warning("[7dtd-connect] coroutine failed, connecting immediately: " + ex.Message);
                 if (!ConnectTarget.TryConnect(host, port, out string msg))
-                    Log.Error("[zdtd-connect] " + msg);
+                    Log.Error("[7dtd-connect] " + msg);
                 else
-                    Log.Out("[zdtd-connect] " + msg);
+                    Log.Out("[7dtd-connect] " + msg);
             }
         }
 
         static System.Collections.IEnumerator DelayedConnect(string host, int port)
         {
             // SetupProtocols NREs on PlatformManager.NativePlatform before EOS/Steam settle.
-            // Force-open CheckLogin fires MainMenuOpened ~1s before [EOS] Login succeeded.
-            const int maxFrames = 3600; // ~60s at 60fps; uncapped boot is much faster
+            // Force-open CheckLogin fires MainMenuOpened ~1s before [EOS] Login succeeded;
+            // the connect-ready gate waits for the cross (EOS) user. Cap by wall time,
+            // not frames, because uncapped boot ticks thousands of frames per second.
+            const int maxFrames = 60000;
+            const float maxWaitSec = 45f;
+            float waitStart = UnityEngine.Time.unscaledTime;
             int waited = 0;
-            while (waited < maxFrames)
+            while (waited < maxFrames && UnityEngine.Time.unscaledTime - waitStart < maxWaitSec)
             {
                 if (ConnectReady.IsReady(out string whyNot))
                 {
                     if (waited > 0)
-                        Log.Out("[zdtd-connect] connect-ready after frames=" + waited);
+                        Log.Out("[7dtd-connect] connect-ready after frames=" + waited);
                     break;
                 }
                 if (waited == 0 || waited % 300 == 0)
-                    Log.Out("[zdtd-connect] connect wait frames=" + waited + " " + whyNot);
+                    Log.Out("[7dtd-connect] connect wait frames=" + waited + " " + whyNot);
                 waited++;
                 yield return null;
             }
 
             if (!ConnectReady.IsReady(out string still))
             {
-                Log.Warning("[zdtd-connect] connect gate timeout frames=" + waited + " " + still + "; trying anyway");
+                Log.Warning("[7dtd-connect] connect gate timeout frames=" + waited + " " + still + "; trying anyway");
             }
 
             if (!ConnectTarget.TryConnect(host, port, out string msg))
-                Log.Error("[zdtd-connect] " + msg);
+                Log.Error("[7dtd-connect] " + msg);
             else
-                Log.Out("[zdtd-connect] " + msg);
+                Log.Out("[7dtd-connect] " + msg);
         }
     }
 }

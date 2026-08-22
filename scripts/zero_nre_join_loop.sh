@@ -16,7 +16,7 @@ GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die De
 WORLD_DIR="${WORLD_DIR:-$(cd "$ROOT/../zdtd" && pwd)/worlds/zdtd_goal}"
 ONE_SHOT="$ROOT/scripts/one_shot_join.sh"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
-CLIENT_LOG_SRC="${CLIENT_LOG_SRC:-$STEAM_ROOT/steamapps/compatdata/251570/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_zdtd_connect.txt}"
+CLIENT_LOG_SRC="${CLIENT_LOG_SRC:-$STEAM_ROOT/steamapps/compatdata/251570/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt}"
 
 log() { printf '[zero_nre] %s\n' "$*" | tee -a "$SCRATCH/zero_nre_loop.log"; }
 

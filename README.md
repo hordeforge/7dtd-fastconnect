@@ -1,4 +1,4 @@
-# zdtd-connect (client mod)
+# 7dtd-connect (client mod)
 
 Tiny **client** helper for joining local/dev servers (especially **zdtd**) without Steam `steam://connect`, plus automation hooks for automated join tests.
 
@@ -35,7 +35,7 @@ cd 7dtd-connect
 make install
 ```
 
-Installs to `$GAME/Mods/zdtd-connect/`.
+Installs to `$GAME/Mods/7dtd-connect/`.
 
 ## Usage
 
@@ -47,15 +47,17 @@ connect 127.0.0.1 27025
 connect 127.0.0.1:27025
 ```
 
-Aliases: `zdtdconnect`, `joinip`. Default port **27025** (zdtd ServerPort / Connect-to-IP port).
+Aliases: `7dtdconnect`, `joinip`. Default port **27025** (zdtd ServerPort / Connect-to-IP port).
 
 ### Auto-join on main menu
 
 **Environment (preferred):**
 
 ```bash
+# canonical: set via `env` (bash cannot assign/export names starting with a digit)
+env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
+# legacy pre-rename name works with plain bash assignment:
 export ZDTD_CONNECT=127.0.0.1:27025
-# or: 7DTD_CONNECT=127.0.0.1:27025
 ```
 
 **Launch arg** (if your Proton/Steam launch passes argv into the game):
@@ -67,7 +69,7 @@ export ZDTD_CONNECT=127.0.0.1:27025
 Helper:
 
 ```bash
-ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
+env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```
 
 After the main menu opens, the mod connects once.
@@ -75,7 +77,7 @@ After the main menu opens, the mod connects once.
 ### Local player identity for an isolated test client
 
 The stock Local platform derives its identity from `GamePrefs.PlayerName`.
-Set `ZDTD_PLAYER_NAME` before launch to select that identity before the
+Set `7DTD_PLAYER_NAME` before launch to select that identity before the
 auto-join runs. This is useful only for an isolated second client in a real
 multi-client test: the server sees and authorizes a normal distinct player,
 and will reject a duplicate identity. It persists the chosen name in that
@@ -85,7 +87,7 @@ the player's everyday profile.
 Launch a peer named `atomic-peer`:
 
 ```bash
-ZDTD_PLAYER_NAME=atomic-peer ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
+env 7DTD_PLAYER_NAME=atomic-peer 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```
 
 ### Client audio mute (default on)
@@ -117,7 +119,7 @@ cd zdtd && ./zig-out/bin/zdtd --port 27025 ...
 
 # terminal 2
 cd 7dtd-connect && make install
-ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
+env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```
 
 Or with client already running: F1 → `connect 127.0.0.1 27025`.
@@ -125,10 +127,10 @@ Or with client already running: F1 → `connect 127.0.0.1 27025`.
 ## Log lines
 
 ```text
-[zdtd-connect] InitMod ...
-[zdtd-connect] player name from ZDTD_PLAYER_NAME=atomic-peer
-[zdtd-connect] auto-join from ZDTD_CONNECT=127.0.0.1:27025
-[zdtd-connect] Connect by IP 127.0.0.1:27025 ...
+[7dtd-connect] InitMod ...
+[7dtd-connect] player name from 7DTD_PLAYER_NAME=atomic-peer
+[7dtd-connect] auto-join from 7DTD_CONNECT=127.0.0.1:27025
+[7dtd-connect] Connect by IP 127.0.0.1:27025 ...
 ```
 
 ## Non-goals

@@ -1,7 +1,7 @@
 using System;
 using HarmonyLib;
 
-namespace ZdtdConnect
+namespace SdtdConnect
 {
     /// <summary>
     /// Optional RE dump of EntityClass ids (env ZDTD_DUMP_ENTITY_CLASS=1).
@@ -36,7 +36,7 @@ namespace ZdtdConnect
                     if (gid != -1) id = gid;
                 }
                 catch { /* ignore */ }
-                Log.Out("[zdtd-connect] EntityClass.Add name=" + _entityClassname + " id=" + id);
+                Log.Out("[7dtd-connect] EntityClass.Add name=" + _entityClassname + " id=" + id);
                 _logged++;
             }
         }

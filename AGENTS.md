@@ -4,8 +4,8 @@ Client-only mod: join by IP without Steam `steam://connect` (invalid for non-Ste
 
 ## Owns
 
-- `Mods/zdtd-connect` under the **stock client** game dir
-- F1 `connect` / env `ZDTD_CONNECT` / `-connect=host:port` auto-join after main menu
+- `Mods/7dtd-connect` under the **stock client** game dir
+- F1 `connect` / env `7DTD_CONNECT` / `-connect=host:port` auto-join after main menu
 - Intro/news/Discord/EULA skip and spawn-gate heartbeat for automated launch
 - Lifecycle scripts (`launch_client.sh`, `restart_pair.sh`, `one_shot_join.sh`)
 
@@ -40,7 +40,7 @@ Client-only mod: join by IP without Steam `steam://connect` (invalid for non-Ste
 
 ```bash
 make install
-ZDTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
+env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```
 
 ## Stock-game research -> 7dtd-research
