@@ -134,6 +134,7 @@ namespace SdtdConnect
             }
             finally
             {
+                ReleaseForceLoadSync();
                 try
                 {
                     Application.backgroundLoadingPriority = previousLoadPriority;
@@ -282,12 +283,42 @@ namespace SdtdConnect
                 yield return null;
                 pending = PendingLoadCount();
             }
+            // The queue is empty *now*; anything that starts async after this
+            // point would reopen the WaitForCompletion deadlock window. Force
+            // sync loading for the rest of startup (restored in Flatten's finally)
+            // so no new async addressable op can be in flight when SDCSUtils runs.
+            HoldForceLoadSync();
             // A couple of extra frames so just-completed requests finish their callbacks.
             yield return null;
             yield return null;
             Log.Out(pending > 0
                 ? "[7dtd-connect] Local-host async drain timed out with " + pending + " pending"
-                : "[7dtd-connect] Local-host async loads drained");
+                : "[7dtd-connect] Local-host async loads drained, sync loading held until startup completes");
+        }
+
+        static FieldInfo _forceSyncField;
+        static bool _forceSyncHeld, _forceSyncPrevious;
+
+        static void HoldForceLoadSync()
+        {
+            try
+            {
+                _forceSyncField ??= typeof(LoadManager).GetField("forceLoadSync",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                if (_forceSyncField == null || _forceSyncField.FieldType != typeof(bool) || _forceSyncHeld) return;
+                _forceSyncPrevious = (bool)_forceSyncField.GetValue(null);
+                _forceSyncField.SetValue(null, true);
+                _forceSyncHeld = true;
+            }
+            catch (Exception ex) { Log.Warning("[7dtd-connect] force-sync hold failed: " + ex.Message); }
+        }
+
+        static void ReleaseForceLoadSync()
+        {
+            if (!_forceSyncHeld) return;
+            try { _forceSyncField.SetValue(null, _forceSyncPrevious); }
+            catch (Exception ex) { Log.Warning("[7dtd-connect] force-sync release failed: " + ex.Message); }
+            _forceSyncHeld = false;
         }
 
         static FieldInfo _loadRequests, _deferredLoadRequests;
