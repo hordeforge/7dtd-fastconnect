@@ -42,20 +42,40 @@ namespace SdtdConnect
             Log.Out("[7dtd-connect] Local-host world-load workaround active");
             var stack = new Stack<IEnumerator>();
             stack.Push(root);
+            int step = 0;
             while (stack.Count != 0)
             {
                 IEnumerator iterator = stack.Peek();
                 if (!MoveNext("StartAsServer", iterator, out object current))
                 {
                     stack.Pop();
+                    Trace("completed depth " + stack.Count + " after step " + step);
                     continue;
                 }
                 if (current is IEnumerator nested)
+                {
                     stack.Push(nested);
-                else
-                    yield return current;
+                    continue;
+                }
+                step++;
+                // The known stall freezes here with no further output. Logging the
+                // frame counter on both sides of the yield separates the two
+                // possible causes: a step that never returns (last "->" has no
+                // matching "<-") versus Unity silently dropping the coroutine
+                // (matching "<-", then nothing).
+                Trace("-> step " + step + " depth " + stack.Count
+                    + " yield " + (current == null ? "null" : current.GetType().Name)
+                    + " frame " + UnityEngine.Time.frameCount);
+                yield return current;
+                Trace("<- step " + step + " frame " + UnityEngine.Time.frameCount);
             }
             Log.Out("[7dtd-connect] Local-host startup completed");
+        }
+
+        /// <summary>Opt-in via 7DTD_CONNECT_DEBUG=1 or `diag on`; silent in normal play.</summary>
+        static void Trace(string message)
+        {
+            if (DiagToggle.Enabled) Log.Out("[7dtd-connect] StartAsServer trace: " + message);
         }
 
         static IEnumerator DrainWorldLoad(IEnumerator root)

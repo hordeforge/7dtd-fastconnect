@@ -18,6 +18,9 @@ grep -q 'CreateWorldUnsafeFrameBreaks = 9' "$PATCHES"
 # createWorld() done. Transient NullReferenceExceptions are preferred to that.
 ! grep -q 'PlayerMoveController' "$PATCHES"
 ! grep -q 'ThreadManager.StartCoroutine' "$PATCHES"
+# Stall tracing must stay opt-in so normal play is unaffected.
+grep -q 'DiagToggle.Enabled' "$PATCHES"
+grep -q 'StartAsServer trace' "$PATCHES"
 grep -q 'showOpenerMovieOnLoad = false' "$API"
 grep -q 'OptionsIntroMovieEnabled, false' "$API"
 grep -q 'offline Local-platform world initialization' "$ROOT/README.md"
