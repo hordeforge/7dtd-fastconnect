@@ -12,7 +12,22 @@ namespace SdtdConnect
     /// </summary>
     static class BootUnblock
     {
+        internal const string ForceLoadSyncEnv = "7DTD_CONNECT_FORCE_LOAD_SYNC";
+
         static bool _forceSyncSet;
+        static bool _forceSyncOptOutLogged;
+
+        internal static bool ForceLoadSyncEnabled()
+        {
+            string value = Environment.GetEnvironmentVariable(ForceLoadSyncEnv);
+            if (string.IsNullOrWhiteSpace(value)) return true;
+
+            value = value.Trim();
+            return value != "0"
+                && !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(value, "no", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(value, "off", StringComparison.OrdinalIgnoreCase);
+        }
 
         internal static void ApplyFrameUncap(string reason)
         {
@@ -32,6 +47,16 @@ namespace SdtdConnect
         internal static void ApplyForceLoadSync()
         {
             if (_forceSyncSet) return;
+            if (!ForceLoadSyncEnabled())
+            {
+                if (!_forceSyncOptOutLogged)
+                {
+                    _forceSyncOptOutLogged = true;
+                    Log.Out("[7dtd-connect] LoadManager.forceLoadSync disabled by "
+                        + ForceLoadSyncEnv);
+                }
+                return;
+            }
             try
             {
                 var fi = typeof(LoadManager).GetField("forceLoadSync",
@@ -59,7 +84,7 @@ namespace SdtdConnect
         {
             BootUnblock.ApplyFrameUncap("Awake");
             BootUnblock.ApplyForceLoadSync();
-            Log.Out("[7dtd-connect] boot unblock RIB+noVSync+uncappedFPS+forceLoadSync");
+            Log.Out("[7dtd-connect] boot unblock RIB+noVSync+uncappedFPS");
         }
     }
 
@@ -481,5 +506,4 @@ namespace SdtdConnect
         }
     }
 }
-
 

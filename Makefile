@@ -27,6 +27,7 @@ build:
 
 test:
 	$(ROOT)/scripts/test_player_name_override.sh
+	$(ROOT)/scripts/test_force_load_sync_override.sh
 	$(ROOT)/scripts/test_mute_client_audio.sh
 	@command -v uv >/dev/null && cd "$(ROOT)" && uv run --with pytest pytest scripts/test_launch_client_platform.py -q --tb=short \
 		|| python3 -m pytest scripts/test_launch_client_platform.py -q --tb=short
