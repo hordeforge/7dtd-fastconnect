@@ -145,6 +145,46 @@ namespace SdtdConnect
                 }
             }
             Log.Out("[7dtd-connect] Local-host startup completed");
+            ThreadManager.StartCoroutine(HitchMonitor());
+        }
+
+        /// <summary>
+        /// In-world frame-hitch attribution for the Local host. Logs every frame
+        /// longer than 200 ms with the GC generation deltas, LoadManager backlog
+        /// and heap, plus the live frame cap / vsync so the "GPU always busy"
+        /// report can be checked against what the renderer is actually told.
+        /// Bounded to 300 lines; diag lifts that.
+        /// </summary>
+        static IEnumerator HitchMonitor()
+        {
+            int gc0 = GC.CollectionCount(0), gc1 = GC.CollectionCount(1), gc2 = GC.CollectionCount(2);
+            float last = Time.realtimeSinceStartup;
+            int logged = 0;
+            Log.Out("[7dtd-connect] hitch monitor: targetFrameRate " + Application.targetFrameRate
+                + " vSyncCount " + QualitySettings.vSyncCount
+                + " loadPriority " + Application.backgroundLoadingPriority
+                + " limitFpsPref " + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxLimitFpsInGame)
+                + " vsyncPref " + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxVsync));
+            while (true)
+            {
+                yield return null;
+                float now = Time.realtimeSinceStartup;
+                float dt = now - last;
+                last = now;
+                if (dt < 0.2f) continue;
+                int n0 = GC.CollectionCount(0), n1 = GC.CollectionCount(1), n2 = GC.CollectionCount(2);
+                if (logged < 300 || DiagToggle.Enabled)
+                {
+                    logged++;
+                    Log.Out("[7dtd-connect] hitch " + (int)(dt * 1000) + "ms frame " + Time.frameCount
+                        + " gc +" + (n0 - gc0) + "/+" + (n1 - gc1) + "/+" + (n2 - gc2)
+                        + " pendingLoads " + PendingLoadCount()
+                        + " heap " + (GC.GetTotalMemory(false) >> 20) + "MB"
+                        + " targetFps " + Application.targetFrameRate
+                        + " vsync " + QualitySettings.vSyncCount);
+                }
+                gc0 = n0; gc1 = n1; gc2 = n2;
+            }
         }
 
         /// <summary>Bounded during world load; unbounded with 7DTD_CONNECT_DEBUG=1 or `diag on`.</summary>
