@@ -78,7 +78,11 @@ After the main menu opens, the mod connects once.
 Automation boot patches are enabled automatically only when `7DTD_CONNECT` or
 `-connect` supplies a launch target. A regular client launch still loads the
 `connect` console command and diagnostics, but leaves stock login, menu, EULA,
-Discord, authentication, and frame/loading behavior alone. Specialized runners
+Discord, authentication, and general loading behavior alone. A narrowly scoped
+workaround keeps offline Local-platform world initialization from stalling under
+Proton; it temporarily drains `World.LoadWorld` synchronously, restores the prior
+global loading setting, and returns to normal scheduling before weather/player
+creation. Specialized runners
 without a launch target can force the old behavior with
 `7DTD_CONNECT_AUTOMATION=1`.
 
@@ -95,7 +99,9 @@ env 7DTD_CONNECT_FORCE_LOAD_SYNC=0 mangohud %command%
 ```
 
 The values `0`, `false`, `no`, and `off` disable only the synchronous-load
-override. With the variable unset, playtest behavior is unchanged.
+override used by automation. Regular client launches do not enable that global
+override, so this variable is unnecessary for ordinary Steam play. With the
+variable unset, playtest behavior is unchanged.
 
 ### Local player identity for an isolated test client
 
