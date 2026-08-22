@@ -22,8 +22,11 @@ namespace SdtdConnect
         /// window unconditionally -- two runs were wasted producing empty logs
         /// because the trace was gated behind a flag nobody had turned on -- and
         /// cap it so a healthy load cannot spam the log. `diag on` lifts the cap.
+        /// The first cap (250) was far too low: the flattened StartAsServer burns
+        /// ~288 steps before createWorld even finishes, so the window after
+        /// "createWorld() done" -- the one being diagnosed -- was silenced.
         /// </summary>
-        const int UngatedTraceSteps = 250;
+        const int UngatedTraceSteps = 100000;
 
         internal static void WrapStartAsServer(ref IEnumerator result)
         {
@@ -61,6 +64,32 @@ namespace SdtdConnect
             // too: Unity throttles an unfocused window, and loading a world while
             // the player alt-tabs is ordinary. Scoped to the load and restored
             // after, so no user preference is changed.
+            // EntityFactory.CreateEntity loads Prefabs/prefabEntityPlayerLocal with
+            // _loadSync:true, which ends in Addressables.WaitForCompletion() on the
+            // main thread. Under Proton that blocks forever -- the observed hang,
+            // logged as "enter EntityFactory.CreateEntity" with no matching leave.
+            // Forcing sync loading cannot help; LoadManager sends every sync load
+            // down the same WaitForCompletion path. Instead start the same load
+            // asynchronously here and yield until it is done, so the main thread
+            // keeps pumping and Addressables can finish. CreateEntity then finds a
+            // completed handle and returns immediately.
+            LoadManager.AssetRequestTask<GameObject> playerPrefab = null;
+            try
+            {
+                playerPrefab = LoadManager.LoadAsset<GameObject>(
+                    "Prefabs/prefabEntityPlayerLocal", null, null, false, false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] Local-host player prefab prewarm failed: " + ex.Message);
+            }
+            if (playerPrefab != null)
+            {
+                Log.Out("[7dtd-connect] Local-host prewarming local player prefab");
+                while (!playerPrefab.IsDone) yield return null;
+                Log.Out("[7dtd-connect] Local-host local player prefab ready");
+            }
+
             ThreadPriority previousLoadPriority = Application.backgroundLoadingPriority;
             bool previousRunInBackground = Application.runInBackground;
             try
@@ -199,6 +228,56 @@ namespace SdtdConnect
                     continue;
                 }
                 yield return current;
+            }
+
+            // StartAsServer next calls EntityFactory.CreateEntity for the local
+            // player, and SDCSUtils assembles the body with ~20 synchronous
+            // addressable loads, each ending in Addressables.WaitForCompletion().
+            // That call deadlocks when any async addressable operation is still
+            // in flight -- the hang, traced to EntityAlive.switchModelView with no
+            // return. Automation never hits it because it forces every load sync
+            // from boot. Let the pending async queue drain first; these nulls
+            // reach Unity so LoadManager.Update keeps pumping.
+            float deadline = Time.realtimeSinceStartup + 60f;
+            int pending = PendingLoadCount();
+            if (pending > 0) Log.Out("[7dtd-connect] Local-host draining " + pending + " pending async loads before player creation");
+            while (pending > 0 && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+                pending = PendingLoadCount();
+            }
+            // A couple of extra frames so just-completed requests finish their callbacks.
+            yield return null;
+            yield return null;
+            Log.Out(pending > 0
+                ? "[7dtd-connect] Local-host async drain timed out with " + pending + " pending"
+                : "[7dtd-connect] Local-host async loads drained");
+        }
+
+        static FieldInfo _loadRequests, _deferredLoadRequests;
+        static MethodInfo _workBatchCount;
+
+        static int PendingLoadCount()
+        {
+            try
+            {
+                if (_loadRequests == null)
+                {
+                    const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+                    _loadRequests = typeof(LoadManager).GetField("loadRequests", flags);
+                    _deferredLoadRequests = typeof(LoadManager).GetField("deferedLoadRequests", flags);
+                    _workBatchCount = _loadRequests?.FieldType.GetMethod("Count", Type.EmptyTypes);
+                }
+                int count = 0;
+                object batch = _loadRequests?.GetValue(null);
+                if (batch != null && _workBatchCount != null) count += (int)_workBatchCount.Invoke(batch, null);
+                if (_deferredLoadRequests?.GetValue(null) is ICollection deferred) count += deferred.Count;
+                return count;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] pending load count failed: " + ex.Message);
+                return 0;
             }
         }
 
