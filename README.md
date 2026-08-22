@@ -80,9 +80,14 @@ Automation boot patches are enabled automatically only when `7DTD_CONNECT` or
 `connect` console command and diagnostics, but leaves stock login, menu, EULA,
 Discord, authentication, and general loading behavior alone. A narrowly scoped
 workaround keeps offline Local-platform world initialization from stalling under
-Proton; it temporarily drains `World.LoadWorld` synchronously, restores the prior
-global loading setting, and returns to normal scheduling before weather/player
-creation. Specialized runners
+Proton. Stock creates the local player with synchronous addressable loads that
+end in `Addressables.WaitForCompletion()`, which deadlocks while any async
+addressable operation is still in flight; automation never hits this because it
+forces every load sync from boot. The workaround drains `World.LoadWorld`
+synchronously, then after `createWorld` waits for `LoadManager`'s async queue to
+empty and holds sync loading until `StartAsServer` finishes, so player creation
+runs against an idle addressables system. Startup tracing is available with
+`diag on`. Specialized runners
 without a launch target can force the old behavior with
 `7DTD_CONNECT_AUTOMATION=1`.
 
