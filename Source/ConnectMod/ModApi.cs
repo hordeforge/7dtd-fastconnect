@@ -90,9 +90,6 @@ namespace SdtdConnect
                 }
                 Log.Out("[7dtd-connect] Harmony patches applied ok=" + ok + " fail=" + fail
                     + " (news/discord skip for automation only)");
-                // Diagnostic for the Local-host world-load hang; harmless elsewhere.
-                try { LocalHostSpawnTrace.Apply(_harmony); }
-                catch (Exception ex) { Log.Warning("[7dtd-connect] spawn trace patch failed: " + ex.Message); }
             }
             catch (Exception ex)
             {

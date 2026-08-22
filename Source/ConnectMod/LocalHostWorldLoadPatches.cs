@@ -17,16 +17,12 @@ namespace SdtdConnect
         const int CreateWorldUnsafeFrameBreaks = 9;
 
         /// <summary>
-        /// The workaround only runs during world load, and the stall it is being
-        /// used to diagnose happens within the first few dozen steps. Trace that
-        /// window unconditionally -- two runs were wasted producing empty logs
-        /// because the trace was gated behind a flag nobody had turned on -- and
-        /// cap it so a healthy load cannot spam the log. `diag on` lifts the cap.
-        /// The first cap (250) was far too low: the flattened StartAsServer burns
-        /// ~288 steps before createWorld even finishes, so the window after
-        /// "createWorld() done" -- the one being diagnosed -- was silenced.
+        /// Per-yield trace of the flattened startup. Off by default now that the
+        /// hang is fixed; `diag on` / 7DTD_CONNECT_DEBUG=1 enables it. A full
+        /// startup is ~330 steps, so if it is ever re-enabled unconditionally the
+        /// cap must exceed that or the post-createWorld window is silenced.
         /// </summary>
-        const int UngatedTraceSteps = 100000;
+        const int UngatedTraceSteps = 0;
 
         internal static void WrapStartAsServer(ref IEnumerator result)
         {

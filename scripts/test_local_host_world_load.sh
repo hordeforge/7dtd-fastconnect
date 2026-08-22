@@ -18,14 +18,12 @@ grep -q 'CreateWorldUnsafeFrameBreaks = 9' "$PATCHES"
 # createWorld() done. Transient NullReferenceExceptions are preferred to that.
 ! grep -q 'PlayerMoveController' "$PATCHES"
 ! grep -q 'ThreadManager.StartCoroutine' "$PATCHES"
-# Stall tracing is bounded rather than flag-gated: two diagnostic runs produced
-# empty logs because `diag on` had not been typed. `diag on` lifts the cap.
-grep -q 'UngatedTraceSteps' "$PATCHES"
+# Startup tracing is opt-in (`diag on`); the fix itself is the async drain.
 grep -q 'DiagToggle.Enabled || step <= UngatedTraceSteps' "$PATCHES"
-grep -q 'StartAsServer trace' "$PATCHES"
-# The observed freeze is inside createWorld's suppressed window, so it must be
-# traced too, not just the flattened StartAsServer.
-grep -q 'createWorld step ' "$PATCHES"
+grep -q 'PendingLoadCount' "$PATCHES"
+grep -q 'deferedLoadRequests' "$PATCHES"
+! grep -q 'LocalHostSpawnTrace' "$ROOT/Source/ConnectMod/ModApi.sh" 2>/dev/null
+! test -f "$ROOT/Source/ConnectMod/LocalHostSpawnTrace.cs"
 # Async loads starve under Proton at the stock Low priority, and Unity throttles
 # an unfocused window; both are scoped to the load and restored afterwards.
 grep -q 'backgroundLoadingPriority = ThreadPriority.High' "$PATCHES"
