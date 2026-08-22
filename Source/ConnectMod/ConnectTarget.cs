@@ -7,7 +7,6 @@ namespace SdtdConnect
     public static class ConnectTarget
     {
         public const string EnvVar = "7DTD_CONNECT";
-        public const string EnvVarAlt = "ZDTD_CONNECT"; // legacy (pre-rename)
         public const int DefaultPort = 27025;
 
         public static bool TryParse(string raw, out string host, out int port, out string error)
@@ -77,22 +76,18 @@ namespace SdtdConnect
             return true;
         }
 
-        /// <summary>Env first (7DTD_CONNECT, then legacy ZDTD_CONNECT), then -connect= / +connect from argv.</summary>
+        /// <summary>Env (7DTD_CONNECT), then -connect= / +connect from argv.</summary>
         public static bool TryFromLaunchContext(out string host, out int port, out string source)
         {
             host = null;
             port = DefaultPort;
             source = null;
 
-            foreach (var key in new[] { EnvVar, EnvVarAlt })
+            string env = Environment.GetEnvironmentVariable(EnvVar);
+            if (!string.IsNullOrWhiteSpace(env) && TryParse(env, out host, out port, out _))
             {
-                string env = Environment.GetEnvironmentVariable(key);
-                if (string.IsNullOrWhiteSpace(env)) continue;
-                if (TryParse(env, out host, out port, out _))
-                {
-                    source = key + "=" + env.Trim();
-                    return true;
-                }
+                source = EnvVar + "=" + env.Trim();
+                return true;
             }
 
             string[] args;

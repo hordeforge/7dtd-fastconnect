@@ -16,8 +16,7 @@ namespace SdtdConnect
         {
             static void Postfix(string _entityClassname, EntityClass _entityClass)
             {
-                var dump = Environment.GetEnvironmentVariable("7DTD_DUMP_ENTITY_CLASS")
-                           ?? Environment.GetEnvironmentVariable("ZDTD_DUMP_ENTITY_CLASS"); // legacy (pre-rename)
+                var dump = Environment.GetEnvironmentVariable("7DTD_DUMP_ENTITY_CLASS");
                 if (string.IsNullOrEmpty(dump) || dump == "0") return;
                 if (_entityClassname == null) return;
                 // Log players + first zombies + any name containing zombie/animal/trader

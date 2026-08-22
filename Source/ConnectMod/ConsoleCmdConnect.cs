@@ -16,7 +16,7 @@ namespace SdtdConnect
             "    connect 127.0.0.1\n" +
             "    connect 127.0.0.1 27025\n" +
             "    connect 127.0.0.1:27025\n" +
-            "  Env auto-join: 7DTD_CONNECT=127.0.0.1:27025 (legacy ZDTD_CONNECT)\n" +
+            "  Env auto-join: 7DTD_CONNECT=127.0.0.1:27025\n" +
             "  Launch arg: -connect=127.0.0.1:27025\n" +
             "  Note: C# client mods require EAC off (-noeac).";
 

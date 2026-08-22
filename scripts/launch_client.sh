@@ -42,19 +42,12 @@ if [[ -z "$PROTON" ]]; then
 fi
 
 # Bash cannot expand or export a variable name starting with a digit, so read
-# the canonical 7DTD_CONNECT via printenv; the legacy ZDTD_CONNECT (a valid
-# bash name) is the fallback.
+# the canonical 7DTD_CONNECT via printenv.
 CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
-if [[ -z "$CONNECT" ]]; then
-  CONNECT="$(printenv ZDTD_CONNECT 2>/dev/null || true)"
-fi
 # Always skip TFP intro splash (before mods load) and stock news launch pref.
 EXTRA_ARGS=(-skipintro -SkipNewsScreen=true)
 if [[ -n "$CONNECT" ]]; then
   EXTRA_ARGS+=(-connect="$CONNECT")
-  # Legacy alias for older mod builds; 7DTD_CONNECT is already inherited from
-  # the caller's environment when set via `env 7DTD_CONNECT=... ./launch_client.sh`.
-  export ZDTD_CONNECT="$CONNECT"
 fi
 
 # Mute client audio by default (opt-out).
@@ -139,7 +132,7 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   echo "Log: $LOGFILE"
   cd "$GAME"
   # Cannot mute after exec — run proton, mute in parallel, wait for the game.
-  "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt" "${EXTRA_ARGS[@]}" "$@" &
+  env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt" "${EXTRA_ARGS[@]}" "$@" &
   game_pid=$!
   start_mute_poll
   wait "$game_pid"
@@ -149,10 +142,9 @@ fi
 # Fallback: Steam app launch (may still run EAC depending on launcher settings).
 echo "Proton not found; using steam -applaunch $STEAM_APPID (set UseEAC false in launcher if needed)"
 echo "Connect: ${CONNECT:-"(none)"}"
-# Steam does not reliably pass -connect=; export the legacy name for the mod
-# (7DTD_CONNECT is inherited when the caller used `env 7DTD_CONNECT=...`).
-export ZDTD_CONNECT="${CONNECT:-}"
-steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@" &
+# Steam does not reliably pass -connect=; pass the canonical name through
+# `env` because bash cannot export a name starting with a digit.
+env 7DTD_CONNECT="${CONNECT:-}" steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@" &
 steam_pid=$!
 start_mute_poll
 wait "$steam_pid"

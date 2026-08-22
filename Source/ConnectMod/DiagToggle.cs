@@ -5,7 +5,7 @@ namespace SdtdConnect
     /// <summary>Runtime + persistent toggle for verbose 7dtd-connect traces.</summary>
     internal static class DiagToggle
     {
-        // Env flip set at launch: 7DTD_CONNECT_DEBUG=1 / true (legacy ZDTD_CONNECT_DEBUG still honored)
+        // Env flip set at launch: 7DTD_CONNECT_DEBUG=1 / true
         static bool EnvEnabled
         {
             get
@@ -13,8 +13,6 @@ namespace SdtdConnect
                 try
                 {
                     string v = Environment.GetEnvironmentVariable("7DTD_CONNECT_DEBUG");
-                    if (string.IsNullOrEmpty(v))
-                        v = Environment.GetEnvironmentVariable("ZDTD_CONNECT_DEBUG"); // legacy
                     return v == "1" || v == "true" || v == "True";
                 }
                 catch { return false; }

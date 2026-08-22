@@ -11,9 +11,8 @@ namespace SdtdConnect
     public class ModApi : IModApi
     {
         public const string HarmonyId = "com.7dtd.connect";
-        public const string Version = "0.10.2";
+        public const string Version = "0.10.3";
         public const string PlayerNameEnv = "7DTD_PLAYER_NAME";
-        const string LegacyPlayerNameEnv = "ZDTD_PLAYER_NAME"; // pre-rename
         static bool _autoTried;
         static Harmony _harmony;
 
@@ -104,8 +103,6 @@ namespace SdtdConnect
         static void ApplyPlayerNameOverride()
         {
             string requested = Environment.GetEnvironmentVariable(PlayerNameEnv);
-            if (string.IsNullOrWhiteSpace(requested))
-                requested = Environment.GetEnvironmentVariable(LegacyPlayerNameEnv); // legacy
             if (string.IsNullOrWhiteSpace(requested))
             {
                 // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline.

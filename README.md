@@ -59,8 +59,6 @@ Aliases: `7dtdconnect`, `joinip`. Default port **27025** (zdtd ServerPort / Conn
 ```bash
 # canonical: set via `env` (bash cannot assign/export names starting with a digit)
 env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
-# legacy pre-rename name works with plain bash assignment:
-export ZDTD_CONNECT=127.0.0.1:27025
 ```
 
 **Launch arg** (if your Proton/Steam launch passes argv into the game):

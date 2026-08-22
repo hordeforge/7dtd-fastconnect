@@ -31,8 +31,7 @@ namespace SdtdConnect
 
         static void DumpOnce(string reason)
         {
-            var dump = Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS")
-                       ?? Environment.GetEnvironmentVariable("ZDTD_DUMP_BLOCK_IDS"); // legacy (pre-rename)
+            var dump = Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS");
             if (string.IsNullOrEmpty(dump) || dump == "0") return;
             if (_dumped) return;
             try
@@ -77,8 +76,7 @@ namespace SdtdConnect
         /// </summary>
         static int DumpAllBlocks()
         {
-            string outPath = Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS_PATH")
-                             ?? Environment.GetEnvironmentVariable("ZDTD_DUMP_BLOCK_IDS_PATH"); // legacy (pre-rename)
+            string outPath = Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS_PATH");
             if (string.IsNullOrEmpty(outPath))
             {
                 outPath = Path.Combine(

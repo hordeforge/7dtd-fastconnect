@@ -10,11 +10,8 @@ mkdir -p "$SCRATCH"
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
 # Bash cannot expand/export names starting with a digit, so read the canonical
-# 7DTD_CONNECT via printenv; legacy ZDTD_CONNECT is the fallback.
+# 7DTD_CONNECT via printenv.
 CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
-if [[ -z "$CONNECT" ]]; then
-  CONNECT="$(printenv ZDTD_CONNECT 2>/dev/null || true)"
-fi
 CONNECT="${CONNECT:-$HOST:$PORT}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-240}"
 CYCLE="${CYCLE:-1}"
@@ -135,10 +132,9 @@ mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
 # Kill any leftover client before launch.
 kill_clients || true
 
-export ZDTD_CONNECT="$CONNECT"  # legacy alias (7DTD_CONNECT cannot be exported in bash)
 log "launching client connect=$CONNECT"
 # Launch in background; capture proton/game children via pgrep after a beat.
-setsid "$LAUNCH" >"$SCRATCH/launch-${CYCLE}.log" 2>&1 &
+setsid env 7DTD_CONNECT="$CONNECT" "$LAUNCH" >"$SCRATCH/launch-${CYCLE}.log" 2>&1 &
 launch_pid=$!
 log "launch_pid=$launch_pid"
 sleep 3
