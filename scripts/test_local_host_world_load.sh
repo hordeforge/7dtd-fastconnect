@@ -26,6 +26,12 @@ grep -q 'StartAsServer trace' "$PATCHES"
 # The observed freeze is inside createWorld's suppressed window, so it must be
 # traced too, not just the flattened StartAsServer.
 grep -q 'createWorld step ' "$PATCHES"
+# Async loads starve under Proton at the stock Low priority, and Unity throttles
+# an unfocused window; both are scoped to the load and restored afterwards.
+grep -q 'backgroundLoadingPriority = ThreadPriority.High' "$PATCHES"
+grep -q 'runInBackground = true' "$PATCHES"
+grep -q 'backgroundLoadingPriority = previousLoadPriority' "$PATCHES"
+grep -q 'runInBackground = previousRunInBackground' "$PATCHES"
 grep -q 'showOpenerMovieOnLoad = false' "$API"
 grep -q 'OptionsIntroMovieEnabled, false' "$API"
 grep -q 'offline Local-platform world initialization' "$ROOT/README.md"

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
+using UnityEngine;
 
 namespace SdtdConnect
 {
@@ -49,34 +50,74 @@ namespace SdtdConnect
         static IEnumerator Flatten(IEnumerator root)
         {
             Log.Out("[7dtd-connect] Local-host world-load workaround active");
-            var stack = new Stack<IEnumerator>();
-            stack.Push(root);
-            int step = 0;
-            while (stack.Count != 0)
+
+            // Stock leaves backgroundLoadingPriority at Low, which caps how much
+            // time Unity gives async loads per frame. Draining World.LoadWorld
+            // synchronously monopolises the main thread on top of that, so the
+            // async waits later in createWorld (Resources.LoadAsync for
+            // WeatherManager, LoadManager.LoadAsset for SkySystem) can crawl or
+            // appear to hang -- the same Proton starvation the automation path
+            // already works around with ApplyFrameUncap. runInBackground matters
+            // too: Unity throttles an unfocused window, and loading a world while
+            // the player alt-tabs is ordinary. Scoped to the load and restored
+            // after, so no user preference is changed.
+            ThreadPriority previousLoadPriority = Application.backgroundLoadingPriority;
+            bool previousRunInBackground = Application.runInBackground;
+            try
             {
-                IEnumerator iterator = stack.Peek();
-                if (!MoveNext("StartAsServer", iterator, out object current))
+                Application.backgroundLoadingPriority = ThreadPriority.High;
+                Application.runInBackground = true;
+                Log.Out("[7dtd-connect] Local-host load priority raised (was "
+                    + previousLoadPriority + ", runInBackground was " + previousRunInBackground + ")");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] Local-host load priority raise failed: " + ex.Message);
+            }
+
+            try
+            {
+                var stack = new Stack<IEnumerator>();
+                stack.Push(root);
+                int step = 0;
+                while (stack.Count != 0)
                 {
-                    stack.Pop();
-                    Trace(step, "completed depth " + stack.Count + " after step " + step);
-                    continue;
+                    IEnumerator iterator = stack.Peek();
+                    if (!MoveNext("StartAsServer", iterator, out object current))
+                    {
+                        stack.Pop();
+                        Trace(step, "completed depth " + stack.Count + " after step " + step);
+                        continue;
+                    }
+                    if (current is IEnumerator nested)
+                    {
+                        stack.Push(nested);
+                        continue;
+                    }
+                    step++;
+                    // The known stall freezes here with no further output. Logging the
+                    // frame counter on both sides of the yield separates the two
+                    // possible causes: a step that never returns (last "->" has no
+                    // matching "<-") versus Unity silently dropping the coroutine
+                    // (matching "<-", then nothing).
+                    Trace(step, "-> step " + step + " depth " + stack.Count
+                        + " yield " + (current == null ? "null" : current.GetType().Name)
+                        + " frame " + UnityEngine.Time.frameCount);
+                    yield return current;
+                    Trace(step, "<- step " + step + " frame " + UnityEngine.Time.frameCount);
                 }
-                if (current is IEnumerator nested)
+            }
+            finally
+            {
+                try
                 {
-                    stack.Push(nested);
-                    continue;
+                    Application.backgroundLoadingPriority = previousLoadPriority;
+                    Application.runInBackground = previousRunInBackground;
                 }
-                step++;
-                // The known stall freezes here with no further output. Logging the
-                // frame counter on both sides of the yield separates the two
-                // possible causes: a step that never returns (last "->" has no
-                // matching "<-") versus Unity silently dropping the coroutine
-                // (matching "<-", then nothing).
-                Trace(step, "-> step " + step + " depth " + stack.Count
-                    + " yield " + (current == null ? "null" : current.GetType().Name)
-                    + " frame " + UnityEngine.Time.frameCount);
-                yield return current;
-                Trace(step, "<- step " + step + " frame " + UnityEngine.Time.frameCount);
+                catch (Exception ex)
+                {
+                    Log.Warning("[7dtd-connect] Local-host load priority restore failed: " + ex.Message);
+                }
             }
             Log.Out("[7dtd-connect] Local-host startup completed");
         }
