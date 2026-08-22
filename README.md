@@ -75,6 +75,21 @@ env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 
 After the main menu opens, the mod connects once.
 
+### Synchronous-load override
+
+Automated playtests enable the client's global `LoadManager.forceLoadSync`
+override by default so addressable loads cannot starve during unattended Proton
+launches. To keep all connect features active while using the stock asynchronous
+client loading path, set `7DTD_CONNECT_FORCE_LOAD_SYNC=0`. For example, in the
+Steam launch options:
+
+```text
+env 7DTD_CONNECT_FORCE_LOAD_SYNC=0 mangohud %command%
+```
+
+The values `0`, `false`, `no`, and `off` disable only the synchronous-load
+override. With the variable unset, playtest behavior is unchanged.
+
 ### Local player identity for an isolated test client
 
 The stock Local platform derives its identity from `GamePrefs.PlayerName`.
