@@ -75,6 +75,13 @@ env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 
 After the main menu opens, the mod connects once.
 
+Automation boot patches are enabled automatically only when `7DTD_CONNECT` or
+`-connect` supplies a launch target. A regular client launch still loads the
+`connect` console command and diagnostics, but leaves stock login, menu, EULA,
+Discord, authentication, and frame/loading behavior alone. Specialized runners
+without a launch target can force the old behavior with
+`7DTD_CONNECT_AUTOMATION=1`.
+
 ### Synchronous-load override
 
 Automated playtests enable the client's global `LoadManager.forceLoadSync`

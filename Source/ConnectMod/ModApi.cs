@@ -11,7 +11,7 @@ namespace SdtdConnect
     public class ModApi : IModApi
     {
         public const string HarmonyId = "com.7dtd.connect";
-        public const string Version = "0.10.3";
+        public const string Version = "0.10.4";
         public const string PlayerNameEnv = "7DTD_PLAYER_NAME";
         static bool _autoTried;
         static Harmony _harmony;
@@ -20,8 +20,10 @@ namespace SdtdConnect
         {
             DiagToggle.AnnounceOnce();
             Log.Out("[7dtd-connect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest) — diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
+            Log.Out("[7dtd-connect] automation boot mode " + (AutomationMode.Enabled ? "enabled" : "disabled")
+                + " (auto when 7DTD_CONNECT/-connect is present; override with " + AutomationMode.EnvVar + ")");
 
-            try
+            if (AutomationMode.Enabled) try
             {
                 // Stock only enables RIB in editor; async addressables starve at ~1 FPS under Proton.
                 BootUnblock.ApplyFrameUncap("InitMod");
@@ -32,7 +34,7 @@ namespace SdtdConnect
                 Log.Warning("[7dtd-connect] boot unblock failed: " + ex.Message);
             }
 
-            try
+            if (AutomationMode.Enabled) try
             {
                 ApplyPlayerNameOverride();
                 try { SdtdConnect.Patch_ClientInfo_PlayerName_Guard_FieldFallback.EnsurePrefsName(); } catch { }
@@ -60,6 +62,9 @@ namespace SdtdConnect
                 {
                     if (t.GetCustomAttributes(typeof(HarmonyPatch), true).Length == 0)
                         continue;
+                    if (!AutomationMode.Enabled
+                        && t.GetCustomAttributes(typeof(AutomationPatchAttribute), true).Length != 0)
+                        continue;
                     try
                     {
                         _harmony.CreateClassProcessor(t).Patch();
@@ -79,7 +84,7 @@ namespace SdtdConnect
                 Log.Error("[7dtd-connect] Harmony failed: " + ex.Message);
             }
 
-            try
+            if (AutomationMode.Enabled) try
             {
                 XUiC_MainMenu.shownNewsScreenOnce = true;
             }
@@ -134,7 +139,7 @@ namespace SdtdConnect
         static void OnMainMenuOpened(ref ModEvents.SMainMenuOpenedData _data)
         {
             DiagToggle.AnnounceOnce();
-            try
+            if (AutomationMode.Enabled) try
             {
                 XUiC_MainMenu.shownNewsScreenOnce = true;
                 if (GameManager.Instance != null)
