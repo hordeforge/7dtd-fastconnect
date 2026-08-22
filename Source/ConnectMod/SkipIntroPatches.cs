@@ -77,6 +77,7 @@ namespace SdtdConnect
         }
     }
 
+    [AutomationPatch]
     [HarmonyPatch(typeof(GameManager), "Awake")]
     static class Patch_GameManager_Awake_RunInBackground
     {
@@ -89,6 +90,7 @@ namespace SdtdConnect
     }
 
     /// <summary>Stock UpdateFPSCap re-applies VSync refresh cap before GameHasStarted; keep uncapped.</summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(GameManager), "UpdateFPSCap")]
     static class Patch_GameManager_UpdateFPSCap
     {
@@ -102,6 +104,7 @@ namespace SdtdConnect
     /// Skip news "click to continue" by treating it as already shown.
     /// Intro splash video is skipped via -skipintro on the process argv (before mods load).
     /// </summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(XUiC_MainMenu), nameof(XUiC_MainMenu.Open), new Type[] { typeof(XUi) })]
     static class Patch_MainMenu_Open
     {
@@ -122,6 +125,7 @@ namespace SdtdConnect
     /// <summary>
     /// Boot progress heartbeat so join harness can see static-load stalls.
     /// </summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(MainMenuMono), "Update")]
     static class Patch_MainMenuMono_Update_Heartbeat
     {
@@ -157,6 +161,7 @@ namespace SdtdConnect
     /// Steam Login can stall under Proton when unfocused. After static data is ready,
     /// force main-menu open so auto-join runs (test harness only).
     /// </summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(MainMenuMono), "CheckLogin")]
     static class Patch_MainMenuMono_CheckLogin
     {
@@ -191,6 +196,7 @@ namespace SdtdConnect
     }
 
     /// <summary>If news is already open (race / earlier open path), close it and open main menu.</summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(XUiC_NewsScreen), nameof(XUiC_NewsScreen.Open), new Type[] { typeof(XUi) })]
     static class Patch_NewsScreen_Open
     {
@@ -215,6 +221,7 @@ namespace SdtdConnect
     }
 
     /// <summary>Never initialize Discord SDK / login (RPC connect spam and login UI).</summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(DiscordManager), nameof(DiscordManager.Init))]
     static class Patch_DiscordManager_Init
     {
@@ -226,6 +233,7 @@ namespace SdtdConnect
     }
 
     /// <summary>Do not open first-time Discord info / login window on main menu.</summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(DiscordManager), "mainMenuOpening")]
     static class Patch_DiscordManager_mainMenuOpening
     {
@@ -237,6 +245,7 @@ namespace SdtdConnect
     }
 
     /// <summary>Treat EULA as already accepted so startup never sticks on scroll/accept UI.</summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.HasAcceptedLatestEula))]
     static class Patch_HasAcceptedLatestEula
     {
@@ -252,6 +261,7 @@ namespace SdtdConnect
     /// Stock has XUiC_EulaWindow.Open(XUi,bool) but GUIWindowManager opens "windowEula" via the 3-arg (string,bool,bool) path,
     /// so we must patch both. Log shows wt open3 windowEula after CheckLogin force-open.
     /// </summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(XUiC_EulaWindow), nameof(XUiC_EulaWindow.Open), new Type[] { typeof(XUi), typeof(bool) })]
     static class Patch_EulaWindow_Open
     {
@@ -281,6 +291,7 @@ namespace SdtdConnect
     }
 
     /// <summary>Steam-less Proton: GetAuthTicket throws InvalidOperationException when Steamworks not init; return empty ticket so SendLogin succeeds on EAC-off LAN.</summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(Platform.Steam.AuthenticationClient), nameof(Platform.Steam.AuthenticationClient.GetAuthTicket))]
     static class Patch_SteamAuthTicket_Steamless
     {
@@ -317,6 +328,7 @@ namespace SdtdConnect
     }
 
     /// <summary>Steam-less Proton: client has no Steam/EOS identity, but stock dedi's PlayerIdAuthorizer kicks Empty name or player ID. Inject a synthetic local Steam id so SendLogin succeeds on EAC-off LAN (loopback). With a real Steam login present, pass through so the server sees the real id and validates the real ticket.</summary>
+    [AutomationPatch]
     [HarmonyPatch(typeof(Platform.Steam.User), nameof(Platform.Steam.User.PlatformUserId), MethodType.Getter)]
     static class Patch_SteamUserId_Synthetic
     {
@@ -360,6 +372,7 @@ namespace SdtdConnect
         }
     }
 
+    [AutomationPatch]
     [HarmonyPatch(typeof(ClientInfo), "playerName", MethodType.Getter)]
     static class Patch_ClientInfo_PlayerName_Guard
     {
@@ -400,6 +413,7 @@ namespace SdtdConnect
     }
 
     // EOS path: patch concrete type directly (interface dispatch fails IL). The NRE is at Platform.EOS.AuthClient.GetAuthTicket when EOS not logged in.
+    [AutomationPatch]
     [HarmonyPatch(typeof(Platform.EOS.AuthClient), "GetAuthTicket")]
     static class Patch_EOSAuthTicket_Steamless2
     {
@@ -430,6 +444,7 @@ namespace SdtdConnect
         }
     }
 
+    [AutomationPatch]
     [HarmonyPatch(typeof(GUIWindowManager), "Open", new Type[] { typeof(string), typeof(bool), typeof(bool) })]
     static class Patch_GuiWindow_EulaAsGate
     {
@@ -469,6 +484,7 @@ namespace SdtdConnect
     }
 
     // Some paths open windowEula via (string,bool) - cover both arities
+    [AutomationPatch]
     [HarmonyPatch(typeof(GUIWindowManager), "Open", new Type[] { typeof(string), typeof(bool) })]
     static class Patch_GuiWindow_EulaAsGate2
     {
@@ -506,4 +522,3 @@ namespace SdtdConnect
         }
     }
 }
-
