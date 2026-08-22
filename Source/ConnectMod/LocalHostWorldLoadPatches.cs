@@ -15,6 +15,15 @@ namespace SdtdConnect
     {
         const int CreateWorldUnsafeFrameBreaks = 9;
 
+        /// <summary>
+        /// The workaround only runs during world load, and the stall it is being
+        /// used to diagnose happens within the first few dozen steps. Trace that
+        /// window unconditionally -- two runs were wasted producing empty logs
+        /// because the trace was gated behind a flag nobody had turned on -- and
+        /// cap it so a healthy load cannot spam the log. `diag on` lifts the cap.
+        /// </summary>
+        const int UngatedTraceSteps = 250;
+
         internal static void WrapStartAsServer(ref IEnumerator result)
         {
             if (!IsNormalLocalHost() || result == null) return;
@@ -49,7 +58,7 @@ namespace SdtdConnect
                 if (!MoveNext("StartAsServer", iterator, out object current))
                 {
                     stack.Pop();
-                    Trace("completed depth " + stack.Count + " after step " + step);
+                    Trace(step, "completed depth " + stack.Count + " after step " + step);
                     continue;
                 }
                 if (current is IEnumerator nested)
@@ -63,19 +72,20 @@ namespace SdtdConnect
                 // possible causes: a step that never returns (last "->" has no
                 // matching "<-") versus Unity silently dropping the coroutine
                 // (matching "<-", then nothing).
-                Trace("-> step " + step + " depth " + stack.Count
+                Trace(step, "-> step " + step + " depth " + stack.Count
                     + " yield " + (current == null ? "null" : current.GetType().Name)
                     + " frame " + UnityEngine.Time.frameCount);
                 yield return current;
-                Trace("<- step " + step + " frame " + UnityEngine.Time.frameCount);
+                Trace(step, "<- step " + step + " frame " + UnityEngine.Time.frameCount);
             }
             Log.Out("[7dtd-connect] Local-host startup completed");
         }
 
-        /// <summary>Opt-in via 7DTD_CONNECT_DEBUG=1 or `diag on`; silent in normal play.</summary>
-        static void Trace(string message)
+        /// <summary>Bounded during world load; unbounded with 7DTD_CONNECT_DEBUG=1 or `diag on`.</summary>
+        static void Trace(int step, string message)
         {
-            if (DiagToggle.Enabled) Log.Out("[7dtd-connect] StartAsServer trace: " + message);
+            if (DiagToggle.Enabled || step <= UngatedTraceSteps)
+                Log.Out("[7dtd-connect] StartAsServer trace: " + message);
         }
 
         static IEnumerator DrainWorldLoad(IEnumerator root)
@@ -114,8 +124,16 @@ namespace SdtdConnect
         static IEnumerator PrepareCreateWorld(IEnumerator root)
         {
             int skippedFrameBreaks = 0;
+            int step = 0;
+            // The observed freeze at "AstarManager Init" sits inside the suppressed
+            // window, whose yields never reach Flatten. Trace here as well, or the
+            // instrument misses the failure it exists to catch.
             while (MoveNext("createWorld", root, out object current))
             {
+                Trace(++step, "createWorld step " + step
+                    + " skipped " + skippedFrameBreaks
+                    + " yield " + (current == null ? "null" : current.GetType().Name)
+                    + " frame " + UnityEngine.Time.frameCount);
                 if (current is IEnumerator nested)
                 {
                     if (skippedFrameBreaks >= CreateWorldUnsafeFrameBreaks)
