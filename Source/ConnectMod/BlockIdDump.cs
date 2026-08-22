@@ -9,7 +9,7 @@ using HarmonyLib;
 namespace SdtdConnect
 {
     /// <summary>
-    /// Optional RE dump of runtime Block.blockID values (env ZDTD_DUMP_BLOCK_IDS=1).
+    /// Optional RE dump of runtime Block.blockID values (env 7DTD_DUMP_BLOCK_IDS=1).
     /// Stock AssignIds: terrain fills low ids, non-terrain starts at 256; not XML order.
     /// Full dump writes name\tid lines (same shape as assets/fixtures/assignids_v314.txt).
     /// </summary>
@@ -31,7 +31,8 @@ namespace SdtdConnect
 
         static void DumpOnce(string reason)
         {
-            var dump = Environment.GetEnvironmentVariable("ZDTD_DUMP_BLOCK_IDS");
+            var dump = Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS")
+                       ?? Environment.GetEnvironmentVariable("ZDTD_DUMP_BLOCK_IDS"); // legacy (pre-rename)
             if (string.IsNullOrEmpty(dump) || dump == "0") return;
             if (_dumped) return;
             try
@@ -76,7 +77,8 @@ namespace SdtdConnect
         /// </summary>
         static int DumpAllBlocks()
         {
-            string outPath = Environment.GetEnvironmentVariable("ZDTD_DUMP_BLOCK_IDS_PATH");
+            string outPath = Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS_PATH")
+                             ?? Environment.GetEnvironmentVariable("ZDTD_DUMP_BLOCK_IDS_PATH"); // legacy (pre-rename)
             if (string.IsNullOrEmpty(outPath))
             {
                 outPath = Path.Combine(

@@ -17,13 +17,22 @@ ifneq ($(DOTNET_ROOT),)
   export PATH := $(DOTNET_ROOT):$(PATH)
 endif
 
-.PHONY: build install uninstall clean
+.PHONY: build install uninstall clean test package
 
 build:
 	dotnet build "$(ROOT)/Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
 		-p:GameRoot="$(GAME)"
 	cp -f "$(ROOT)/ModInfo.xml" "$(DIST)/"
 	@echo "OK → $(DIST)"
+
+test:
+	$(ROOT)/scripts/test_player_name_override.sh
+	$(ROOT)/scripts/test_mute_client_audio.sh
+	@command -v uv >/dev/null && cd "$(ROOT)" && uv run --with pytest pytest scripts/test_launch_client_platform.py -q --tb=short \
+		|| python3 -m pytest scripts/test_launch_client_platform.py -q --tb=short
+
+package:
+	$(ROOT)/scripts/package.sh
 
 install: build
 	mkdir -p "$(INSTALL_DIR)"

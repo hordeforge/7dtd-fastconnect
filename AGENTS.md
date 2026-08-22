@@ -39,6 +39,9 @@ Client-only mod: join by IP without Steam `steam://connect` (invalid for non-Ste
 ## Commands
 
 ```bash
+make test     # offline gates (env naming, mute helper, platform swap/restore)
+make build    # requires local client install (game Assembly-CSharp)
+make package  # build + zip dist/7dtd-connect-<tag>.zip (needs a client install)
 make install
 env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```

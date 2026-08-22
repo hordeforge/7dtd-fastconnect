@@ -4,7 +4,7 @@ using HarmonyLib;
 namespace SdtdConnect
 {
     /// <summary>
-    /// Optional RE dump of EntityClass ids (env ZDTD_DUMP_ENTITY_CLASS=1).
+    /// Optional RE dump of EntityClass ids (env 7DTD_DUMP_ENTITY_CLASS=1).
     /// Stock keys list[name.GetHashCode()] = class; capture real hashes for zdtd ECD.
     /// </summary>
     static class EntityClassDump
@@ -16,7 +16,8 @@ namespace SdtdConnect
         {
             static void Postfix(string _entityClassname, EntityClass _entityClass)
             {
-                var dump = Environment.GetEnvironmentVariable("ZDTD_DUMP_ENTITY_CLASS");
+                var dump = Environment.GetEnvironmentVariable("7DTD_DUMP_ENTITY_CLASS")
+                           ?? Environment.GetEnvironmentVariable("ZDTD_DUMP_ENTITY_CLASS"); // legacy (pre-rename)
                 if (string.IsNullOrEmpty(dump) || dump == "0") return;
                 if (_entityClassname == null) return;
                 // Log players + first zombies + any name containing zombie/animal/trader

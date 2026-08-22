@@ -11,6 +11,9 @@ Missing terrain, signs, inventory, spawn, or deco behaviour is fixed on the **se
 **Gameplay automation** (dig/place/suites, scored exit codes) lives in sibling
 [`../7dtd-playtest/`](../7dtd-playtest/). Install both mods for automated playtests.
 
+CI runs `make test` on every push and PR. Packaged builds are attached to
+GitHub releases (`make package` produces `dist/7dtd-connect-<tag>.zip`).
+
 ## Requirements
 
 - Stock client **EAC off** (`-noeac`; C# mods require it)
