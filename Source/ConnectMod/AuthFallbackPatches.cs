@@ -41,9 +41,15 @@ namespace SdtdConnect
     [HarmonyPatch(typeof(Platform.Steam.User), nameof(Platform.Steam.User.PlatformUserId), MethodType.Getter)]
     static class Patch_SteamUserId_Synthetic
     {
-        // Individual-account SteamID64 base; keep derived ids inside the
-        // standard universe and far below the bot-id range BotTabPatch uses.
+        // Individual-account SteamID64 base. Real accounts occupy
+        // [IndividualAccountBase, IndividualAccountBase + 2^32): the account
+        // number is a uint32, so the highest real id is 76561202255233023.
+        // Synthetic ids live ABOVE that ceiling and below BotTabPatch's bot
+        // ids (>= 90000000000000000), so a derived id can collide neither
+        // with a real player's account (the server would merge/kick two
+        // people onto one persisted identity) nor with a bot.
         const ulong IndividualAccountBase = 76561197960265728UL;
+        const ulong SyntheticIdBase = 80000000000000000UL;
 
         static PlatformUserIdentifierAbs _fake;
 
@@ -58,7 +64,7 @@ namespace SdtdConnect
                 try { seed = Environment.UserName; } catch { }
             }
             if (string.IsNullOrWhiteSpace(seed))
-                return new Platform.Steam.UserIdentifierSteam("76561199000000042");
+                return new Platform.Steam.UserIdentifierSteam("80000000000000042");
             ulong hash = 14695981039346656037UL;
             foreach (char c in seed.Trim())
             {
@@ -66,7 +72,7 @@ namespace SdtdConnect
                 hash *= 1099511628211UL;
             }
             return new Platform.Steam.UserIdentifierSteam(
-                (IndividualAccountBase + hash % 100000000UL).ToString());
+                (SyntheticIdBase + hash % 100000000UL).ToString());
         }
 
         static bool Prefix(Platform.Steam.User __instance, ref PlatformUserIdentifierAbs __result)

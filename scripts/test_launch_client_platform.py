@@ -66,6 +66,14 @@ STEAM_STUB = """printf '%s\\n' "$@" > "$STEAM_ARGV"
 printenv 7DTD_CONNECT > "$STEAM_ENV_CONNECT"
 """
 
+# Last-resort guard: any launch that reaches for the host's real `steam` would
+# bootstrap a full Steam client into the fake HOME (gigabytes, minutes) before
+# this suite could notice. The guard fails fast instead; tests that exercise
+# the fallback put their own recording stub earlier on PATH.
+STEAM_GUARD_STUB = """echo \"guard: unexpected host steam launch: $*\" >&2
+exit 99
+"""
+
 
 def _write_executable(path: Path, body: str) -> None:
     path.write_text(f"#!/usr/bin/env bash\n{body}", encoding="utf-8")
@@ -73,7 +81,8 @@ def _write_executable(path: Path, body: str) -> None:
 
 
 def _stub_path_prefix(bin_dir: Path) -> str:
-    return f"{bin_dir}{os.pathsep}{BASE_ENV.get('PATH', '')}"
+    """A stub dir only; _launch appends the guard and the host PATH behind it."""
+    return str(bin_dir)
 
 
 def _setup(
@@ -107,8 +116,8 @@ def _launch(
     extra_env: dict[str, str | None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run the launcher sandboxed; a None extra_env value omits the variable
-    entirely (e.g. PROTON/COMPAT unset selects the steam -applaunch fallback
-    or COMPAT derivation from GAME's library)."""
+    entirely (e.g. PROTON unset selects the steam -applaunch fallback or
+    COMPAT derivation from GAME's library)."""
     env = {
         **BASE_ENV,
         "GAME": str(tmp_path / "game"),
@@ -122,12 +131,30 @@ def _launch(
         env["CLIENT_PLATFORM"] = "local"
     if connect is not None:
         env["7DTD_CONNECT"] = connect
+    # Default to the direct-Proton branch unless the test pins PROTON itself
+    # (usually to None): the launcher only reaches the steam -applaunch
+    # fallback when no Proton is found, and with HOME redirected that fallback
+    # would exec the host's real steam client.
+    if extra_env is None or "PROTON" not in extra_env:
+        env.setdefault("PROTON", str(tmp_path / "proton-stub"))
+        compat = tmp_path / "compat"
+        compat.mkdir(exist_ok=True)
+        env.setdefault("COMPAT", str(compat))
     if extra_env is not None:
         for key, value in extra_env.items():
             if value is None:
                 env.pop(key, None)
             else:
                 env[key] = value
+    guard_bin = tmp_path / "guard-bin"
+    guard_bin.mkdir(exist_ok=True)
+    _write_executable(guard_bin / "steam", STEAM_GUARD_STUB)
+    # PATH is rebuilt, not extended: a test's stub dir first, then the guard,
+    # then the host PATH. Extending the inherited PATH would leave the system
+    # dirs (and the real steam) ahead of the guard, making it dead weight.
+    stub_dirs = (extra_env or {}).get("PATH") or ""
+    parts = [stub_dirs, str(guard_bin), BASE_ENV.get("PATH", "")]
+    env["PATH"] = os.pathsep.join(p for p in parts if p)
     return subprocess.run(
         ["bash", str(LAUNCH)], env=env, capture_output=True, text=True,
         timeout=60, check=False,
@@ -209,10 +236,19 @@ def test_compat_derives_from_game_library(tmp_path: Path) -> None:
     branch keeps running instead of degrading to steam -applaunch."""
     game = tmp_path / "library" / "steamapps" / "common" / "Game"
     _setup(tmp_path, game_dir=game)
+    # The launcher's search looks next to GAME's library; plant a usable
+    # Proton exactly where "${GAME%/common/*}/common/Proton - Experimental"
+    # resolves, and pre-create the derived compatdata dir it checks with -d.
+    library_root = tmp_path / "library" / "steamapps"
+    proton = library_root / "common" / "Proton - Experimental" / "proton"
+    proton.parent.mkdir(parents=True)
+    proton.write_text("#!/usr/bin/env bash\nshift\nexec \"$@\"\n", encoding="utf-8")
+    proton.chmod(proton.stat().st_mode | stat.S_IEXEC)
+    (library_root / "compatdata" / "251570").mkdir(parents=True)
     r = _launch(tmp_path, extra_env={"GAME": str(game), "COMPAT": None})
     assert r.returncode == 0, r.stderr
     # Log dir under the DERIVED prefix proves which COMPAT was used.
-    logdir = (tmp_path / "library" / "steamapps" / "compatdata" / "251570"
+    logdir = (library_root / "compatdata" / "251570"
               / "pfx" / "drive_c" / "users" / "steamuser" / "AppData"
               / "Roaming" / "7DaysToDie" / "logs")
     assert logdir.is_dir(), r.stdout
@@ -233,6 +269,8 @@ def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
     r = _launch(
         tmp_path,
         connect="127.0.0.1:27025",
+        # This test IS the fallback: PROTON pinned to None skips the default
+        # injection, and its recording stub shadows the guard on PATH.
         extra_env={
             "PATH": _stub_path_prefix(bin_dir),
             "STEAM_ARGV": str(steam_argv),
@@ -250,6 +288,15 @@ def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
     ]
     # Steam does not reliably pass -connect=; the env is the reliable channel.
     assert steam_env.read_text(encoding="utf-8").strip() == "127.0.0.1:27025"
+
+
+def test_host_steam_is_never_reached(tmp_path: Path) -> None:
+    """The fallback with no stub steam must hit the guard, not the host client:
+    a real steam here bootstraps gigabytes into the fake HOME and opens a
+    window on the developer's desktop."""
+    _setup(tmp_path)
+    r = _launch(tmp_path, extra_env={"PROTON": None, "COMPAT": None})
+    assert "guard: unexpected host steam launch" in r.stderr, r.stderr
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="mute filter needs jq")
