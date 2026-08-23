@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
-"""Offline gate for the CLIENT_PLATFORM=local swap/restore plumbing.
+"""Offline gate for launch_client.sh plumbing.
 
-Runs launch_client.sh against a fake game dir + stub Proton: the game's
-platform.cfg must be swapped to Local before launch and restored afterwards
-(the trap), without touching the real install. Also gates -connect= arg
-forwarding from the 7DTD_CONNECT env var (the mod's core join path).
+Runs the launcher against a fake game dir + stub Proton/steam/pactl so each
+gate exercises real script behavior without a game install:
+
+- CLIENT_PLATFORM=local swap/restore: platform.cfg must be swapped to Local
+  before launch and restored afterwards (the trap), without touching the real
+  install.
+- 7DTD_CONNECT forwarding: -connect= must reach the game process argv (the
+  mod's core join path), and the EAC-off/render flags are part of the
+  launcher's contract with the game (any C# client mod requires EAC off).
+- COMPAT derivation: a GAME outside the default Steam root must derive its
+  Proton prefix from GAME's own library; losing that silently falls through
+  to the steam -applaunch branch, which loses environment passthrough.
+- Steam fallback: no usable Proton still forwards -connect= and exports
+  7DTD_CONNECT to the steam process.
+- Client mute: default-on mutes matching sink inputs through the launched
+  helper (stub pactl); CLIENT_MUTE=0 never invokes pactl.
 
 The stub Proton execs its args into a stub game exe that records its argv,
 so tests assert what actually reaches the game process.
@@ -14,9 +26,12 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import stat
 import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 LAUNCH = ROOT / "scripts" / "launch_client.sh"
@@ -33,23 +48,53 @@ SCRUB = {
 }
 BASE_ENV = {k: v for k, v in os.environ.items() if k not in SCRUB}
 
+# One matching stream (index 7) next to an unrelated one (index 9): the mute
+# filter reached through the full launch path must mute the game stream only.
+STREAMS_JSON = (
+    '[{"index": 7, "properties": {"application.name": "7DaysToDie"}},\n'
+    ' {"index": 9, "properties": {"application.name": "spotify"}}]\n'
+)
 
-def _setup(tmp_path: Path) -> Path:
+PACTL_STUB = """case "$1" in
+\t-f) cat "${PACTL_JSON:?}" ;;
+\tset-sink-input-mute) printf '%s\\n' "$*" >>"${PACTL_LOG:?}" ;;
+\t*) echo "unexpected pactl call: $*" >&2; exit 1 ;;
+esac
+"""
+
+STEAM_STUB = """printf '%s\\n' "$@" > "$STEAM_ARGV"
+printenv 7DTD_CONNECT > "$STEAM_ENV_CONNECT"
+"""
+
+
+def _write_executable(path: Path, body: str) -> None:
+    path.write_text(f"#!/usr/bin/env bash\n{body}", encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
+
+
+def _stub_path_prefix(bin_dir: Path) -> str:
+    return f"{bin_dir}{os.pathsep}{BASE_ENV.get('PATH', '')}"
+
+
+def _setup(
+    tmp_path: Path,
+    *,
+    game_dir: Path | None = None,
+    game_run_seconds: float = 0,
+) -> Path:
     """Fake install: game dir + platform.cfg + exe stub recording its argv."""
-    game = tmp_path / "game"
-    game.mkdir(exist_ok=True)
+    game = game_dir if game_dir is not None else tmp_path / "game"
+    game.mkdir(parents=True, exist_ok=True)
     (game / "platform.cfg").write_text(STEAM_CFG, encoding="utf-8")
     record = tmp_path / "game-argv.txt"
-    # Proton runs the exe with cwd=game and passes extra args through.
-    exe = game / "7DaysToDie.exe"
-    exe.write_text(
-        f"#!/usr/bin/env bash\nprintf '%s\\n' \"$@\" > {shlex.quote(str(record))}\n",
-        encoding="utf-8",
-    )
-    exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
-    proton = tmp_path / "proton-stub"
-    proton.write_text("#!/usr/bin/env bash\nshift\nexec \"$@\"\n", encoding="utf-8")
-    proton.chmod(proton.stat().st_mode | stat.S_IEXEC)
+    # Proton runs the exe with cwd=game and passes extra args through. The
+    # optional sleep keeps the launcher alive long enough that backgrounded
+    # children (the mute poller) finish their first poll deterministically.
+    body = f"printf '%s\\n' \"$@\" > {shlex.quote(str(record))}\n"
+    if game_run_seconds > 0:
+        body += f"sleep {game_run_seconds}\n"
+    _write_executable(game / "7DaysToDie.exe", body)
+    _write_executable(tmp_path / "proton-stub", "shift\nexec \"$@\"\n")
     return game
 
 
@@ -58,19 +103,31 @@ def _launch(
     *,
     local_platform: bool = True,
     connect: str | None = None,
+    mute: bool = False,
+    extra_env: dict[str, str | None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    """Run the launcher sandboxed; a None extra_env value omits the variable
+    entirely (e.g. PROTON/COMPAT unset selects the steam -applaunch fallback
+    or COMPAT derivation from GAME's library)."""
     env = {
         **BASE_ENV,
         "GAME": str(tmp_path / "game"),
-        "PROTON": str(tmp_path / "proton-stub"),
-        "COMPAT": str(tmp_path / "compat"),
-        "CLIENT_MUTE": "0",
         "HOME": str(tmp_path / "home"),
     }
+    # mute=False pins CLIENT_MUTE=0 so tests stay quiet; mute=True leaves the
+    # variable unset so the launcher's default-on behavior is what runs.
+    if not mute:
+        env["CLIENT_MUTE"] = "0"
     if local_platform:
         env["CLIENT_PLATFORM"] = "local"
     if connect is not None:
         env["7DTD_CONNECT"] = connect
+    if extra_env is not None:
+        for key, value in extra_env.items():
+            if value is None:
+                env.pop(key, None)
+            else:
+                env[key] = value
     return subprocess.run(
         ["bash", str(LAUNCH)], env=env, capture_output=True, text=True,
         timeout=60, check=False,
@@ -100,6 +157,16 @@ def test_no_platform_override_leaves_config_alone(tmp_path: Path) -> None:
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
+def test_invalid_platform_value_leaves_config_alone(tmp_path: Path) -> None:
+    """Only 1/local/Local/LAN select Local; anything else must be ignored."""
+    game = _setup(tmp_path)
+    r = _launch(tmp_path, local_platform=False,
+                extra_env={"CLIENT_PLATFORM": "bogus"})
+    assert r.returncode == 0, r.stderr
+    assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+    assert not (game / "platform.cfg.re-localbak").exists()
+
+
 def test_leftover_backup_is_restored_then_reswapped(tmp_path: Path) -> None:
     """A hard-killed previous run leaves the cfg swapped + a backup; the next
     launch must restore it first, then swap fresh (self-healing)."""
@@ -123,8 +190,111 @@ def test_connect_env_forwards_connect_arg(tmp_path: Path) -> None:
     assert "-skipintro" in argv
 
 
-def test_no_connect_env_omits_connect_arg(tmp_path: Path) -> None:
+def test_eac_off_and_render_flags_reach_game(tmp_path: Path) -> None:
+    """EAC off is mandatory for any C# client mod (AGENTS.md rule 1); the
+    render/log flags are the launcher's contract with the game process."""
     _setup(tmp_path)
     r = _launch(tmp_path)
     assert r.returncode == 0, r.stderr
-    assert not any(a.startswith("-connect=") for a in _argv(tmp_path))
+    argv = _argv(tmp_path)
+    assert "-noeac" in argv
+    assert "-force-d3d11" in argv
+    assert "-nogs" in argv
+    assert "-logfile" in argv
+
+
+def test_compat_derives_from_game_library(tmp_path: Path) -> None:
+    """A game installed under a second-disk library gets its Proton prefix
+    (<library>/compatdata/<appid>) derived from GAME, so the direct-Proton
+    branch keeps running instead of degrading to steam -applaunch."""
+    game = tmp_path / "library" / "steamapps" / "common" / "Game"
+    _setup(tmp_path, game_dir=game)
+    r = _launch(tmp_path, extra_env={"GAME": str(game), "COMPAT": None})
+    assert r.returncode == 0, r.stderr
+    # Log dir under the DERIVED prefix proves which COMPAT was used.
+    logdir = (tmp_path / "library" / "steamapps" / "compatdata" / "251570"
+              / "pfx" / "drive_c" / "users" / "steamuser" / "AppData"
+              / "Roaming" / "7DaysToDie" / "logs")
+    assert logdir.is_dir(), r.stdout
+    # Direct-Proton branch taken, not the steam fallback.
+    assert "Proton:" in r.stdout
+    _argv(tmp_path)
+
+
+def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
+    """Without a usable Proton the steam -applaunch fallback must still carry
+    -noeac, the forwarded -connect= arg, and the canonical 7DTD_CONNECT env."""
+    _setup(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    steam_argv = tmp_path / "steam-argv.txt"
+    steam_env = tmp_path / "steam-connect-env.txt"
+    _write_executable(bin_dir / "steam", STEAM_STUB)
+    r = _launch(
+        tmp_path,
+        connect="127.0.0.1:27025",
+        extra_env={
+            "PATH": _stub_path_prefix(bin_dir),
+            "STEAM_ARGV": str(steam_argv),
+            "STEAM_ENV_CONNECT": str(steam_env),
+            "PROTON": None,
+            "COMPAT": None,
+        },
+    )
+    assert r.returncode == 0, r.stderr
+    argv = steam_argv.read_text(encoding="utf-8").splitlines()
+    assert argv == [
+        "-applaunch", "251570", "-noeac",
+        "-skipintro", "-SkipNewsScreen=true",
+        "-connect=127.0.0.1:27025",
+    ]
+    # Steam does not reliably pass -connect=; the env is the reliable channel.
+    assert steam_env.read_text(encoding="utf-8").strip() == "127.0.0.1:27025"
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="mute filter needs jq")
+def test_default_mute_mutes_game_stream_via_launch(tmp_path: Path) -> None:
+    """Default-on mute end to end: the poller started by launch_client must
+    mute the game's sink input and leave unrelated streams alone."""
+    _setup(tmp_path, game_run_seconds=2)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    streams = tmp_path / "streams.json"
+    streams.write_text(STREAMS_JSON, encoding="utf-8")
+    mute_log = tmp_path / "mute.log"
+    mute_log.touch()
+    _write_executable(bin_dir / "pactl", PACTL_STUB)
+    r = _launch(
+        tmp_path,
+        mute=True,
+        extra_env={
+            "PATH": _stub_path_prefix(bin_dir),
+            "PACTL_JSON": str(streams),
+            "PACTL_LOG": str(mute_log),
+        },
+    )
+    assert r.returncode == 0, r.stderr
+    assert "Client mute: on" in r.stdout
+    muted = mute_log.read_text(encoding="utf-8").splitlines()
+    assert "set-sink-input-mute 7 1" in muted
+    assert "set-sink-input-mute 9 1" not in muted
+
+
+def test_client_mute_opt_out_never_invokes_pactl(tmp_path: Path) -> None:
+    _setup(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    mute_log = tmp_path / "mute.log"
+    mute_log.touch()
+    # Any invocation would append; the opt-out must prevent them all.
+    _write_executable(
+        bin_dir / "pactl",
+        f"printf '%s\\n' \"$*\" >>{shlex.quote(str(mute_log))}\n",
+    )
+    r = _launch(
+        tmp_path,
+        extra_env={"PATH": _stub_path_prefix(bin_dir), "CLIENT_MUTE": "0"},
+    )
+    assert r.returncode == 0, r.stderr
+    assert "Client mute" not in r.stdout
+    assert mute_log.read_text(encoding="utf-8") == ""
