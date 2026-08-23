@@ -99,8 +99,12 @@ namespace SdtdConnect
             // serverPos is fixed-point in 1/32 block units (stock wire
             // scale), NOT blocks: a player at block -273 reads -8736
             // there. Compare in the same units or the delta is nonsense.
+            // Convert with an arithmetic shift, which floors: plain '/'
+            // truncates toward zero and reports raw -8752 as block -273
+            // instead of -274, skewing delta/wouldSend by one block on
+            // every negative-coordinate frame.
             Vector3i srvRaw = player.serverPos;
-            Vector3i srv = new Vector3i(srvRaw.x / 32, srvRaw.y / 32, srvRaw.z / 32);
+            Vector3i srv = new Vector3i(srvRaw.x >> 5, srvRaw.y >> 5, srvRaw.z >> 5);
             Vector3i d = b - srv;
             bool wouldSend = Mathf.Abs(d.x) >= 2 || Mathf.Abs(d.y) >= 2 || Mathf.Abs(d.z) >= 2;
             Log.Out("[7dtd-fastconnect] move hb posI=" + b + " serverPos=" + srv + " raw=" + srvRaw
