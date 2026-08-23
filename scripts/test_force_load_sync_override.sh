@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SOURCE="$ROOT/Source/ConnectMod/SkipIntroPatches.cs"
+SOURCE="$ROOT/Source/ConnectMod/BootUnblock.cs"
 ENVFLAGS="$ROOT/Source/ConnectMod/EnvFlags.cs"
 source "$ROOT/scripts/test_common.sh"
 

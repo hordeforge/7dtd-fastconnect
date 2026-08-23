@@ -22,6 +22,25 @@ namespace SdtdConnect
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
+        /// <summary>
+        /// Merges an optional explicit port argument into a raw host string:
+        /// strips a pasted steam://connect/ prefix (its colons must not mask
+        /// an explicit port) and applies TryParse's port rule so the second
+        /// token is only appended to a host that does not already carry a
+        /// port. portArg=null keeps just the scheme strip.
+        /// </summary>
+        public static string MergePortArg(string raw, string portArg)
+        {
+            if (raw == null) return null;
+            if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
+                raw = raw.Substring("steam://connect/".Length);
+            int firstColon = raw.IndexOf(':');
+            bool hasPort = raw.StartsWith("[")
+                ? raw.Contains("]:")
+                : firstColon >= 0 && firstColon == raw.LastIndexOf(':');
+            return hasPort || portArg == null ? raw : raw + ":" + portArg;
+        }
+
         public static bool TryParse(string raw, out string host, out int port, out string error)
         {
             host = null;

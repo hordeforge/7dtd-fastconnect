@@ -32,22 +32,11 @@ namespace SdtdConnect
                 return;
             }
 
-            string raw = _params[0];
-            // Strip the steam-style scheme first (same normalization as
-            // ConnectTarget.TryParse) so its colons cannot mask an explicit
-            // port arg. Then mirror TryParse's port rule: bracketed IPv6
-            // hosts only take "]:" as an explicit-port separator, plain
-            // hosts only carry a port after a SINGLE colon (bare IPv6 has
-            // several, so an explicit port arg must still be appended).
-            const string steamPrefix = "steam://connect/";
-            if (raw.StartsWith(steamPrefix, System.StringComparison.OrdinalIgnoreCase))
-                raw = raw.Substring(steamPrefix.Length);
-            int firstColon = raw.IndexOf(':');
-            bool hasPort = raw.StartsWith("[")
-                ? raw.Contains("]:")
-                : firstColon >= 0 && firstColon == raw.LastIndexOf(':');
-            if (_params.Count >= 2 && !hasPort)
-                raw = raw + ":" + _params[1];
+            // Scheme strip + optional explicit port arg follow ConnectTarget's
+            // own rules via MergePortArg, so this command cannot drift from
+            // TryParse when the grammar changes.
+            string raw = ConnectTarget.MergePortArg(
+                _params[0], _params.Count >= 2 ? _params[1] : null);
 
             if (!ConnectTarget.TryParse(raw, out string host, out int port, out string err))
             {
