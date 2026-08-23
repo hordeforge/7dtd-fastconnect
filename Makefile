@@ -30,6 +30,7 @@ test:
 	$(ROOT)/scripts/test_force_load_sync_override.sh
 	$(ROOT)/scripts/test_automation_mode.sh
 	$(ROOT)/scripts/test_mute_client_audio.sh
+	$(ROOT)/scripts/test_monotonic_deadlines.sh
 	$(ROOT)/scripts/test_version_sync.sh
 	@if command -v uv >/dev/null; then \
 	  cd "$(ROOT)" && uv run --with 'pytest>=9,<10' pytest scripts/test_launch_client_platform.py -q --tb=short; \

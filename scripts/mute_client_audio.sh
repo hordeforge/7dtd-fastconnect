@@ -26,8 +26,20 @@ if ! command -v pactl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
 	exit 0
 fi
 
-deadline=$((SECONDS + WAIT_SECONDS))
-while ((SECONDS < deadline)); do
+# Monotonic seconds since boot (/proc/uptime, CLOCK_BOOTTIME). Bash's SECONDS
+# is wall-clock derived: an NTP step or manual correction mid-wait would extend
+# or truncate this bounded poll. Fallback keeps the old behaviour off-Linux.
+mono_sec() {
+	local up
+	if read -r up _ < /proc/uptime 2>/dev/null && [[ "$up" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+		printf '%s\n' "${up%%.*}"
+	else
+		printf '%s\n' "$SECONDS"
+	fi
+}
+
+deadline=$(( $(mono_sec) + WAIT_SECONDS ))
+while (( $(mono_sec) < deadline )); do
 	indexes="$(pactl -f json list sink-inputs 2>/dev/null | jq -r '
 		.[]
 		| select(

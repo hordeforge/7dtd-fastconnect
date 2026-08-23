@@ -41,6 +41,19 @@ client_pids_before=()
 
 log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
 
+# Monotonic seconds since boot (/proc/uptime, CLOCK_BOOTTIME). Bash's SECONDS
+# is wall-clock derived: an NTP step or manual correction mid-wait would extend
+# or truncate the join timeout (killing a client that was about to spawn).
+# Fallback keeps the old behaviour off-Linux.
+mono_sec() {
+  local up
+  if read -r up _ < /proc/uptime 2>/dev/null && [[ "$up" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    printf '%s\n' "${up%%.*}"
+  else
+    printf '%s\n' "$SECONDS"
+  fi
+}
+
 # Join success signal; some checks accept extra partial-progress markers too.
 JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'
 JOIN_SOFT_RE='Found own player entity with id|PlayerSpawnedInWorld|\[7dtd-connect\] .*connected|Created player|Local Player'
@@ -150,9 +163,9 @@ log "launch_pid=$launch_pid"
 sleep 3
 log "after_launch clients: $(list_client_pids | tr '\n' ' ')"
 
-deadline=$((SECONDS + TIMEOUT_SEC))
+deadline=$(( $(mono_sec) + TIMEOUT_SEC ))
 result="timeout"
-while (( SECONDS < deadline )); do
+while (( $(mono_sec) < deadline )); do
   if [[ -f "$CLIENT_LOG_SRC" ]]; then
     # Strong success first: in-world entity exists. Later package noise must not demote this.
     if grep -Eq "$JOINED_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
