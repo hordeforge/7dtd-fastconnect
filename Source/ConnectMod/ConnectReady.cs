@@ -8,7 +8,7 @@ namespace SdtdConnect
     /// </summary>
     public static class ConnectReady
     {
-        // Wall time (unscaled) when the cross user was first seen without an id.
+        // Monotonic (unscaled) time when the cross user was first seen without an id.
         static float _crossWaitStart = -1f;
 
         public static bool IsReady(out string reason)

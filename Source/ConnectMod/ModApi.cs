@@ -179,10 +179,10 @@ namespace SdtdConnect
         {
             // SetupProtocols NREs on PlatformManager.NativePlatform before EOS/Steam settle.
             // Force-open CheckLogin fires MainMenuOpened ~1s before [EOS] Login succeeded;
-            // the connect-ready gate waits for the cross (EOS) user. Cap by wall time,
-            // not frames, because uncapped boot ticks thousands of frames per second
-            // (a frame cap would expire long before the EOS settle windows in ConnectReady).
-            // Poll on a wall interval, not per frame: IsReady touches several
+            // the connect-ready gate waits for the cross (EOS) user. Cap by monotonic
+            // time, not frames, because uncapped boot ticks thousands of frames per
+            // second (a frame cap would expire long before the EOS settle windows in ConnectReady).
+            // Poll on a monotonic interval, not per frame: IsReady touches several
             // subsystems and would otherwise run thousands of times per second
             // under the uncapped boot; 10 Hz costs at most 100 ms of extra
             // join latency against multi-second settle windows.

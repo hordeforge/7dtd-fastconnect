@@ -299,12 +299,16 @@ namespace SdtdConnect
                 // Also set EntityId on the PPD so Tab's GetEntity(ppd.EntityId) can resolve the bot.
                 var ppd = new PersistentPlayerData(id, id, at, Platform.EPlayGroup.Standalone);
                 ppd.EntityId = bot.entityId;
-                // Engine-convention local wall-clock stamp: PersistentPlayerList
-                // also sets LastLogin = DateTime.Now, and OfflineMinutes-style
-                // reads subtract it from DateTime.Now. PlayerComparator ignores
-                // LastLogin (it orders by ally/level), so this only keeps such
-                // reads sane instead of seeing DateTime.MinValue.
-                ppd.LastLogin = DateTime.Now;
+                // Instant semantics: store as UTC so the timestamp does not
+                // shift meaning when the host TZ or DST changes. Stock
+                // PersistentPlayerList uses DateTime.Now (local wall time);
+                // that drifts by one hour across a DST transition in the same
+                // zone and by hours when a save moves between timezones.
+                // PlayerComparator ignores LastLogin (orders by ally/level), so
+                // this only keeps OfflineMinutes-style reads sane instead of
+                // DateTime.MinValue, but recording the true instant avoids the
+                // wall-clock bug for any future reader.
+                ppd.LastLogin = DateTime.UtcNow;
                 return ppd;
             }
             catch { return null; }
