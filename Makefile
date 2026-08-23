@@ -31,7 +31,7 @@ test:
 	$(ROOT)/scripts/test_automation_mode.sh
 	$(ROOT)/scripts/test_mute_client_audio.sh
 	@if command -v uv >/dev/null; then \
-	  cd "$(ROOT)" && uv run --with pytest pytest scripts/test_launch_client_platform.py -q --tb=short; \
+	  cd "$(ROOT)" && uv run --with 'pytest>=9,<10' pytest scripts/test_launch_client_platform.py -q --tb=short; \
 	else \
 	  cd "$(ROOT)" && python3 -m pytest scripts/test_launch_client_platform.py -q --tb=short; \
 	fi
