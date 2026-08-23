@@ -1,6 +1,8 @@
-# 7dtd-connect (client mod)
+# ⚡ Hotwire (7DTD FastConnect)
 
-Tiny **client** helper for joining local/dev servers (especially **zdtd**) without Steam `steam://connect`, plus automation hooks for automated join tests.
+> **Part of [HordeForge](https://github.com/hordeforge)** — High-Performance Systems Engineering for 7 Days to Die.
+
+Tiny **client** helper for joining local/dev servers (especially **zdtd-server**) without Steam `steam://connect`, plus automation hooks for automated join tests.
 
 Steam connect fails for zdtd (`app id specified by server is invalid`) because zdtd is not a Steam Game Server. This mod calls the same path as **Connect to IP**.
 
@@ -12,7 +14,7 @@ Missing terrain, signs, inventory, spawn, or deco behaviour is fixed on the **se
 [`../7dtd-playtest/`](../7dtd-playtest/). Install both mods for automated playtests.
 
 CI runs `make test` on every push and PR. Packaged builds are attached to
-GitHub releases (`make package` produces `dist/7dtd-connect-<tag>.zip`).
+GitHub releases (`make package` produces `dist/7dtd-fastconnect-<tag>.zip`).
 
 ## Requirements
 
@@ -35,11 +37,11 @@ GitHub releases (`make package` produces `dist/7dtd-connect-<tag>.zip`).
 ## Install
 
 ```bash
-cd 7dtd-connect
+cd 7dtd-fastconnect
 make install
 ```
 
-Installs to `$GAME/Mods/7dtd-connect/`.
+Installs to `$GAME/Mods/7dtd-fastconnect/`.
 
 ## Usage
 
@@ -133,10 +135,10 @@ is running (desktop volume UI, or `pactl set-sink-input-mute <index> 0`).
 
 ```bash
 # terminal 1
-cd zdtd && ./zig-out/bin/zdtd --port 27025 ...
+cd zdtd-server && ./zig-out/bin/zdtd --port 27025 ...
 
 # terminal 2
-cd 7dtd-connect && make install
+cd 7dtd-fastconnect && make install
 env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```
 
@@ -145,10 +147,10 @@ Or with client already running: F1 → `connect 127.0.0.1 27025`.
 ## Log lines
 
 ```text
-[7dtd-connect] InitMod ...
-[7dtd-connect] player name from 7DTD_PLAYER_NAME=atomic-peer
-[7dtd-connect] auto-join from 7DTD_CONNECT=127.0.0.1:27025
-[7dtd-connect] Connect by IP 127.0.0.1:27025 ...
+[7dtd-fastconnect] InitMod ...
+[7dtd-fastconnect] player name from 7DTD_PLAYER_NAME=atomic-peer
+[7dtd-fastconnect] auto-join from 7DTD_CONNECT=127.0.0.1:27025
+[7dtd-fastconnect] Connect by IP 127.0.0.1:27025 ...
 ```
 
 ## Non-goals
