@@ -11,6 +11,12 @@ namespace SdtdConnect
         // Monotonic (unscaled) time when the cross user was first seen without an id.
         static float _crossWaitStart = -1f;
 
+        // IsReady sits in a 10 Hz poll loop; log each expiry note once per
+        // episode so a permanently missing identity cannot flood the client
+        // log that join harnesses grep for fixed markers.
+        static bool _crossProceedLogged;
+        static bool _nativeProceedLogged;
+
         public static bool IsReady(out string reason)
         {
             reason = null;
@@ -65,11 +71,16 @@ namespace SdtdConnect
                                 reason = "cross user not logged in yet";
                                 return false;
                             }
-                            Log.Out("[7dtd-fastconnect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
+                            if (!_crossProceedLogged)
+                            {
+                                _crossProceedLogged = true;
+                                Log.Out("[7dtd-fastconnect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
+                            }
                         }
                         else if (user != null)
                         {
                             _crossWaitStart = -1f; // logged in; reset for later rejoins
+                            _crossProceedLogged = false;
                         }
                     }
                 }
@@ -93,7 +104,11 @@ namespace SdtdConnect
                             reason = "Native.User.PlatformUserId=null (early; retry in a moment)";
                             return false;
                         }
-                        Log.Out("[7dtd-fastconnect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
+                        if (!_nativeProceedLogged)
+                        {
+                            _nativeProceedLogged = true;
+                            Log.Out("[7dtd-fastconnect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
+                        }
                     }
                 }
                 catch (Exception ex)

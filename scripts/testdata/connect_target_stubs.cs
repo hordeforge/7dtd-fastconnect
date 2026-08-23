@@ -51,7 +51,10 @@ namespace SdtdConnect
 
     public class ConnectionManager
     {
-        public bool IsConnected { get { throw new NotImplementedException(); } }
+        // Plain state, not a throwing property: ConnectReady's gate reads it
+        // on every poll. The connect actions below still throw, so no test
+        // can accidentally "join" against stubs.
+        public bool IsConnected;
         public GameServerInfo LastGameServerInfo { set { throw new NotImplementedException(); } }
         public void Connect(GameServerInfo gsi) { throw new NotImplementedException(); }
     }
@@ -85,6 +88,9 @@ namespace SdtdConnect
 
     public static class PermissionsManager
     {
-        public static bool IsMultiplayerAllowed() { throw new NotImplementedException(); }
+        // Delegate so ConnectReady tests must configure it explicitly; the
+        // default keeps the never-reach-me contract (throws).
+        public static Func<bool> IsMultiplayerAllowed =
+            () => throw new NotImplementedException();
     }
 }

@@ -19,6 +19,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/Source/ConnectMod/ConnectTarget.cs"
 ENVFLAGS_SRC="$ROOT/Source/ConnectMod/EnvFlags.cs"
+READY_SRC="$ROOT/Source/ConnectMod/ConnectReady.cs"
 STUBS="$ROOT/scripts/testdata/connect_target_stubs.cs"
 HARNESS="$ROOT/scripts/testdata/connect_target_harness.cs"
 source "$ROOT/scripts/test_common.sh"
@@ -31,7 +32,7 @@ fi
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/7dtd-connect-parse.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
-mcs -out:"$WORK/connect_target_tests.exe" -warn:1 "$SRC" "$ENVFLAGS_SRC" "$STUBS" "$HARNESS" 1>&2
+mcs -out:"$WORK/connect_target_tests.exe" -warn:1 "$SRC" "$ENVFLAGS_SRC" "$READY_SRC" "$STUBS" "$HARNESS" 1>&2
 
 run_mode() {
 	# Bash cannot assign names starting with a digit, so the precedence cases
@@ -57,6 +58,7 @@ assert "TryParse / MergePortArg table" run_mode parse
 assert "launch-context env resolution" run_mode launchctx
 assert "log-safe flattening of launch targets" run_mode sanitize
 assert "EnvFlags opt-out/opt-in truthiness table" run_mode envflags
+assert "ConnectReady gate state machine" run_mode connectready
 
 TAB=$'\t'
 expect_argv argv "argv -connect= picks target" \

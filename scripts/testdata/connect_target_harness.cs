@@ -8,6 +8,11 @@
 //                   process env per case)
 //   - `envflags`  : EnvFlags opt-out/opt-in truthiness contract (gates
 //                   AutomationMode and force-load-sync)
+//   - `connectready`: ConnectReady.IsReady gate state machine driven by a
+//                   manually advanced monotonic clock: gate chain order,
+//                   bounded cross-user wait measured from FIRST null-id
+//                   sighting, one expiry note per episode (the poll loop must
+//                   not flood the log join harnesses grep), reset-for-rejoin
 //   - `argv ...`  : evaluates TryFromLaunchContext against the command-line
 //                   tokens after "argv" (7DTD_CONNECT cleared) and prints one
 //                   machine-readable line:
@@ -68,10 +73,138 @@ static class TestMain
         Check(label + " port==" + expPort, port == expPort);
     }
 
+    sealed class FakeUser : SdtdConnect.Platform.IUser { }
+
+    static readonly System.Reflection.FieldInfo CrossWaitStartField =
+        typeof(ConnectReady).GetField("_crossWaitStart",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+    static readonly System.Reflection.FieldInfo CrossProceedLoggedField =
+        typeof(ConnectReady).GetField("_crossProceedLogged",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+    static readonly System.Reflection.BindingFlags NativeProceedLoggedFlags =
+        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+    static readonly System.Reflection.FieldInfo NativeProceedLoggedField =
+        typeof(ConnectReady).GetField("_nativeProceedLogged", NativeProceedLoggedFlags);
+
+    static float CrossWaitStart
+    {
+        get { return (float)CrossWaitStartField.GetValue(null); }
+        set { CrossWaitStartField.SetValue(null, value); }
+    }
+
+    static bool Ready(out string reason)
+    {
+        return ConnectReady.IsReady(out reason);
+    }
+
+    // Returns everything written to stderr (the Log stub) while running body.
+    static string CaptureStderr(Action body)
+    {
+        var originalError = Console.Error;
+        var captured = new System.IO.StringWriter();
+        Console.SetError(captured);
+        try { body(); }
+        finally { Console.SetError(originalError); }
+        return captured.ToString();
+    }
+
+    static int CountOccurrences(string text, string marker)
+    {
+        int n = 0, idx = text.IndexOf(marker, StringComparison.Ordinal);
+        while (idx >= 0)
+        {
+            n++;
+            idx = text.IndexOf(marker, idx + marker.Length, StringComparison.Ordinal);
+        }
+        return n;
+    }
+
+    static int RunConnectReady()
+    {
+        const string crossNote = "past wait window, proceeding anyway";
+        const string nativeNote = "past boot window, proceeding anyway";
+
+        // Fresh gate state and a deterministic monotonic clock per run.
+        CrossWaitStart = -1f;
+        CrossProceedLoggedField.SetValue(null, false);
+        NativeProceedLoggedField.SetValue(null, false);
+        UnityEngine.Time.unscaledTime = 0f;
+
+        string reason;
+
+        // Gate chain order: each missing prerequisite names itself.
+        Check("no game manager -> not ready", !Ready(out reason) && reason == "staticData=false");
+        GameManager.Instance = new GameManager();
+        Check("static data pending -> not ready", !Ready(out reason) && reason == "staticData=false");
+        GameManager.Instance.bStaticDataLoaded = true;
+        Check("no connection manager -> not ready", !Ready(out reason) && reason == "ConnectionManager=null");
+        SingletonMonoBehaviour<ConnectionManager>.Instance = new ConnectionManager();
+        Check("no native platform -> not ready", !Ready(out reason) && reason == "NativePlatform=null");
+
+        SdtdConnect.Platform.PlatformManager.NativePlatform = new SdtdConnect.Platform.PlatformManager();
+        PermissionsManager.IsMultiplayerAllowed = () => true;
+        Check("all prerequisites met with no platform users -> ready",
+            Ready(out reason) && reason == null);
+
+        // Native steam identity is optional after the boot window only.
+        SdtdConnect.Platform.PlatformManager.NativePlatform.User = new FakeUser();
+        UnityEngine.Time.unscaledTime = 10f;
+        Check("native user id null inside boot window -> blocked early",
+            !Ready(out reason) && reason.IndexOf("early", StringComparison.Ordinal) >= 0);
+
+        // The bounded cross-user wait starts at FIRST null-id sighting.
+        var cross = new SdtdConnect.Platform.PlatformManager();
+        cross.User = new FakeUser();
+        SdtdConnect.Platform.PlatformManager.CrossplatformPlatform = cross;
+        Check("cross wait engages at first sighting",
+            !Ready(out reason) && reason == "cross user not logged in yet" && CrossWaitStart == 10f);
+
+        UnityEngine.Time.unscaledTime = 39f; // 29s elapsed, inside the window
+        Check("cross wait still holds near the end of its window",
+            !Ready(out reason) && reason == "cross user not logged in yet");
+
+        // Past the window the gate proceeds so a broken EOS login cannot pin
+        // the join forever - and it says so exactly once across repeated polls.
+        UnityEngine.Time.unscaledTime = 41f;
+        bool proceededPastWindow = false;
+        int crossNotes, nativeNotes;
+        string pollLog = CaptureStderr(delegate
+        {
+            proceededPastWindow = Ready(out reason);
+            Ready(out reason);
+            Ready(out reason);
+        });
+        crossNotes = CountOccurrences(pollLog, crossNote);
+        nativeNotes = CountOccurrences(pollLog, nativeNote);
+        Check("gate proceeds past the cross-user window", proceededPastWindow && reason == null);
+        Check("cross expiry note logged once across polls", crossNotes == 1);
+        Check("native expiry note logged once across polls", nativeNotes == 1);
+
+        // Login completes: episode resets so a later logout/relogin waits anew.
+        ((FakeUser)cross.User).PlatformUserId = "76561197960265728";
+        ((FakeUser)SdtdConnect.Platform.PlatformManager.NativePlatform.User).PlatformUserId = "76561197960265729";
+        Ready(out reason);
+        Check("login completion resets the cross-wait episode",
+            CrossWaitStart < 0f
+            && !(bool)CrossProceedLoggedField.GetValue(null));
+
+        ((FakeUser)cross.User).PlatformUserId = null;
+        UnityEngine.Time.unscaledTime = 50f;
+        Check("a fresh null-id episode waits again instead of proceeding instantly",
+            !Ready(out reason) && reason == "cross user not logged in yet" && CrossWaitStart == 50f);
+
+        return Done();
+    }
+
     static int Run()
     {
         string[] a = Environment.GetCommandLineArgs();
         string mode = a.Length > 1 ? a[1] : "";
+
+        if (mode == "connectready")
+        {
+            return RunConnectReady();
+        }
 
         if (mode == "parse")
         {
