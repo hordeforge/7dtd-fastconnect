@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using UnityEngine;
 
@@ -99,7 +100,7 @@ namespace SdtdConnect
                 if (__instance == null) return;
                 if (GameManager.Instance == null || GameManager.Instance.World == null) return;
                 // Limit frequency: XUi calls this every frame while tab is open; throttle via time.
-                // Use a per-instance time check stored in a static dict.
+                // Per-instance time check, keyed weakly so it cannot outlive the window.
                 if (!ShouldRun(__instance)) return;
 
                 var ppl = GameManager.Instance.persistentPlayers;
@@ -260,13 +261,23 @@ namespace SdtdConnect
             }
         }
 
-        static readonly Dictionary<XUiC_PlayersList, float> _last = new Dictionary<XUiC_PlayersList, float>();
+        // Per-instance throttle state. ConditionalWeakTable so entries die
+        // with the window: XUi recreates this list across world loads, and a
+        // plain dictionary would accumulate destroyed instances forever.
+        static readonly ConditionalWeakTable<XUiC_PlayersList, ThrottleState> _last =
+            new ConditionalWeakTable<XUiC_PlayersList, ThrottleState>();
+
+        sealed class ThrottleState
+        {
+            internal float LastRun;
+        }
+
         static bool ShouldRun(XUiC_PlayersList inst)
         {
             float now = Time.unscaledTime;
-            float last;
-            if (_last.TryGetValue(inst, out last) && now - last < 0.25f) return false;
-            _last[inst] = now;
+            ThrottleState state = _last.GetOrCreateValue(inst);
+            if (now - state.LastRun < 0.25f) return false;
+            state.LastRun = now;
             return true;
         }
 

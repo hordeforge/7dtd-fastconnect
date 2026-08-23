@@ -108,6 +108,7 @@ if [[ ! -d "$GAME" ]]; then
   exit 1
 fi
 
+MUTE_PID=""
 start_mute_poll() {
   if [[ -z "$MUTE_CLIENT" ]]; then
     return 0
@@ -119,8 +120,21 @@ start_mute_poll() {
     echo "Client mute: on (opt-out CLIENT_MUTE=0); polling up to ${MUTE_WAIT}s"
     # Background: audio stream appears after Unity init, not at process start.
     CLIENT_MUTE_TIMEOUT="$MUTE_WAIT" "$MUTE_HELPER" "$MUTE_WAIT" &
+    MUTE_PID=$!
   else
     echo "WARN: mute helper missing ($MUTE_HELPER); client audio not muted." >&2
+  fi
+}
+
+# The poller is only useful while the game runs; stop and reap it so it does
+# not outlive this script still polling pactl for a dead client.
+stop_mute_poll() {
+  if [[ -n "$MUTE_PID" ]] && kill -0 "$MUTE_PID" 2>/dev/null; then
+    kill "$MUTE_PID" 2>/dev/null || true
+  fi
+  if [[ -n "$MUTE_PID" ]]; then
+    wait "$MUTE_PID" 2>/dev/null || true
+    MUTE_PID=""
   fi
 }
 
@@ -135,8 +149,10 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt" "${EXTRA_ARGS[@]}" "$@" &
   game_pid=$!
   start_mute_poll
-  wait "$game_pid"
-  exit $?
+  launch_status=0
+  wait "$game_pid" || launch_status=$?
+  stop_mute_poll
+  exit "$launch_status"
 fi
 
 # Fallback: Steam app launch (may still run EAC depending on launcher settings).
@@ -147,5 +163,7 @@ echo "Connect: ${CONNECT:-"(none)"}"
 env 7DTD_CONNECT="${CONNECT:-}" steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@" &
 steam_pid=$!
 start_mute_poll
-wait "$steam_pid"
-exit $?
+launch_status=0
+wait "$steam_pid" || launch_status=$?
+stop_mute_poll
+exit "$launch_status"

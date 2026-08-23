@@ -33,6 +33,7 @@ assert "launch backgrounds mute poll" grep -q 'start_mute_poll' "$ROOT/scripts/l
 # or (case-insensitive) process binary matches 7DaysToDie, and nothing else.
 if command -v jq >/dev/null 2>&1; then
 	BEHAV="$(mktemp -d "${TMPDIR:-/tmp}/mute-helper.XXXXXX")"
+	trap 'rm -rf "$BEHAV"' EXIT
 	cat > "$BEHAV/pactl" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
@@ -71,7 +72,6 @@ STUB
 		echo "FAIL mute helper exits nonzero on timeout" >&2
 		FAILS=$((FAILS + 1))
 	fi
-	rm -rf "$BEHAV"
 else
 	echo "SKIP behavioral mute checks (jq missing)" >&2
 fi
