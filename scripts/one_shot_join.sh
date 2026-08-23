@@ -9,6 +9,12 @@ mkdir -p "$SCRATCH"
 
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
+# PORT feeds both --port argv and an ERE ("::${PORT}\b"), so keep it numeric
+# like TIMEOUT_SEC below; metacharacters would silently skew the listener probe.
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+  echo "WARN: PORT invalid ('$PORT'); using 27025." >&2
+  PORT=27025
+fi
 # Bash cannot expand/export names starting with a digit, so read the canonical
 # 7DTD_CONNECT via printenv.
 CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"

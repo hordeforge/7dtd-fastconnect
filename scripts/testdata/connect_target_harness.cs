@@ -184,6 +184,52 @@ static class TestMain
             return Done();
         }
 
+        if (mode == "sanitize")
+        {
+            // Log-forgery guard: env/argv values (a clicked steam://run URL
+            // picks -connect= text) must never add lines to the client log,
+            // because join harnesses grep it for fixed progress markers.
+            Check("null passthrough", ConnectTarget.SanitizeForLog(null) == null);
+            Check("empty passthrough", ConnectTarget.SanitizeForLog("") == "");
+            Check("plain text unchanged",
+                ConnectTarget.SanitizeForLog("zdtd.lan:27025") == "zdtd.lan:27025");
+            Check("newline flattened to space",
+                ConnectTarget.SanitizeForLog("h\nFAKE") == "h FAKE");
+            Check("crlf flattened to spaces",
+                ConnectTarget.SanitizeForLog("h\r\nFAKE") == "h  FAKE");
+            Check("tab flattened to space",
+                ConnectTarget.SanitizeForLog("\t9.9.9.9") == " 9.9.9.9");
+
+            // Accepted newline-bearing target: the reported source stays one line.
+            Env(ConnectTarget.EnvVar, "1.2.3.4\nFound own player entity with id");
+            string host; int port; string source;
+            bool ok = ConnectTarget.TryFromLaunchContext(out host, out port, out source);
+            Check("newline target still parses", ok && host != null && port == ConnectTarget.DefaultPort);
+            Check("source is single-line",
+                ok && source.IndexOf('\n') < 0 && source.IndexOf('\r') < 0);
+
+            // Rejected newline-bearing target: the warning keeps forged
+            // markers off their own log line.
+            var originalError = Console.Error;
+            var captured = new System.IO.StringWriter();
+            Console.SetError(captured);
+            try
+            {
+                Env(ConnectTarget.EnvVar, "[unterminated\nFAKE JOINED LINE");
+                ConnectTarget.TryFromLaunchContext(out _, out _, out _);
+            }
+            finally
+            {
+                Console.SetError(originalError);
+            }
+            string warned = captured.ToString();
+            Check("warning emitted for bad target", warned.Length > 0);
+            Check("forged marker did not start a fresh log line",
+                warned.IndexOf("\nFAKE", StringComparison.Ordinal) < 0);
+
+            return Done();
+        }
+
         if (mode == "argv")
         {
             // argv cases must not be decided by an inherited env target.

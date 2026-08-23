@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Text;
 
 namespace SdtdConnect
 {
@@ -14,11 +15,34 @@ namespace SdtdConnect
         // three times or, worse, look like "no target set".
         static bool _badTargetWarned;
 
+        /// <summary>
+        /// Flattens control characters so a launch-context string stays one
+        /// log line. Env and argv values are attacker-shapable (a clicked
+        /// steam://run URL chooses -connect= text), and join harnesses grep
+        /// the client log for fixed markers; an embedded newline could forge
+        /// those markers without ever connecting.
+        /// </summary>
+        internal static string SanitizeForLog(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return value;
+            bool dirty = false;
+            foreach (char c in value)
+            {
+                if (char.IsControl(c)) { dirty = true; break; }
+            }
+            if (!dirty) return value;
+            var sb = new StringBuilder(value.Length);
+            foreach (char c in value)
+                sb.Append(char.IsControl(c) ? ' ' : c);
+            return sb.ToString();
+        }
+
         static void WarnIgnoredTarget(string sourceLabel, string raw, string error)
         {
             if (_badTargetWarned) return;
             _badTargetWarned = true;
-            Log.Warning("[7dtd-fastconnect] " + sourceLabel + "='" + raw + "' ignored: "
+            Log.Warning("[7dtd-fastconnect] " + SanitizeForLog(sourceLabel) + "='"
+                + SanitizeForLog(raw) + "' ignored: "
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
@@ -146,7 +170,7 @@ namespace SdtdConnect
             {
                 if (TryParse(env, out host, out port, out string envError))
                 {
-                    source = EnvVar + "=" + env.Trim();
+                    source = EnvVar + "=" + SanitizeForLog(env.Trim());
                     return true;
                 }
                 WarnIgnoredTarget(EnvVar, env.Trim(), envError);
@@ -178,7 +202,9 @@ namespace SdtdConnect
                 if (val == null) continue;
                 if (TryParse(val, out host, out port, out string argError))
                 {
-                    source = a.Contains("=") ? a : (a + " " + val);
+                    source = a.Contains("=")
+                        ? SanitizeForLog(a)
+                        : SanitizeForLog(a) + " " + SanitizeForLog(val);
                     return true;
                 }
                 // Only the flag name; the value is already in the message.
@@ -221,13 +247,13 @@ namespace SdtdConnect
                         var pending = Dns.BeginGetHostEntry(host, null, null);
                         if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
                         {
-                            message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + host;
+                            message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
                             return false;
                         }
                         var entry = Dns.EndGetHostEntry(pending);
                         if (entry.AddressList == null || entry.AddressList.Length == 0)
                         {
-                            message = "no IP for hostname " + host;
+                            message = "no IP for hostname " + SanitizeForLog(host);
                             return false;
                         }
                         ip = entry.AddressList[0].ToString();
@@ -242,7 +268,7 @@ namespace SdtdConnect
                     }
                     catch (Exception ex)
                     {
-                        message = "DNS failed for " + host + ": " + ex.Message;
+                        message = "DNS failed for " + SanitizeForLog(host) + ": " + ex.Message;
                         return false;
                     }
                 }
@@ -296,7 +322,7 @@ namespace SdtdConnect
                     }
                 }
 
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={host})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={SanitizeForLog(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";
@@ -305,7 +331,9 @@ namespace SdtdConnect
             catch (Exception ex)
             {
                 // Full stack: ProtocolManager.SetupProtocols NRE is otherwise silent.
-                message = ex.GetType().Name + ": " + ex.Message + "\n" + ex.StackTrace;
+                // The message may echo the raw host, so only that part is flattened;
+                // the deliberate newline before the stack trace stays.
+                message = ex.GetType().Name + ": " + SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
                 return false;
             }
         }

@@ -92,6 +92,12 @@ count_nre_after_join() {
 log "start max_attempts=$MAX_ATTEMPTS"
 
 # Validate before start_zdtd: a bad value would abort after the server is up.
+# PORT lands in --port argv and an ERE ("::${PORT}\b"), so it gets the same
+# numeric guard as TIMEOUT_SEC/MAX_ATTEMPTS here.
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+  log "WARN: PORT invalid ('$PORT'); using 27025"
+  PORT=27025
+fi
 if [[ ! "$MAX_ATTEMPTS" =~ ^[0-9]+$ ]]; then
   log "WARN: MAX_ATTEMPTS invalid ('$MAX_ATTEMPTS'); using 6"
   MAX_ATTEMPTS=6

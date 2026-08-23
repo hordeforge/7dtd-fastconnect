@@ -6,6 +6,11 @@ set -euo pipefail
 
 WORLD="${1:?usage: restart_pair.sh <world-dir> [port]}"
 PORT="${2:-27025}"
+# PORT goes to --port argv; a non-numeric value is a usage error, not a fallback.
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: port must be numeric, got '$PORT'" >&2
+  exit 1
+fi
 GAME_SRV="${GAME_SRV:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 LOGDIR="${LOGDIR:-$HOME/.cache/zdtd-scratch}"
 SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
