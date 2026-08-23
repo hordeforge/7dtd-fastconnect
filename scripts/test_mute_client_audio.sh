@@ -14,7 +14,8 @@ not_grep() {
 assert "mute helper executable" test -x "$ROOT/scripts/mute_client_audio.sh"
 assert "launch_client references mute helper" grep -q 'mute_client_audio.sh' "$ROOT/scripts/launch_client.sh"
 assert "launch defaults mute on" grep -qE 'CLIENT_MUTE:-.*1|SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1' "$ROOT/scripts/launch_client.sh"
-assert "launch documents opt-out" grep -q 'CLIENT_MUTE=0' "$ROOT/README.md" || grep -q 'opt-out' "$ROOT/scripts/launch_client.sh"
+assert "README documents the CLIENT_MUTE=0 opt-out command" \
+	grep -qF 'CLIENT_MUTE=0 ./scripts/launch_client.sh' "$ROOT/README.md"
 if grep -qE 'exec "\$PROTON"' "$ROOT/scripts/launch_client.sh"; then
 	echo "FAIL launch does not exec proton (mute needs wait)" >&2
 	FAILS=$((FAILS + 1))
@@ -23,6 +24,7 @@ else
 fi
 assert "launch backgrounds mute poll" grep -q 'start_mute_poll' "$ROOT/scripts/launch_client.sh"
 
+BEHAV=""
 # Behavioral: the helper's jq filter must mute streams whose application.name
 # or (case-insensitive) process binary matches 7DaysToDie, and nothing else.
 if command -v jq >/dev/null 2>&1; then
@@ -69,5 +71,33 @@ STUB
 else
 	echo "SKIP behavioral mute checks (jq missing)" >&2
 fi
+
+# Degradation: with neither pactl nor jq on PATH the helper must leave audio
+# alone and exit 0 rather than failing the launch. A bin dir holding only bash
+# keeps the helper runnable while hiding both tools from it. BEHAV is only set
+# when the jq block above ran, so keep it out of the trap when it is empty.
+NO_PULSE_BIN="$(mktemp -d "${TMPDIR:-/tmp}/mute-nopulse.XXXXXX")"
+trap 'rm -rf ${BEHAV:+"$BEHAV"} "$NO_PULSE_BIN"' EXIT
+ln -s "$(command -v bash)" "$NO_PULSE_BIN/bash"
+
+HELPER_RC=0
+run_helper_without_pulse() {
+	set +e
+	out="$(PATH="$NO_PULSE_BIN" "$ROOT/scripts/mute_client_audio.sh" "$@" 2>&1)"
+	HELPER_RC=$?
+	set -e
+}
+
+run_helper_without_pulse
+assert "helper exits 0 without pactl/jq" test "$HELPER_RC" -eq 0
+assert "helper warns it is leaving audio unmuted" grep -q 'leaving audio unmuted' <<<"$out"
+
+run_helper_without_pulse abc
+assert "non-numeric timeout still exits 0 without pactl/jq" test "$HELPER_RC" -eq 0
+assert "non-numeric timeout warns about CLIENT_MUTE_TIMEOUT" grep -q 'CLIENT_MUTE_TIMEOUT invalid' <<<"$out"
+
+run_helper_without_pulse 0
+assert "non-positive timeout rejected as invalid" grep -q 'CLIENT_MUTE_TIMEOUT invalid' <<<"$out"
+assert "non-positive timeout still degrades to exit 0" test "$HELPER_RC" -eq 0
 
 finish

@@ -44,12 +44,9 @@ namespace SdtdConnect
                 return;
             }
 
-            if (!ConnectTarget.TryConnect(host, port, out string msg))
-            {
-                Out("[7dtd-fastconnect] " + msg);
-                return;
-            }
-
+            // Success and failure both report `msg` to the console; the
+            // return value adds nothing here.
+            ConnectTarget.TryConnect(host, port, out string msg);
             Out("[7dtd-fastconnect] " + msg);
         }
 

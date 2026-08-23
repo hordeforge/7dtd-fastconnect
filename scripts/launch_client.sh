@@ -101,7 +101,10 @@ fi
 
 LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
 mkdir -p "$LOGDIR"
+# Same file as WIN_LOGFILE below: LOGFILE is the prefix-side path, WIN_LOGFILE
+# the in-guest path handed to -logfile.
 LOGFILE="$LOGDIR/output_log_client_7dtd_connect.txt"
+WIN_LOGFILE="C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
 
 if [[ ! -d "$GAME" ]]; then
   echo "Game not found: $GAME" >&2
@@ -146,7 +149,7 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   echo "Log: $LOGFILE"
   cd "$GAME"
   # Cannot mute after exec — run proton, mute in parallel, wait for the game.
-  env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt" "${EXTRA_ARGS[@]}" "$@" &
+  env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "$WIN_LOGFILE" "${EXTRA_ARGS[@]}" "$@" &
   game_pid=$!
   start_mute_poll
   launch_status=0
