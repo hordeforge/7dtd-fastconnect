@@ -22,7 +22,7 @@ pkill -9 -f 'pressure-vessel|pv-adverb|pv-bwrap' 2>/dev/null || true
 pkill -9 -f 'proton.*7DaysToDie|SteamLaunch.*251570' 2>/dev/null || true
 sleep 3
 
-mkdir -p "$WORLD"
+mkdir -p "$WORLD" "$LOGDIR"
 nohup "$ZDTD" --port "$PORT" --world "$WORLD" \
   --map "$GAME_SRV/Data/Worlds/Navezgane" \
   --game-dir "$GAME_SRV" --world-name Navezgane --admin-port 8081 \
