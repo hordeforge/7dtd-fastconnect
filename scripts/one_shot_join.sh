@@ -35,6 +35,10 @@ client_pids_before=()
 
 log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
 
+# Join success signal; some checks accept extra partial-progress markers too.
+JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'
+JOIN_SOFT_RE='Found own player entity with id|PlayerSpawnedInWorld|\[7dtd-connect\] .*connected|Created player|Local Player'
+
 list_client_pids() {
   # Match real game process only (not this script's shell line containing the name).
   pgrep -f '[/]7DaysToDie\.exe' 2>/dev/null || true
@@ -145,7 +149,7 @@ result="timeout"
 while (( SECONDS < deadline )); do
   if [[ -f "$CLIENT_LOG_SRC" ]]; then
     # Strong success first: in-world entity exists. Later package noise must not demote this.
-    if grep -Eq 'Found own player entity with id|PlayerSpawnedInWorld|Spawned in world' "$CLIENT_LOG_SRC" 2>/dev/null; then
+    if grep -Eq "$JOINED_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
       result="joined"
       # Optional settle for post-join work (local chunk gen, control unlock).
       settle="${SETTLE_SEC:-0}"
@@ -165,7 +169,7 @@ while (( SECONDS < deadline )); do
     fi
     if grep -Eq 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed' "$CLIENT_LOG_SRC" 2>/dev/null; then
       # Only treat as fail if we never saw a good join signal
-      if ! grep -Eq 'PlayerSpawnedInWorld|\[7dtd-connect\] .*connected|Created player|Local Player|Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if ! grep -Eq "$JOIN_SOFT_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
         result="kick_or_disconnect"
         break
       fi
@@ -179,7 +183,7 @@ while (( SECONDS < deadline )); do
           break
         fi
       fi
-      if grep -Eq 'Found own player entity with id|PlayerSpawnedInWorld|Spawned in world' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if grep -Eq "$JOINED_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
         result="joined"
         break
       fi

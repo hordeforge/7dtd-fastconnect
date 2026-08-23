@@ -12,8 +12,7 @@ namespace SdtdConnect
             {
                 try
                 {
-                    string v = Environment.GetEnvironmentVariable("7DTD_CONNECT_DEBUG");
-                    return v == "1" || v == "true" || v == "True";
+                    return EnvFlags.IsSetOn(Environment.GetEnvironmentVariable("7DTD_CONNECT_DEBUG"));
                 }
                 catch { return false; }
             }

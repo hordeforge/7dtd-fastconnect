@@ -28,18 +28,8 @@ count_matches() {
 }
 
 kill_zdtd() {
-  python3 - <<'PY'
-import os, signal, pathlib
-for p in pathlib.Path('/proc').iterdir():
-    if not p.name.isdigit(): continue
-    try:
-        cmd = (p/'cmdline').read_bytes().split(b'\0')
-    except Exception:
-        continue
-    if cmd and cmd[0] and cmd[0].split(b'/')[-1] == b'zdtd':
-        try: os.kill(int(p.name), signal.SIGTERM)
-        except ProcessLookupError: pass
-PY
+  # Exact-name match: same effect as walking /proc for argv[0] basename == zdtd.
+  pkill -TERM -x zdtd 2>/dev/null || true
   sleep 1
 }
 
@@ -68,25 +58,19 @@ start_zdtd() {
 }
 
 count_nre_after_join() {
-  local logf="$1"
-  python3 - <<PY
-from pathlib import Path
-p = Path("$logf")
-if not p.exists():
-    print(9999)
-    raise SystemExit
-lines = p.read_text(errors="replace").splitlines()
-join_i = None
-for i, l in enumerate(lines):
-    if "Found own player entity with id" in l:
-        join_i = i
-if join_i is None:
-    print(9998)  # no join
-    raise SystemExit
-# count NRE lines after join signal
-n = sum(1 for l in lines[join_i:] if "NullReferenceException" in l)
-print(n)
-PY
+  local logf="$1" join_line n
+  if [[ ! -f "$logf" ]]; then
+    echo 9999
+    return
+  fi
+  # Last join marker; NREs are only counted after it.
+  join_line="$(grep -En 'Found own player entity with id' "$logf" 2>/dev/null | tail -1 | cut -d: -f1)"
+  if [[ -z "$join_line" ]]; then
+    echo 9998  # no join
+    return
+  fi
+  n="$(tail -n +"$join_line" "$logf" 2>/dev/null | grep -Ec 'NullReferenceException' || true)"
+  echo "${n:-0}"
 }
 
 : >"$SCRATCH/zero_nre_loop.log"

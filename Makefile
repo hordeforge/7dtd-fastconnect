@@ -30,8 +30,11 @@ test:
 	$(ROOT)/scripts/test_force_load_sync_override.sh
 	$(ROOT)/scripts/test_automation_mode.sh
 	$(ROOT)/scripts/test_mute_client_audio.sh
-	@command -v uv >/dev/null && cd "$(ROOT)" && uv run --with pytest pytest scripts/test_launch_client_platform.py -q --tb=short \
-		|| python3 -m pytest scripts/test_launch_client_platform.py -q --tb=short
+	@if command -v uv >/dev/null; then \
+	  cd "$(ROOT)" && uv run --with pytest pytest scripts/test_launch_client_platform.py -q --tb=short; \
+	else \
+	  cd "$(ROOT)" && python3 -m pytest scripts/test_launch_client_platform.py -q --tb=short; \
+	fi
 
 package:
 	$(ROOT)/scripts/package.sh

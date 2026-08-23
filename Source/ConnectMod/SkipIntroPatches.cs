@@ -21,12 +21,7 @@ namespace SdtdConnect
         {
             string value = Environment.GetEnvironmentVariable(ForceLoadSyncEnv);
             if (string.IsNullOrWhiteSpace(value)) return true;
-
-            value = value.Trim();
-            return value != "0"
-                && !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(value, "no", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(value, "off", StringComparison.OrdinalIgnoreCase);
+            return EnvFlags.IsSetOn(value);
         }
 
         internal static void ApplyFrameUncap(string reason)
@@ -74,6 +69,54 @@ namespace SdtdConnect
             {
                 Log.Warning("[7dtd-connect] forceLoadSync set failed: " + ex.Message);
             }
+        }
+    }
+
+    /// <summary>EULA acceptance shared by InitMod prefs and every skip patch.</summary>
+    internal static class EulaSkip
+    {
+        /// <summary>Marks the latest EULA accepted and persists it. Returns the recorded version.</summary>
+        internal static int AcceptLatest()
+        {
+            int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
+            if (latest < 1) latest = 99;
+            GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
+            GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
+            GamePrefs.Instance?.Save();
+            return latest;
+        }
+
+        /// <summary>
+        /// Shared body for both GUIWindowManager.Open arities that can open
+        /// "windowEula": accept, reopen the main menu, and re-fire
+        /// MainMenuOpened directly so auto-join fires even if the XUi path is gated.
+        /// Once the window is windowEula it never falls back to stock Open.
+        /// </summary>
+        internal static bool BlockGateWindow(GUIWindowManager wm, string _windowName, string logTag)
+        {
+            if (_windowName != "windowEula") return true;
+            try
+            {
+                Log.Out("[7dtd-connect] blocking GUI " + logTag);
+                AcceptLatest();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] windowEula accept failed (" + logTag + "): " + ex.Message);
+            }
+            try
+            {
+                var xui = wm?.playerUI?.xui;
+                if (xui != null) XUiC_MainMenu.Open(xui);
+                var data = new ModEvents.SMainMenuOpenedData(true);
+                ModEvents.MainMenuOpened.Invoke(ref data);
+                Log.Out("[7dtd-connect] dispatched MainMenuOpened after " + logTag);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] MainMenuOpened dispatch failed (" + logTag + "): " + ex.Message);
+            }
+            return false;
         }
     }
 
@@ -270,11 +313,7 @@ namespace SdtdConnect
         {
             try
             {
-                int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
-                if (latest < 1) latest = 99;
-                GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
-                GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
-                GamePrefs.Instance?.Save();
+                int latest = EulaSkip.AcceptLatest();
                 Log.Out("[7dtd-connect] blocking EULA window viewMode=" + _viewMode + " accepted=" + latest);
                 if (_viewMode)
                     return true; // options "view EULA" path: leave alone
@@ -383,8 +422,7 @@ namespace SdtdConnect
                 if (!string.IsNullOrWhiteSpace(pref)) { __result = pref.Trim(); return; }
             }
             catch { }
-            __result = Environment.UserName;
-            if (string.IsNullOrWhiteSpace(__result)) __result = "maci";
+            __result = PlayerNames.Resolve();
         }
     }
     // Fallback: if Harmony can't find getter by name, patch via field access pattern (ClientInfo.playerName is field, not property, in some builds)
@@ -398,10 +436,9 @@ namespace SdtdConnect
                 string pref = GamePrefs.GetString(EnumGamePrefs.PlayerName);
                 if (string.IsNullOrWhiteSpace(pref))
                 {
-                    string fallback = Environment.UserName;
-                    if (string.IsNullOrWhiteSpace(fallback)) fallback = "maci";
-                    GamePrefs.Set(EnumGamePrefs.PlayerName, fallback.Trim());
-                    Log.Out("[7dtd-connect] ensured PlayerName=" + fallback.Trim());
+                    string fallback = PlayerNames.Resolve();
+                    GamePrefs.Set(EnumGamePrefs.PlayerName, fallback);
+                    Log.Out("[7dtd-connect] ensured PlayerName=" + fallback);
                 }
             }
             catch { }
@@ -411,7 +448,7 @@ namespace SdtdConnect
     // EOS path: patch concrete type directly (interface dispatch fails IL). The NRE is at Platform.EOS.AuthClient.GetAuthTicket when EOS not logged in.
     [AutomationPatch]
     [HarmonyPatch(typeof(Platform.EOS.AuthClient), "GetAuthTicket")]
-    static class Patch_EOSAuthTicket_Steamless2
+    static class Patch_EOSAuthTicket_NotLoggedIn
     {
         static bool Prefix(ref string __result)
         {
@@ -446,36 +483,8 @@ namespace SdtdConnect
     {
         static bool Prefix(GUIWindowManager __instance, string _windowName, bool _bModal, bool _bIsNotEscClosable)
         {
-            if (_windowName != "windowEula") return true;
-            try
-            {
-                Log.Out($"[7dtd-connect] blocking GUI windowEula modal={_bModal} esc={_bIsNotEscClosable}");
-                int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
-                if (latest < 1) latest = 99;
-                GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
-                GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
-                GamePrefs.Instance?.Save();
-                try
-                {
-                    var xui = __instance?.playerUI?.xui;
-                    if (xui != null) XUiC_MainMenu.Open(xui);
-                    // Also dispatch the ModEvent directly so auto-join fires even if XUi path is gated.
-                    try
-                    {
-                        var data = new ModEvents.SMainMenuOpenedData(true);
-                        ModEvents.MainMenuOpened.Invoke(ref data);
-                        Log.Out("[7dtd-connect] dispatched MainMenuOpened after Eula block (3)");
-                    }
-                    catch (Exception ex2) { Log.Warning("[7dtd-connect] MainMenuOpened dispatch failed (3): " + ex2.Message); }
-                }
-                catch { }
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-connect] windowEula block failed: " + ex.Message);
-                return true;
-            }
+            return EulaSkip.BlockGateWindow(__instance, _windowName,
+                "windowEula modal=" + _bModal + " esc=" + _bIsNotEscClosable);
         }
     }
 
@@ -486,35 +495,8 @@ namespace SdtdConnect
     {
         static bool Prefix(GUIWindowManager __instance, string _windowName, bool _bModal)
         {
-            if (_windowName != "windowEula") return true;
-            try
-            {
-                Log.Out($"[7dtd-connect] blocking GUI windowEula(2) modal={_bModal}");
-                int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
-                if (latest < 1) latest = 99;
-                GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
-                GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
-                GamePrefs.Instance?.Save();
-                try
-                {
-                    var xui = __instance?.playerUI?.xui;
-                    if (xui != null) XUiC_MainMenu.Open(xui);
-                    try
-                    {
-                        var data = new ModEvents.SMainMenuOpenedData(true);
-                        ModEvents.MainMenuOpened.Invoke(ref data);
-                        Log.Out("[7dtd-connect] dispatched MainMenuOpened after Eula block (2)");
-                    }
-                    catch (Exception ex2) { Log.Warning("[7dtd-connect] MainMenuOpened dispatch failed (2): " + ex2.Message); }
-                }
-                catch { }
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-connect] windowEula(2) block failed: " + ex.Message);
-                return true;
-            }
+            return EulaSkip.BlockGateWindow(__instance, _windowName,
+                "windowEula(2) modal=" + _bModal);
         }
     }
 }

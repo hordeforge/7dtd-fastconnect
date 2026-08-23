@@ -42,12 +42,7 @@ namespace SdtdConnect
                 GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
                 GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
                 // EULA gate blocks MainMenu (scroll+accept); force accepted for automation.
-                int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
-                if (latest < 1) latest = 99;
-                GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
-                GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
-                GamePrefs.Instance?.Save();
-                Log.Out("[7dtd-connect] EULA prefs accepted=" + latest);
+                Log.Out("[7dtd-connect] EULA prefs accepted=" + EulaSkip.AcceptLatest());
             }
             catch (Exception ex)
             {
@@ -118,10 +113,7 @@ namespace SdtdConnect
                     if (!string.IsNullOrWhiteSpace(existing)) return;
                 }
                 catch { }
-                requested = Environment.UserName;
-                if (string.IsNullOrWhiteSpace(requested)) requested = "maci";
-                requested = requested.Trim();
-                if (requested.Length > 24) requested = requested.Substring(0, 24);
+                requested = PlayerNames.Resolve();
             }
             else requested = requested.Trim();
             try

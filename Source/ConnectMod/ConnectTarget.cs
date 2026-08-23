@@ -281,6 +281,7 @@ namespace SdtdConnect
                 // then proceed anyway so a broken or absent EOS login cannot block
                 // the join forever. Local-mode clients have no cross platform, so
                 // this gate never engages there.
+                const float crossUserWaitMaxSec = 30f;
                 try
                 {
                     var cross = Platform.PlatformManager.CrossplatformPlatform;
@@ -291,7 +292,7 @@ namespace SdtdConnect
                         {
                             if (_crossWaitStart < 0f)
                                 _crossWaitStart = UnityEngine.Time.unscaledTime;
-                            if (UnityEngine.Time.unscaledTime - _crossWaitStart < 30f)
+                            if (UnityEngine.Time.unscaledTime - _crossWaitStart < crossUserWaitMaxSec)
                             {
                                 reason = "cross user not logged in yet";
                                 return false;
@@ -309,14 +310,16 @@ namespace SdtdConnect
                     Log.Out("[7dtd-connect] cross-user note: " + ex.Message);
                 }
 
-                // Native steam user also optional when EAC off; proceed after 12s even if null.
+                // Native steam user is optional when EAC off: block only during the
+                // early boot window, then proceed unauthenticated (stock accepts that
+                // on LiteNet when EAC off).
+                const float nativeUserBootWindowSec = 16f;
                 try
                 {
                     var nUser = native.User;
                     if (nUser != null && nUser.PlatformUserId == null)
                     {
-                        // Only block for first ~15s; after that, connect anyway (stock accepts unauthed LiteNet when EAC off).
-                        if (GameManager.Instance != null && UnityEngine.Time.unscaledTime < 16f)
+                        if (GameManager.Instance != null && UnityEngine.Time.unscaledTime < nativeUserBootWindowSec)
                         {
                             reason = "Native.User.PlatformUserId=null (early; retry in a moment)";
                             return false;
