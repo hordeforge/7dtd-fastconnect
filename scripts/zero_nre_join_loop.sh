@@ -10,10 +10,14 @@ PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-6}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-90}"
-ZDTD_BIN="${ZDTD_BIN:-$(cd "$ROOT/../zdtd" && pwd)/zig-out/bin/zdtd}"
+# Default root of the sibling zdtd checkout; empty when it is not checked
+# out here. Fail at the point of use (start_zdtd's listen wait), not here:
+# a failing command substitution in a default aborts the script under set -e.
+ZDTD_ROOT="$(cd "$ROOT/../zdtd" 2>/dev/null && pwd || true)"
+ZDTD_BIN="${ZDTD_BIN:-$ZDTD_ROOT/zig-out/bin/zdtd}"
 MAP_DIR="${MAP_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server/Data/Worlds/Navezgane}"
 GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
-WORLD_DIR="${WORLD_DIR:-$(cd "$ROOT/../zdtd" && pwd)/worlds/zdtd_goal}"
+WORLD_DIR="${WORLD_DIR:-$ZDTD_ROOT/worlds/zdtd_goal}"
 ONE_SHOT="$ROOT/scripts/one_shot_join.sh"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 CLIENT_LOG_SRC="${CLIENT_LOG_SRC:-$STEAM_ROOT/steamapps/compatdata/251570/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt}"
@@ -31,6 +35,18 @@ kill_zdtd() {
   # Exact-name match: same effect as walking /proc for argv[0] basename == zdtd.
   pkill -TERM -x zdtd 2>/dev/null || true
   sleep 1
+}
+
+# start_zdtd kills any pre-existing zdtd before spawning its own, so any
+# zdtd alive at exit belongs to this run. Stop it on every exit path
+# (PASS/FAIL/set -e abort): an abandoned server keeps ticking a world at
+# 20 Hz until someone notices.
+stop_zdtd() {
+  if pgrep -x zdtd >/dev/null 2>&1; then
+    log "stopping zdtd server"
+    kill_zdtd
+    pkill -KILL -x zdtd 2>/dev/null || true
+  fi
 }
 
 start_zdtd() {
@@ -85,6 +101,8 @@ if [[ ! "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
   log "WARN: TIMEOUT_SEC invalid ('$TIMEOUT_SEC'); using 90"
   TIMEOUT_SEC=90
 fi
+
+trap stop_zdtd EXIT
 
 start_zdtd
 

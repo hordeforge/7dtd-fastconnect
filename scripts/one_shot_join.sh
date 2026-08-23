@@ -22,10 +22,14 @@ if ! [[ "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
 fi
 CYCLE="${CYCLE:-1}"
 START_SERVER="${START_SERVER:-0}"
-ZDTD_BIN="${ZDTD_BIN:-$(cd "$ROOT/../zdtd" && pwd)/zig-out/bin/zdtd}"
+# Default root of the sibling zdtd checkout; empty when it is not checked
+# out here. A hard failure must wait for the point of use (START_SERVER=1
+# validates the binary) so START_SERVER=0 cycles run anywhere.
+ZDTD_ROOT="$(cd "$ROOT/../zdtd" 2>/dev/null && pwd || true)"
+ZDTD_BIN="${ZDTD_BIN:-$ZDTD_ROOT/zig-out/bin/zdtd}"
 GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 MAP_DIR="${MAP_DIR:-$GAME_DIR/Data/Worlds/Navezgane}"
-WORLD_DIR="${WORLD_DIR:-$(cd "$ROOT/../zdtd" && pwd)/worlds/zdtd_goal}"
+WORLD_DIR="${WORLD_DIR:-$ZDTD_ROOT/worlds/zdtd_goal}"
 STEAM_APPID="${STEAM_APPID:-251570}"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 COMPAT="${COMPAT:-$STEAM_ROOT/steamapps/compatdata/$STEAM_APPID}"
@@ -36,6 +40,7 @@ LIFE_OUT="$SCRATCH/client-lifecycle-${CYCLE}.txt"
 LAUNCH="$ROOT/scripts/launch_client.sh"
 
 server_pid=""
+launch_pid=""
 client_pgid=""
 client_pids_before=()
 
@@ -94,6 +99,16 @@ kill_clients() {
 cleanup() {
   local ec=$?
   kill_clients || true
+  # The launcher runs detached (setsid) and normally exits when its waited
+  # game dies. If the game never appeared (wedged Proton) it would block in
+  # wait forever, stacking one orphaned launcher per cycle. TERM lets its own
+  # trap restore platform.cfg and stop the mute poller.
+  if [[ -n "$launch_pid" ]] && kill -0 "$launch_pid" 2>/dev/null; then
+    log "stopping launcher pid=$launch_pid"
+    kill "$launch_pid" 2>/dev/null || true
+    sleep 1
+    kill -9 "$launch_pid" 2>/dev/null || true
+  fi
   if [[ -n "$server_pid" ]] && kill -0 "$server_pid" 2>/dev/null; then
     log "stopping server pid=$server_pid"
     kill "$server_pid" 2>/dev/null || true
