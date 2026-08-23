@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <xml>
-  <Name value="7dtd-connect" />
+  <Name value="7dtd-fastconnect" />
   <DisplayName value="7dtd Connect" />
   <Description value="Client: F1 connect command + env/CLI auto-join for local/dev servers (EAC off)." />
   <Author value="HordeForge" />

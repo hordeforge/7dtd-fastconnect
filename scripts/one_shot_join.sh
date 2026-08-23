@@ -25,7 +25,7 @@ START_SERVER="${START_SERVER:-0}"
 # Default root of the sibling zdtd checkout; empty when it is not checked
 # out here. A hard failure must wait for the point of use (START_SERVER=1
 # validates the binary) so START_SERVER=0 cycles run anywhere.
-ZDTD_ROOT="$(cd "$ROOT/../zdtd-server" 2>/dev/null && pwd || true)"
+ZDTD_ROOT="$(cd "$ROOT/../zdtd-server-server" 2>/dev/null && pwd || true)"
 ZDTD_BIN="${ZDTD_BIN:-$ZDTD_ROOT/zig-out/bin/zdtd}"
 GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 MAP_DIR="${MAP_DIR:-$GAME_DIR/Data/Worlds/Navezgane}"
