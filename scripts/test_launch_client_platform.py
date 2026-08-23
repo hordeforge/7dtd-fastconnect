@@ -72,7 +72,8 @@ def _launch(
     if connect is not None:
         env["7DTD_CONNECT"] = connect
     return subprocess.run(
-        ["bash", str(LAUNCH)], env=env, capture_output=True, text=True, timeout=60,
+        ["bash", str(LAUNCH)], env=env, capture_output=True, text=True,
+        timeout=60, check=False,
     )
 
 
@@ -82,7 +83,7 @@ def _argv(tmp_path: Path) -> list[str]:
     return record.read_text(encoding="utf-8").splitlines()
 
 
-def test_local_platform_swap_and_restore(tmp_path):
+def test_local_platform_swap_and_restore(tmp_path: Path) -> None:
     game = _setup(tmp_path)
     r = _launch(tmp_path)
     assert r.returncode == 0, r.stderr
@@ -92,14 +93,14 @@ def test_local_platform_swap_and_restore(tmp_path):
     assert not (game / "platform.cfg.re-localbak").exists()
 
 
-def test_no_platform_override_leaves_config_alone(tmp_path):
+def test_no_platform_override_leaves_config_alone(tmp_path: Path) -> None:
     game = _setup(tmp_path)
     r = _launch(tmp_path, local_platform=False)
     assert r.returncode == 0, r.stderr
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
-def test_leftover_backup_is_restored_then_reswapped(tmp_path):
+def test_leftover_backup_is_restored_then_reswapped(tmp_path: Path) -> None:
     """A hard-killed previous run leaves the cfg swapped + a backup; the next
     launch must restore it first, then swap fresh (self-healing)."""
     game = _setup(tmp_path)
@@ -113,7 +114,7 @@ def test_leftover_backup_is_restored_then_reswapped(tmp_path):
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
-def test_connect_env_forwards_connect_arg(tmp_path):
+def test_connect_env_forwards_connect_arg(tmp_path: Path) -> None:
     _setup(tmp_path)
     r = _launch(tmp_path, connect="127.0.0.1:27025")
     assert r.returncode == 0, r.stderr
@@ -122,7 +123,7 @@ def test_connect_env_forwards_connect_arg(tmp_path):
     assert "-skipintro" in argv
 
 
-def test_no_connect_env_omits_connect_arg(tmp_path):
+def test_no_connect_env_omits_connect_arg(tmp_path: Path) -> None:
     _setup(tmp_path)
     r = _launch(tmp_path)
     assert r.returncode == 0, r.stderr

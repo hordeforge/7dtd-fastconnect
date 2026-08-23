@@ -32,6 +32,20 @@ test:
 	$(ROOT)/scripts/test_mute_client_audio.sh
 	$(ROOT)/scripts/test_monotonic_deadlines.sh
 	$(ROOT)/scripts/test_version_sync.sh
+	@if command -v shellcheck >/dev/null; then \
+	  echo "shellcheck:"; \
+	  shellcheck -S warning $(ROOT)/scripts/*.sh; \
+	else \
+	  echo "WARN: shellcheck not installed; shell lint skipped" >&2; \
+	fi
+	@if command -v uv >/dev/null; then \
+	  cd "$(ROOT)" && uv run --with 'ruff>=0.16,<1' ruff check scripts && \
+	  uv run --with 'mypy>=2,<3' mypy --strict scripts/test_launch_client_platform.py; \
+	elif command -v ruff >/dev/null && command -v mypy >/dev/null; then \
+	  cd "$(ROOT)" && ruff check scripts && mypy --strict scripts/test_launch_client_platform.py; \
+	else \
+	  echo "WARN: ruff/mypy not available; static analysis skipped" >&2; \
+	fi
 	@if command -v uv >/dev/null; then \
 	  cd "$(ROOT)" && uv run --with 'pytest>=9,<10' pytest scripts/test_launch_client_platform.py -q --tb=short; \
 	else \
