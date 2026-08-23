@@ -1,4 +1,4 @@
-# ⚡ Hotwire (7DTD FastConnect)
+# ⚡ 7DTD FastConnect
 
 > **Part of [HordeForge](https://github.com/hordeforge)** — High-Performance Systems Engineering for 7 Days to Die.
 

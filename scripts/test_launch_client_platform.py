@@ -27,8 +27,10 @@ from __future__ import annotations
 import os
 import shlex
 import shutil
+import signal
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -37,6 +39,9 @@ ROOT = Path(__file__).resolve().parents[1]
 LAUNCH = ROOT / "scripts" / "launch_client.sh"
 STEAM_CFG = "platform=Steam\ncrossplatform=EOS\nserverplatforms=Steam,XBL,PSN,LAN,\n"
 LOCAL_CFG = "platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n"
+# The launcher forwards SIGTERM to `exit 143`, so the trap-driven cleanup path
+# is observable as exactly this status.
+TERM_EXIT_STATUS = 128 + int(signal.SIGTERM)
 
 # Vars launch_client.sh reads; scrub them so a developer shell that happens to
 # carry 7DTD_CONNECT / CLIENT_* cannot change what these tests exercise.
@@ -102,17 +107,15 @@ def _setup(
     return game
 
 
-def _launch(
+def _launch_env(
     tmp_path: Path,
     *,
     local_platform: bool = True,
     connect: str | None = None,
     mute: bool = False,
     extra_env: dict[str, str | None] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    """Run the launcher sandboxed; a None extra_env value omits the variable
-    entirely (e.g. PROTON unset selects the steam -applaunch fallback or
-    COMPAT derivation from GAME's library)."""
+) -> dict[str, str]:
+    """Build the sandboxed env for a launcher run; see _launch."""
     env = {
         **BASE_ENV,
         "GAME": str(tmp_path / "game"),
@@ -150,8 +153,30 @@ def _launch(
     stub_dirs = (extra_env or {}).get("PATH") or ""
     parts = [stub_dirs, str(guard_bin), BASE_ENV.get("PATH", "")]
     env["PATH"] = os.pathsep.join(p for p in parts if p)
+    return env
+
+
+def _launch(
+    tmp_path: Path,
+    *,
+    local_platform: bool = True,
+    connect: str | None = None,
+    mute: bool = False,
+    extra_env: dict[str, str | None] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run the launcher sandboxed; a None extra_env value omits the variable
+    entirely (e.g. PROTON unset selects the steam -applaunch fallback or
+    COMPAT derivation from GAME's library)."""
     return subprocess.run(
-        ["bash", str(LAUNCH)], env=env, capture_output=True, text=True,
+        ["bash", str(LAUNCH)],
+        env=_launch_env(
+            tmp_path,
+            local_platform=local_platform,
+            connect=connect,
+            mute=mute,
+            extra_env=extra_env,
+        ),
+        capture_output=True, text=True,
         timeout=60, check=False,
     )
 
@@ -201,6 +226,89 @@ def test_leftover_backup_is_restored_then_reswapped(tmp_path: Path) -> None:
     assert "restored from a previous interrupted run" in r.stdout
     # After the clean exit the original Steam config is back.
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+
+
+def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
+    """TERM must not kill the launcher dead where it stands: one_shot_join.sh
+    stops launchers with TERM, so the exit traps have to run (restore
+    platform.cfg) and the exit status must propagate as 143."""
+    game = _setup(tmp_path, game_run_seconds=30)
+    env = _launch_env(tmp_path)
+    # Pipes would be held open by the orphaned stub game after the launcher
+    # exits, deadlocking communicate/wait; devnull avoids that. A new session
+    # lets the test reap the stub's sleep afterwards.
+    proc = subprocess.Popen(
+        ["bash", str(LAUNCH)], env=env,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, start_new_session=True,
+    )
+    try:
+        time.sleep(1.5)
+        proc.terminate()
+        proc.wait(timeout=15)
+        assert proc.returncode == TERM_EXIT_STATUS, proc.returncode
+        # The EXIT trap restored the original config.
+        assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+        assert not (game / "platform.cfg.re-localbak").exists()
+    finally:
+        # The stub game outlives the launcher (nothing forwards TERM to it);
+        # reap the whole session so nothing is left sleeping.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def _mute_poller_pids(timeout_arg: str) -> list[str]:
+    """PIDs of running mute_client_audio.sh pollers started with timeout_arg."""
+    out = subprocess.run(
+        ["pgrep", "-f", f"mute_client_audio.sh {timeout_arg}"],
+        capture_output=True, text=True, check=False,
+    )
+    return out.stdout.split()
+
+
+def test_sigterm_does_not_orphan_mute_poller(tmp_path: Path) -> None:
+    """The default launch (no platform swap) previously had no traps at all,
+    so TERM killed the launcher outright and left the mute poller running its
+    full window. TERM must now reap the poller via the shared exit path."""
+    _setup(tmp_path, game_run_seconds=30)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    # pactl lists no streams, jq prints nothing: the helper keeps polling
+    # until its deadline, which is what the launcher must cut short.
+    _write_executable(bin_dir / "pactl", "echo '[]'\n")
+    _write_executable(bin_dir / "jq", "exit 0\n")
+    env = _launch_env(
+        tmp_path,
+        local_platform=False, mute=True,
+        extra_env={"PATH": str(bin_dir), "CLIENT_MUTE_TIMEOUT": "300"},
+    )
+    proc = subprocess.Popen(
+        ["bash", str(LAUNCH)], env=env,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, start_new_session=True,
+    )
+    try:
+        # Wait until the poller is actually up before signalling, so the test
+        # cannot race the launcher's own startup ordering.
+        deadline = time.monotonic() + 10
+        while not _mute_poller_pids("300"):
+            assert time.monotonic() < deadline, "mute poller never started"
+            assert proc.poll() is None, "launcher exited early"
+            time.sleep(0.1)
+        proc.terminate()
+        proc.wait(timeout=15)
+        assert proc.returncode == TERM_EXIT_STATUS, proc.returncode
+        deadline = time.monotonic() + 10
+        while _mute_poller_pids("300"):
+            assert time.monotonic() < deadline, "mute poller survived TERM"
+            time.sleep(0.1)
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 def test_connect_env_forwards_connect_arg(tmp_path: Path) -> None:

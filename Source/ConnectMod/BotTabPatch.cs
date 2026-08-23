@@ -63,6 +63,7 @@ namespace SdtdConnect
 
         static Comparison<PersistentPlayerData> _comparator;
         static bool _comparatorResolved;
+        static bool _failLogged;
 
         static FieldInfo InstanceField(Type t, string name)
         {
@@ -252,7 +253,15 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                try { Log.Warning("[7dtd-fastconnect] BotTabPatch failed: " + ex.Message); } catch { }
+                // This postfix runs every 0.25s while Tab is open; a persistent
+                // failure must not flood the log, but silence would look like
+                // an empty player list working fine. Announce once.
+                if (!_failLogged)
+                {
+                    _failLogged = true;
+                    try { Log.Warning("[7dtd-fastconnect] BotTabPatch failed (further failures muted): " + ex); }
+                    catch { }
+                }
             }
         }
 

@@ -255,7 +255,10 @@ grep -En '7dtd-fastconnect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Sp
   "$CLIENT_LOG_OUT" 2>/dev/null | head -80 | tee -a "$LIFE_OUT" || true
 
 log "after clients before kill: $(list_client_pids | tr '\n' ' ')"
-kill_clients
+# A client that survives SIGKILL makes kill_clients report failure; that must
+# not abort here (set -e) before the result-based exit below, or a joined
+# cycle would be misreported as failed by the cleanup trap.
+kill_clients || true
 log "after kill clients: $(list_client_pids | tr '\n' ' ')"
 
 case "$result" in

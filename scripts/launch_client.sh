@@ -96,7 +96,6 @@ restore_platform() {
 
 if [[ "$LOCAL_PLATFORM" == 1 ]]; then
   swap_local_platform
-  trap restore_platform EXIT INT TERM
 fi
 
 LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
@@ -141,6 +140,19 @@ stop_mute_poll() {
   fi
 }
 
+# One cleanup path for every exit route: normal completion, a set -e abort,
+# and INT/TERM (one_shot_join.sh stops launchers with TERM). Without the
+# exit-forwarding traps a bare TERM would kill the script mid-wait, leaving
+# the mute poller running its full window and, in Local-platform mode,
+# platform.cfg swapped. restore_platform is a no-op without a backup file.
+on_exit() {
+  stop_mute_poll
+  restore_platform
+}
+trap on_exit EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   export STEAM_COMPAT_DATA_PATH="$COMPAT"
   export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$STEAM_ROOT}"
@@ -154,7 +166,6 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   start_mute_poll
   launch_status=0
   wait "$game_pid" || launch_status=$?
-  stop_mute_poll
   exit "$launch_status"
 fi
 
@@ -168,5 +179,4 @@ steam_pid=$!
 start_mute_poll
 launch_status=0
 wait "$steam_pid" || launch_status=$?
-stop_mute_poll
 exit "$launch_status"

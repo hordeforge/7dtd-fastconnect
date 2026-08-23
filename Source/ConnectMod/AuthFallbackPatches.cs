@@ -20,7 +20,14 @@ namespace SdtdConnect
                     return false;
                 }
             }
-            catch { __result = ""; return false; }
+            catch (Exception ex)
+            {
+                // Same empty-ticket fallback, but name the cause: a wedged
+                // Steamworks init must not look like plain "no Steam".
+                Log.Warning("[7dtd-fastconnect] steam GetAuthTicket probe failed (" + ex.GetType().Name + " " + ex.Message + "), returning empty ticket");
+                __result = "";
+                return false;
+            }
             return true;
         }
         // If original still throws, catch via Finalizer and supply empty result so SendLogin continues.

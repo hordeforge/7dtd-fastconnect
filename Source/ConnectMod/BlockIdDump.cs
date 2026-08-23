@@ -123,7 +123,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] BlockIdDump write failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] BlockIdDump write failed (" + outPath + "): " + ex.Message);
             }
             return rows.Count;
         }
