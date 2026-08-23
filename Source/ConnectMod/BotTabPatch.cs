@@ -290,7 +290,11 @@ namespace SdtdConnect
                 // Also set EntityId on the PPD so Tab's GetEntity(ppd.EntityId) can resolve the bot.
                 var ppd = new PersistentPlayerData(id, id, at, Platform.EPlayGroup.Standalone);
                 ppd.EntityId = bot.entityId;
-                // LastLogin now so sort is stable
+                // Engine-convention local wall-clock stamp: PersistentPlayerList
+                // also sets LastLogin = DateTime.Now, and OfflineMinutes-style
+                // reads subtract it from DateTime.Now. PlayerComparator ignores
+                // LastLogin (it orders by ally/level), so this only keeps such
+                // reads sane instead of seeing DateTime.MinValue.
                 ppd.LastLogin = DateTime.Now;
                 return ppd;
             }
