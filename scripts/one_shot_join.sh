@@ -245,7 +245,7 @@ cp -f "$CLIENT_LOG_SRC" "$CLIENT_LOG_OUT" 2>/dev/null || true
 log "result=$result"
 log "client log -> $CLIENT_LOG_OUT"
 log "key client lines:"
-grep -En '7dtd-fastconnect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|error|ERR' \
+grep -En '7dtd-fastconnect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|[Ee]rror|ERR' \
   "$CLIENT_LOG_OUT" 2>/dev/null | head -80 | tee -a "$LIFE_OUT" || true
 
 log "after clients before kill: $(list_client_pids | tr '\n' ' ')"
