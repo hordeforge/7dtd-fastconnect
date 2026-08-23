@@ -75,8 +75,9 @@ printenv 7DTD_CONNECT > "$STEAM_ENV_CONNECT"
 # bootstrap a full Steam client into the fake HOME (gigabytes, minutes) before
 # this suite could notice. The guard fails fast instead; tests that exercise
 # the fallback put their own recording stub earlier on PATH.
-STEAM_GUARD_STUB = """echo \"guard: unexpected host steam launch: $*\" >&2
-exit 99
+STEAM_GUARD_EXIT_STATUS = 99
+STEAM_GUARD_STUB = f"""echo \"guard: unexpected host steam launch: $*\" >&2
+exit {STEAM_GUARD_EXIT_STATUS}
 """
 
 
@@ -357,7 +358,11 @@ def test_compat_derives_from_game_library(tmp_path: Path) -> None:
     assert logdir.is_dir(), r.stdout
     # Direct-Proton branch taken, not the steam fallback.
     assert "Proton:" in r.stdout
-    _argv(tmp_path)
+    # The derived branch must still forward the launcher's contract flags.
+    argv = _argv(tmp_path)
+    assert "-noeac" in argv
+    assert "-force-d3d11" in argv
+    assert "-skipintro" in argv
 
 
 def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
@@ -400,6 +405,9 @@ def test_host_steam_is_never_reached(tmp_path: Path) -> None:
     _setup(tmp_path)
     r = _launch(tmp_path, extra_env={"PROTON": None, "COMPAT": None})
     assert "guard: unexpected host steam launch" in r.stderr, r.stderr
+    # The guard's exit status must propagate through the launcher, not be
+    # swallowed: a silent 0 would make the fallback look like it launched.
+    assert r.returncode == STEAM_GUARD_EXIT_STATUS, r.returncode
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="mute filter needs jq")

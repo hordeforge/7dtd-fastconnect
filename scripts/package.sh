@@ -21,8 +21,11 @@ if [[ -z "$VERSION" || "$VERSION" == *-* ]]; then
 fi
 
 OUT="$ROOT/dist/7dtd-fastconnect-$VERSION.zip"
-STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
+# Use a project-local staging dir instead of /tmp (tmpfs/RAM) so an
+# interrupted package (SIGKILL) does not leak stage trees in volatile storage.
+STAGE="$ROOT/dist/.package-stage-$$"
+mkdir -p "$STAGE"
+trap 'rm -rf "$STAGE"' EXIT INT TERM
 cp -a "$ROOT/dist/7dtd-fastconnect" "$STAGE/"
 ( cd "$STAGE" && zip -qr "$OUT" 7dtd-fastconnect )
 echo "Packaged -> $OUT"

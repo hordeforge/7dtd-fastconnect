@@ -239,31 +239,38 @@ namespace SdtdConnect
                 if (!IPAddress.TryParse(host, out _))
                 {
                     try
-                    {
+                     {
                         // GetHostEntry has no timeout; a wedged resolver would
                         // freeze the menu thread for the OS retry window. Bound
                         // the wait and report instead.
                         const int dnsTimeoutMs = 5000;
                         var pending = Dns.BeginGetHostEntry(host, null, null);
-                        if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
+                        try
                         {
-                            message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
-                            return false;
-                        }
-                        var entry = Dns.EndGetHostEntry(pending);
-                        if (entry.AddressList == null || entry.AddressList.Length == 0)
-                        {
-                            message = "no IP for hostname " + SanitizeForLog(host);
-                            return false;
-                        }
-                        ip = entry.AddressList[0].ToString();
-                        for (int i = 0; i < entry.AddressList.Length; i++)
-                        {
-                            if (entry.AddressList[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                            if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
                             {
-                                ip = entry.AddressList[i].ToString();
-                                break;
+                                message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
+                                return false;
                             }
+                            var entry = Dns.EndGetHostEntry(pending);
+                            if (entry.AddressList == null || entry.AddressList.Length == 0)
+                            {
+                                message = "no IP for hostname " + SanitizeForLog(host);
+                                return false;
+                            }
+                            ip = entry.AddressList[0].ToString();
+                            for (int i = 0; i < entry.AddressList.Length; i++)
+                            {
+                                if (entry.AddressList[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                                {
+                                    ip = entry.AddressList[i].ToString();
+                                    break;
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            try { pending.AsyncWaitHandle.Close(); } catch { }
                         }
                     }
                     catch (Exception ex)

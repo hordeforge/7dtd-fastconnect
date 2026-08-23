@@ -6,6 +6,20 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
+# Bound disk growth: one_shot creates per-cycle logs that would otherwise
+# accumulate forever across repeated harness runs. Keep only recent cycles.
+# Defer pruning failures (read-only FS) so a full cache never aborts the join.
+find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-*.log' -o -name 'launch-*.log' -o -name 'client-lifecycle-*.txt' \) -mtime +3 -delete 2>/dev/null || true
+# Also cap count: keep at most 20 newest of each pattern so a tight loop
+# with mtime < 3 days cannot fill the disk.
+for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt'; do
+  # shellcheck disable=SC2012,SC2044
+  old="$(find "$SCRATCH" -maxdepth 1 -type f -name "$pat" -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n -20 | cut -d' ' -f2-)" || true
+  if [[ -n "$old" ]]; then
+    # shellcheck disable=SC2086
+    rm -f $old 2>/dev/null || true
+  fi
+done
 
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
@@ -78,25 +92,31 @@ kill_clients() {
   pids="$(list_client_pids)"
   if [[ -z "$pids" ]]; then
     log "kill_clients: no 7DaysToDie.exe"
-    return 0
-  fi
-  log "kill_clients: sending TERM to: $pids"
-  # shellcheck disable=SC2086
-  kill $pids 2>/dev/null || true
-  sleep 2
-  pids="$(list_client_pids)"
-  if [[ -n "$pids" ]]; then
-    log "kill_clients: sending KILL to: $pids"
+  else
+    log "kill_clients: sending TERM to: $pids"
     # shellcheck disable=SC2086
-    kill -9 $pids 2>/dev/null || true
-    sleep 1
+    kill $pids 2>/dev/null || true
+    sleep 2
+    pids="$(list_client_pids)"
+    if [[ -n "$pids" ]]; then
+      log "kill_clients: sending KILL to: $pids"
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+      sleep 1
+    fi
+    pids="$(list_client_pids)"
+    if [[ -n "$pids" ]]; then
+      log "kill_clients: STILL ALIVE: $pids"
+      return 1
+    fi
+    log "kill_clients: gone"
   fi
-  pids="$(list_client_pids)"
-  if [[ -n "$pids" ]]; then
-    log "kill_clients: STILL ALIVE: $pids"
-    return 1
-  fi
-  log "kill_clients: gone"
+  # Proton/wine stack outlives the exe: leftover wineservers and
+  # pressure-vessel containers leak threads/NPROC across cycles until the
+  # client wedges at "Initializing Steam". Sweep them after the exe is gone.
+  pkill -9 -f 'wineserver' 2>/dev/null || true
+  pkill -9 -f 'pressure-vessel|pv-adverb|pv-bwrap' 2>/dev/null || true
+  pkill -9 -f 'proton.*7DaysToDie|SteamLaunch.*251570' 2>/dev/null || true
   return 0
 }
 

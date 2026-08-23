@@ -1,14 +1,19 @@
 // Test entry point for scripts/test_connect_target_parse.sh.
 //
-// Exercises the REAL production ConnectTarget (compiled alongside this file):
+// Exercises REAL production sources (compiled alongside this file):
 //   - `parse`     : fixed expectation table for ConnectTarget.TryParse and
 //                   ConnectTarget.MergePortArg
 //   - `launchctx` : environment-variable resolution of
 //                   ConnectTarget.TryFromLaunchContext (sets/unsets its own
 //                   process env per case)
+//   - `envflags`  : EnvFlags opt-out/opt-in truthiness contract (gates
+//                   AutomationMode and force-load-sync)
 //   - `argv ...`  : evaluates TryFromLaunchContext against the command-line
-//                   tokens after "argv" and prints one machine-readable line:
+//                   tokens after "argv" (7DTD_CONNECT cleared) and prints one
+//                   machine-readable line:
 //                   "OK<TAB>host<TAB>port<TAB>source" or "NO"
+//   - `argvenv .` : same, but the shell-set 7DTD_CONNECT stays active so the
+//                   env-over-argv precedence is observable
 //
 // Exit status is nonzero when any assertion fails.
 using System;
@@ -230,10 +235,50 @@ static class TestMain
             return Done();
         }
 
-        if (mode == "argv")
+        if (mode == "envflags")
         {
-            // argv cases must not be decided by an inherited env target.
-            Env(ConnectTarget.EnvVar, null);
+            // EnvFlags truthiness contract (see EnvFlags.cs): unset/blank
+            // means the caller's default, 0/false/no/off in any case opt out,
+            // anything else opts in. AutomationMode and force-load-sync ride
+            // on this, so a regression here silently flips join behavior.
+            Check("IsOptOut rejects null", !EnvFlags.IsOptOut(null));
+            Check("IsOptOut rejects empty", !EnvFlags.IsOptOut(""));
+            Check("IsOptOut rejects blank", !EnvFlags.IsOptOut("   "));
+            Check("IsOptOut accepts zero", EnvFlags.IsOptOut("0"));
+            Check("IsOptOut accepts false in any case", EnvFlags.IsOptOut("fAlSe"));
+            Check("IsOptOut accepts no", EnvFlags.IsOptOut("no"));
+            Check("IsOptOut accepts trimmed off", EnvFlags.IsOptOut(" Off "));
+            Check("IsOptOut rejects one", !EnvFlags.IsOptOut("1"));
+            Check("IsOptOut rejects yes", !EnvFlags.IsOptOut("yes"));
+            Check("IsOptOut rejects unknown text", !EnvFlags.IsOptOut("bogus"));
+
+            Check("IsSetOn false when null", !EnvFlags.IsSetOn(null));
+            Check("IsSetOn false when empty", !EnvFlags.IsSetOn(""));
+            Check("IsSetOn false for opt-out value", !EnvFlags.IsSetOn("OFF"));
+            Check("IsSetOn true for one", EnvFlags.IsSetOn("1"));
+            Check("IsSetOn true for unknown text", EnvFlags.IsSetOn("sure"));
+
+            const string flag = "7DTD_CONNECT_TEST_ENVFLAGS";
+            Env(flag, null);
+            Check("VarIsSetOn false when unset", !EnvFlags.VarIsSetOn(flag));
+            Env(flag, "");
+            Check("VarIsSetOn false when empty", !EnvFlags.VarIsSetOn(flag));
+            Env(flag, "0");
+            Check("VarIsSetOn false for zero", !EnvFlags.VarIsSetOn(flag));
+            Env(flag, "1");
+            Check("VarIsSetOn true for one", EnvFlags.VarIsSetOn(flag));
+
+            return Done();
+        }
+
+        if (mode == "argv" || mode == "argvenv")
+        {
+            // "argv" cases must not be decided by an inherited env target;
+            // "argvenv" keeps the pinned variable (the shell test sets it via
+            // env(1)) so the documented resolution order (7DTD_CONNECT first,
+            // then -connect= argv) is observable: an inverted precedence
+            // would flip the join target.
+            if (mode == "argv") Env(ConnectTarget.EnvVar, null);
             string host; int port; string source;
             bool ok = ConnectTarget.TryFromLaunchContext(out host, out port, out source);
             Console.WriteLine(ok ? "OK\t" + host + "\t" + port + "\t" + source : "NO");

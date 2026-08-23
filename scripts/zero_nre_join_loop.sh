@@ -6,6 +6,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
+# Bound accumulation: zero_nre creates per-attempt logs that would grow without
+# limit if the harness is run repeatedly (e.g. CI). Prune old cycles.
+find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-zn*.log' -o -name 'zero_nre-cycle-*.txt' -o -name 'zero_nre_summary.txt' \) -mtime +3 -delete 2>/dev/null || true
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-6}"
