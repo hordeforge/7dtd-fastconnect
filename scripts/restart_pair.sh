@@ -7,9 +7,14 @@ set -euo pipefail
 WORLD="${1:?usage: restart_pair.sh <world-dir> [port]}"
 PORT="${2:-27025}"
 GAME_SRV="${GAME_SRV:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
-ZDTD="${ZDTD:-$HOME/Desktop/7dtd/zdtd/zig-out/bin/zdtd}"
 LOGDIR="${LOGDIR:-$HOME/.cache/zdtd-scratch}"
 SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
+# Default root of the sibling zdtd checkout (same convention as
+# one_shot_join.sh / zero_nre_join_loop.sh); empty when it is not checked out
+# next to this repo. Override with ZDTD= when it lives elsewhere; the -x check
+# below reports whatever path results.
+ZDTD_ROOT="$(cd "$SCRIPTDIR/../zdtd" 2>/dev/null && pwd || true)"
+ZDTD="${ZDTD:-${ZDTD_ROOT:+$ZDTD_ROOT/zig-out/bin/zdtd}}"
 
 pkill -f 'zig-out/bin/zdtd' 2>/dev/null || true
 # Kill the whole Proton/wine stack, not just the game exe. Leftover
@@ -23,7 +28,7 @@ pkill -9 -f 'proton.*7DaysToDie|SteamLaunch.*251570' 2>/dev/null || true
 sleep 3
 
 if [[ ! -x "$ZDTD" ]]; then
-  echo "ERROR: zdtd binary not found or not executable: $ZDTD" >&2
+  echo "ERROR: zdtd binary not found or not executable: ${ZDTD:-<unset>; set ZDTD=/path/to/zdtd}" >&2
   exit 1
 fi
 

@@ -41,8 +41,6 @@ LAUNCH="$ROOT/scripts/launch_client.sh"
 
 server_pid=""
 launch_pid=""
-client_pgid=""
-client_pids_before=()
 
 log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
 

@@ -60,8 +60,7 @@ start_zdtd() {
     --game-dir "$GAME_DIR" \
     --world-name Navezgane \
     >"$SCRATCH/zdtd-server-zero-nre.log" 2>&1) &
-  local i
-  for i in $(seq 1 40); do
+  for _ in $(seq 1 40); do
     if ss -tln | grep -Eq ":${PORT}\\b"; then
       log "server up on $PORT"
       return 0
