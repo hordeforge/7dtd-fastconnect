@@ -376,12 +376,39 @@ namespace SdtdConnect
         }
     }
 
-    /// <summary>Steam-less Proton: client has no Steam/EOS identity, but stock dedi's PlayerIdAuthorizer kicks Empty name or player ID. Inject a synthetic local Steam id so SendLogin succeeds on EAC-off LAN (loopback). With a real Steam login present, pass through so the server sees the real id and validates the real ticket.</summary>
+    /// <summary>Steam-less Proton: client has no Steam/EOS identity, but stock dedi's PlayerIdAuthorizer kicks Empty name or player ID. Inject a synthetic local Steam id (derived from the machine name, so two Steam-less clients on different hosts never collide) so SendLogin succeeds on EAC-off LAN (loopback). With a real Steam login present, pass through so the server sees the real id and validates the real ticket.</summary>
     [AutomationPatch]
     [HarmonyPatch(typeof(Platform.Steam.User), nameof(Platform.Steam.User.PlatformUserId), MethodType.Getter)]
     static class Patch_SteamUserId_Synthetic
     {
+        // Individual-account SteamID64 base; keep derived ids inside the
+        // standard universe and far below the bot-id range BotTabPatch uses.
+        const ulong IndividualAccountBase = 76561197960265728UL;
+
         static PlatformUserIdentifierAbs _fake;
+
+        // Deterministic per host: stable across restarts on the same machine
+        // (server-side player data persists), distinct across machines.
+        static PlatformUserIdentifierAbs SyntheticId()
+        {
+            string seed = null;
+            try { seed = Environment.MachineName; } catch { }
+            if (string.IsNullOrWhiteSpace(seed))
+            {
+                try { seed = Environment.UserName; } catch { }
+            }
+            if (string.IsNullOrWhiteSpace(seed))
+                return new Platform.Steam.UserIdentifierSteam("76561199000000042");
+            ulong hash = 14695981039346656037UL;
+            foreach (char c in seed.Trim())
+            {
+                hash ^= c;
+                hash *= 1099511628211UL;
+            }
+            return new Platform.Steam.UserIdentifierSteam(
+                (IndividualAccountBase + hash % 100000000UL).ToString());
+        }
+
         static bool Prefix(Platform.Steam.User __instance, ref PlatformUserIdentifierAbs __result)
         {
             // Real Steam identity available -> let the original getter return it.
@@ -398,7 +425,7 @@ namespace SdtdConnect
             catch { }
             try
             {
-                if (_fake == null) _fake = new Platform.Steam.UserIdentifierSteam("76561199000000042");
+                if (_fake == null) _fake = SyntheticId();
                 __result = _fake;
                 return false;
             }
@@ -411,7 +438,7 @@ namespace SdtdConnect
             {
                 try
                 {
-                    if (_fake == null) _fake = new Platform.Steam.UserIdentifierSteam("76561199000000042");
+                    if (_fake == null) _fake = SyntheticId();
                     __result = _fake;
                 }
                 catch { }

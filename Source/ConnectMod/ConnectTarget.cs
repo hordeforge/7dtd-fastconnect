@@ -240,13 +240,19 @@ namespace SdtdConnect
 
                 // DoSpawn opens XUiC_SpawnSelectionWindow unless SkipSpawnButton is true.
                 // Auto-connect needs the direct RequestToSpawn path (no UI click).
-                try
+                // Interactive F1 joins keep stock behaviour: the pref persists,
+                // so setting it outside automation would suppress the spawn
+                // window in ordinary play too.
+                if (AutomationMode.Enabled)
                 {
-                    GamePrefs.Set(EnumGamePrefs.SkipSpawnButton, true);
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning("[7dtd-connect] SkipSpawnButton set failed: " + ex.Message);
+                    try
+                    {
+                        GamePrefs.Set(EnumGamePrefs.SkipSpawnButton, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning("[7dtd-connect] SkipSpawnButton set failed: " + ex.Message);
+                    }
                 }
 
                 Log.Out($"[7dtd-connect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={host})");
