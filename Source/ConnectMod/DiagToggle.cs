@@ -1,6 +1,6 @@
 namespace SdtdConnect
 {
-    /// <summary>Runtime + persistent toggle for verbose 7dtd-connect traces.</summary>
+    /// <summary>Runtime + persistent toggle for verbose 7dtd-fastconnect traces.</summary>
     internal static class DiagToggle
     {
         // Snapshot once: Enabled sits first in per-frame/per-package hooks, and
@@ -27,7 +27,7 @@ namespace SdtdConnect
         {
             if (_reported) return;
             _reported = true;
-            if (Enabled) Log.Out("[7dtd-connect] diag verbose ON (7DTD_CONNECT_DEBUG=1 or `diag on`)");
+            if (Enabled) Log.Out("[7dtd-fastconnect] diag verbose ON (7DTD_CONNECT_DEBUG=1 or `diag on`)");
         }
 
         // Console command sets this; it also re-announces via AnnounceOnce().
@@ -41,7 +41,7 @@ namespace SdtdConnect
         internal static string StatusLine()
         {
             string src = _consoleHasOverride ? "console" : (_envEnabled ? "env" : "default");
-            return "[7dtd-connect] diag " + (Enabled ? "ON" : "OFF") + " (" + src + ")";
+            return "[7dtd-fastconnect] diag " + (Enabled ? "ON" : "OFF") + " (" + src + ")";
         }
     }
 }

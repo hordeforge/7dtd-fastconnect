@@ -15,7 +15,7 @@ namespace SdtdConnect
                 var gm = GameManager.Instance;
                 var p = gm != null && gm.World != null ? gm.World.GetPrimaryPlayer() : null;
                 if (p == null || __instance.entityId != p.entityId) return;
-                Log.Out("[7dtd-connect] af hb entity=" + __instance.entityId
+                Log.Out("[7dtd-fastconnect] af hb entity=" + __instance.entityId
                     + " flags=" + __instance.flags
                     + " spawnedBit=" + ((__instance.flags & 8) > 0)
                     + " t=" + Time.unscaledTime);

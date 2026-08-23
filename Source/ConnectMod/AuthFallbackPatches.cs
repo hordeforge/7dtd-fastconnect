@@ -16,7 +16,7 @@ namespace SdtdConnect
                 if (!Steamworks.SteamAPI.IsSteamRunning())
                 {
                     __result = "";
-                    Log.Out("[7dtd-connect] steam GetAuthTicket: no Steam, returning empty (EAC off LAN)");
+                    Log.Out("[7dtd-fastconnect] steam GetAuthTicket: no Steam, returning empty (EAC off LAN)");
                     return false;
                 }
             }
@@ -28,7 +28,7 @@ namespace SdtdConnect
         {
             if (__exception != null)
             {
-                Log.Warning("[7dtd-connect] GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty ticket");
+                Log.Warning("[7dtd-fastconnect] GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty ticket");
                 __result = "";
                 return null;
             }
@@ -151,7 +151,7 @@ namespace SdtdConnect
         {
             if (__exception != null)
             {
-                Log.Warning("[7dtd-connect] EOS GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty");
+                Log.Warning("[7dtd-fastconnect] EOS GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty");
                 __result = "";
                 return null;
             }

@@ -44,7 +44,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] frame uncap failed (" + reason + "): " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] frame uncap failed (" + reason + "): " + ex.Message);
             }
         }
 
@@ -56,7 +56,7 @@ namespace SdtdConnect
                 if (!_forceSyncOptOutLogged)
                 {
                     _forceSyncOptOutLogged = true;
-                    Log.Out("[7dtd-connect] LoadManager.forceLoadSync disabled by "
+                    Log.Out("[7dtd-fastconnect] LoadManager.forceLoadSync disabled by "
                         + ForceLoadSyncEnv);
                 }
                 return;
@@ -67,16 +67,16 @@ namespace SdtdConnect
                     BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
                 if (fi == null || fi.FieldType != typeof(bool))
                 {
-                    Log.Warning("[7dtd-connect] LoadManager.forceLoadSync field missing");
+                    Log.Warning("[7dtd-fastconnect] LoadManager.forceLoadSync field missing");
                     return;
                 }
                 fi.SetValue(null, true);
                 _forceSyncSet = true;
-                Log.Out("[7dtd-connect] LoadManager.forceLoadSync=true (automation addressables)");
+                Log.Out("[7dtd-fastconnect] LoadManager.forceLoadSync=true (automation addressables)");
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] forceLoadSync set failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] forceLoadSync set failed: " + ex.Message);
             }
         }
     }
@@ -89,7 +89,7 @@ namespace SdtdConnect
         {
             BootUnblock.ApplyFrameUncap("Awake");
             BootUnblock.ApplyForceLoadSync();
-            Log.Out("[7dtd-connect] boot unblock RIB+noVSync+uncappedFPS");
+            Log.Out("[7dtd-fastconnect] boot unblock RIB+noVSync+uncappedFPS");
         }
     }
 

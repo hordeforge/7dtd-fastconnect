@@ -252,7 +252,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                try { Log.Warning("[7dtd-connect] BotTabPatch failed: " + ex.Message); } catch { }
+                try { Log.Warning("[7dtd-fastconnect] BotTabPatch failed: " + ex.Message); } catch { }
             }
         }
 

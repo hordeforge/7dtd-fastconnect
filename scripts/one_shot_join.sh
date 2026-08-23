@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-connect}"
+SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 
 PORT="${PORT:-27025}"
@@ -25,7 +25,7 @@ START_SERVER="${START_SERVER:-0}"
 # Default root of the sibling zdtd checkout; empty when it is not checked
 # out here. A hard failure must wait for the point of use (START_SERVER=1
 # validates the binary) so START_SERVER=0 cycles run anywhere.
-ZDTD_ROOT="$(cd "$ROOT/../zdtd" 2>/dev/null && pwd || true)"
+ZDTD_ROOT="$(cd "$ROOT/../zdtd-server" 2>/dev/null && pwd || true)"
 ZDTD_BIN="${ZDTD_BIN:-$ZDTD_ROOT/zig-out/bin/zdtd}"
 GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 MAP_DIR="${MAP_DIR:-$GAME_DIR/Data/Worlds/Navezgane}"
@@ -59,7 +59,7 @@ mono_sec() {
 
 # Join success signal; some checks accept extra partial-progress markers too.
 JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'
-JOIN_SOFT_RE='Found own player entity with id|PlayerSpawnedInWorld|\[7dtd-connect\] .*connected|Created player|Local Player'
+JOIN_SOFT_RE='Found own player entity with id|PlayerSpawnedInWorld|\[7dtd-fastconnect\] .*connected|Created player|Local Player'
 
 list_client_pids() {
   # Match real game process only (not this script's shell line containing the name).
@@ -245,7 +245,7 @@ cp -f "$CLIENT_LOG_SRC" "$CLIENT_LOG_OUT" 2>/dev/null || true
 log "result=$result"
 log "client log -> $CLIENT_LOG_OUT"
 log "key client lines:"
-grep -En '7dtd-connect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|error|ERR' \
+grep -En '7dtd-fastconnect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|error|ERR' \
   "$CLIENT_LOG_OUT" 2>/dev/null | head -80 | tee -a "$LIFE_OUT" || true
 
 log "after clients before kill: $(list_client_pids | tr '\n' ' ')"

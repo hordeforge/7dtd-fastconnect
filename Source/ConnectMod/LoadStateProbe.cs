@@ -28,7 +28,7 @@ namespace SdtdConnect
                 bool fixedSize = world != null && world.ChunkCache != null && world.ChunkCache.IsFixedSize;
                 int needed = fixedSize ? 0 : vd * vd - 10;
                 var cm = SingletonMonoBehaviour<ConnectionManager>.Instance;
-                Log.Out("[7dtd-connect] load hb calls=" + _calls + " started="
+                Log.Out("[7dtd-fastconnect] load hb calls=" + _calls + " started="
                     + (gm != null && gm.gameStateManager != null && gm.gameStateManager.IsGameStarted())
                     + " gameState=" + GameStats.GetInt(EnumGameStats.GameState)
                     + " delay=" + __instance.delayCountdownTime
@@ -48,7 +48,7 @@ namespace SdtdConnect
                 if (!_failLogged)
                 {
                     _failLogged = true;
-                    try { Log.Warning("[7dtd-connect] load hb failed (further failures muted):\n" + ex); }
+                    try { Log.Warning("[7dtd-fastconnect] load hb failed (further failures muted):\n" + ex); }
                     catch { }
                 }
             }

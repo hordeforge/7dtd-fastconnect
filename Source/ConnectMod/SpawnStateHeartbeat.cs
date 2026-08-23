@@ -59,7 +59,7 @@ namespace SdtdConnect
                 if (!_failLogged)
                 {
                     _failLogged = true;
-                    try { Log.Warning("[7dtd-connect] spawn hb failed (further failures muted):\n" + ex); }
+                    try { Log.Warning("[7dtd-fastconnect] spawn hb failed (further failures muted):\n" + ex); }
                     catch { }
                 }
             }
@@ -78,7 +78,7 @@ namespace SdtdConnect
             var ui = LocalPlayerUI.GetUIForPrimaryPlayer();
             bool xuiReady = ui != null && ui.xui != null && ui.xui.IsReady;
 
-            Log.Out("[7dtd-connect] spawn hb started=" + started
+            Log.Out("[7dtd-fastconnect] spawn hb started=" + started
                 + " cgo=" + cgo + "/" + needed
                 + " fixedSize=" + fixedSize
                 + " viewDist=" + viewDist
@@ -103,7 +103,7 @@ namespace SdtdConnect
             Vector3i srv = new Vector3i(srvRaw.x / 32, srvRaw.y / 32, srvRaw.z / 32);
             Vector3i d = b - srv;
             bool wouldSend = Mathf.Abs(d.x) >= 2 || Mathf.Abs(d.y) >= 2 || Mathf.Abs(d.z) >= 2;
-            Log.Out("[7dtd-connect] move hb posI=" + b + " serverPos=" + srv + " raw=" + srvRaw
+            Log.Out("[7dtd-fastconnect] move hb posI=" + b + " serverPos=" + srv + " raw=" + srvRaw
                 + " delta=" + d + " wouldSend=" + wouldSend
                 + " spawned=" + player.IsSpawned() + " Spawned=" + player.Spawned
                 + " remote=" + player.isEntityRemote
@@ -132,7 +132,7 @@ namespace SdtdConnect
             {
                 dens += " y" + (b.y + dy) + "=" + world.GetDensity(b.x, b.y + dy, b.z);
             }
-            Log.Out("[7dtd-connect] col hb at " + b.x + "," + b.z + col
+            Log.Out("[7dtd-fastconnect] col hb at " + b.x + "," + b.z + col
                 + " chunkLoaded=" + (world.GetChunkFromWorldPos(b) != null)
                 + " dens:" + dens);
         }
@@ -148,7 +148,7 @@ namespace SdtdConnect
             bool hit = Physics.Raycast(
                 new Ray(player.position + Vector3.up * 1.5f, Vector3.down),
                 out RaycastHit rh, float.MaxValue, 0x10000);
-            Log.Out("[7dtd-connect] mesh hb chunk=" + (ch != null ? ch.Key.ToString() : "null")
+            Log.Out("[7dtd-fastconnect] mesh hb chunk=" + (ch != null ? ch.Key.ToString() : "null")
                 + (ch != null
                     ? " needsRegen=" + ch.NeedsRegeneration
                         + " needsLight=" + ch.NeedsLightCalculation
@@ -175,7 +175,7 @@ namespace SdtdConnect
                 }
                 ring += "/";
             }
-            Log.Out("[7dtd-connect] ring hb " + ring + " (.=absent r=needsRegen o=meshed D=displayed)");
+            Log.Out("[7dtd-fastconnect] ring hb " + ring + " (.=absent r=needsRegen o=meshed D=displayed)");
         }
 
         // World-content samples around the player: the availability ring
@@ -218,16 +218,16 @@ namespace SdtdConnect
             // terrain tint plus biome fog are driven by the chunk's biome id,
             // so log what the client actually received.
             var pch = world.GetChunkFromWorldPos(b) as Chunk;
-            Log.Out("[7dtd-connect] biome hb chunkBiome="
+            Log.Out("[7dtd-fastconnect] biome hb chunkBiome="
                 + (pch != null ? pch.GetBiomeId(b.x & 15, b.z & 15).ToString() : "null")
                 + " worldBiome=" + (world.GetBiome(b.x, b.z) != null ? world.GetBiome(b.x, b.z).m_sBiomeName : "null")
                 + " dayPercent=" + SkyManager.dayPercent
                 + " indoorFog=" + SkyManager.indoorFogOn);
 
-            Log.Out("[7dtd-connect] poi hb centre(-241,471):" + poi
+            Log.Out("[7dtd-fastconnect] poi hb centre(-241,471):" + poi
                 + " columnsAboveGround=" + solid + "/49");
 
-            Log.Out("[7dtd-connect] avail hb posAvailable="
+            Log.Out("[7dtd-fastconnect] avail hb posAvailable="
                 + world.IsPositionAvailable(player.position) + " ring:" + avail);
         }
 
@@ -247,7 +247,7 @@ namespace SdtdConnect
                 if (c2.Z < minZ) minZ = c2.Z;
                 if (c2.Z > maxZ) maxZ = c2.Z;
             }
-            Log.Out("[7dtd-connect] cache hb n=" + cnt + " displayed=" + disp
+            Log.Out("[7dtd-fastconnect] cache hb n=" + cnt + " displayed=" + disp
                 + " x=[" + minX + ".." + maxX + "] z=[" + minZ + ".." + maxZ + "]"
                 + " playerChunk=" + (b.x >> 4) + "," + (b.z >> 4));
         }
@@ -269,7 +269,7 @@ namespace SdtdConnect
                 // position against spawnPosition and needs the spawn
                 // window object to exist. Log both sides.
                 var ssw = XUiC_SpawnSelectionWindow.GetWindow(LocalPlayerUI.primaryUI);
-                Log.Out("[7dtd-connect] pmc hb spawnPos=" + pmc.spawnPosition.position
+                Log.Out("[7dtd-fastconnect] pmc hb spawnPos=" + pmc.spawnPosition.position
                     + " undef=" + pmc.spawnPosition.IsUndef()
                     + " playerPos=" + player.position
                     + " equal=" + (player.position == pmc.spawnPosition.position)
@@ -279,7 +279,7 @@ namespace SdtdConnect
             }
             var ui = LocalPlayerUI.GetUIForPrimaryPlayer();
             var wm = ui != null ? ui.windowManager : null;
-            Log.Out("[7dtd-connect] ui hb respawnReason="
+            Log.Out("[7dtd-fastconnect] ui hb respawnReason="
                 + (pmc != null ? pmc.respawnReason.ToString() : "null")
                 + " spawnWindowOpened=" + (pmc != null ? pmc.spawnWindowOpened.ToString() : "-")
                 + " loadingScreen=" + (wm != null && wm.IsWindowOpen(XUiC_LoadingScreen.ID))
@@ -306,7 +306,7 @@ namespace SdtdConnect
                     if (kv.Value != null && kv.Value.isShowing) wins += " " + kv.Key;
                 }
             }
-            Log.Out("[7dtd-connect] win hb frame=" + Time.frameCount
+            Log.Out("[7dtd-fastconnect] win hb frame=" + Time.frameCount
                 + " focused=" + Application.isFocused
                 + " open:" + (wins.Length == 0 ? " (none)" : wins));
         }
@@ -327,7 +327,7 @@ namespace SdtdConnect
                 profile, "AppData", "Roaming", "7DaysToDie",
                 "zdtd_shot_" + _shots + ".png");
             ScreenCapture.CaptureScreenshot(p);
-            Log.Out("[7dtd-connect] shot " + _shots + " -> " + p);
+            Log.Out("[7dtd-fastconnect] shot " + _shots + " -> " + p);
         }
     }
 }

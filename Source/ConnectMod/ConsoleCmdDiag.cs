@@ -6,7 +6,7 @@ namespace SdtdConnect
     public class ConsoleCmdDiag : ConsoleCmdAbstract
     {
         public override string[] getCommands() => new[] { "diag", "7dtd_diag", "zdiag" };
-        public override string getDescription() => "Toggle verbose 7dtd-connect diagnostics (opt-in, off by default).";
+        public override string getDescription() => "Toggle verbose 7dtd-fastconnect diagnostics (opt-in, off by default).";
 
         public override string getHelp() =>
             "diag on|off|status\n" +
@@ -26,18 +26,18 @@ namespace SdtdConnect
             if (arg == "on" || arg == "1" || arg == "enable" || arg == "true")
             {
                 DiagToggle.Set(true);
-                outLine = "[7dtd-connect] diag ON — verbose traces enabled (window/spawn/flags)";
+                outLine = "[7dtd-fastconnect] diag ON — verbose traces enabled (window/spawn/flags)";
             }
             else if (arg == "off" || arg == "0" || arg == "disable" || arg == "false")
             {
                 DiagToggle.Set(false);
-                outLine = "[7dtd-connect] diag OFF — verbose traces muted";
+                outLine = "[7dtd-fastconnect] diag OFF — verbose traces muted";
             }
             else if (arg == "toggle" || arg == "flip")
             {
                 bool next = !DiagToggle.Enabled;
                 DiagToggle.Set(next);
-                outLine = "[7dtd-connect] diag " + (next ? "ON" : "OFF") + " (toggled)";
+                outLine = "[7dtd-fastconnect] diag " + (next ? "ON" : "OFF") + " (toggled)";
             }
             else // status and anything else
             {

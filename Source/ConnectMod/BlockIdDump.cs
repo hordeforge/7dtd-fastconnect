@@ -46,17 +46,17 @@ namespace SdtdConnect
                 return;
             }
             _dumped = true;
-            Log.Out("[7dtd-connect] BlockIdDump reason=" + reason);
+            Log.Out("[7dtd-fastconnect] BlockIdDump reason=" + reason);
 
             // Pins first (always visible in client log).
             foreach (var name in PinNames)
             {
                 int id = LookupId(name);
-                Log.Out("[7dtd-connect] Block.id name=" + name + " id=" + id);
+                Log.Out("[7dtd-fastconnect] Block.id name=" + name + " id=" + id);
             }
 
             int written = DumpAllBlocks();
-            Log.Out("[7dtd-connect] BlockIdDump full rows=" + written);
+            Log.Out("[7dtd-fastconnect] BlockIdDump full rows=" + written);
         }
 
         static int LookupId(string name)
@@ -68,7 +68,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] Block.id fail name=" + name + " " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] Block.id fail name=" + name + " " + ex.Message);
                 return -1;
             }
         }
@@ -94,7 +94,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] BlockIdDump map walk: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] BlockIdDump map walk: " + ex.Message);
             }
 
             if (rows.Count == 0)
@@ -119,11 +119,11 @@ namespace SdtdConnect
                     sb.Append('\n');
                 }
                 File.WriteAllText(outPath, sb.ToString());
-                Log.Out("[7dtd-connect] BlockIdDump wrote " + rows.Count + " rows → " + outPath);
+                Log.Out("[7dtd-fastconnect] BlockIdDump wrote " + rows.Count + " rows → " + outPath);
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] BlockIdDump write failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] BlockIdDump write failed: " + ex.Message);
             }
             return rows.Count;
         }

@@ -13,7 +13,7 @@ SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
 # one_shot_join.sh / zero_nre_join_loop.sh); empty when it is not checked out
 # next to this repo. Override with ZDTD= when it lives elsewhere; the -x check
 # below reports whatever path results.
-ZDTD_ROOT="$(cd "$SCRIPTDIR/../zdtd" 2>/dev/null && pwd || true)"
+ZDTD_ROOT="$(cd "$SCRIPTDIR/../zdtd-server" 2>/dev/null && pwd || true)"
 ZDTD="${ZDTD:-${ZDTD_ROOT:+$ZDTD_ROOT/zig-out/bin/zdtd}}"
 
 pkill -f 'zig-out/bin/zdtd' 2>/dev/null || true

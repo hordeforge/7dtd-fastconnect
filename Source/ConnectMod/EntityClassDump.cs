@@ -38,7 +38,7 @@ namespace SdtdConnect
                     if (gid != -1) id = gid;
                 }
                 catch { /* ignore */ }
-                Log.Out("[7dtd-connect] EntityClass.Add name=" + _entityClassname + " id=" + id);
+                Log.Out("[7dtd-fastconnect] EntityClass.Add name=" + _entityClassname + " id=" + id);
                 _logged++;
             }
         }

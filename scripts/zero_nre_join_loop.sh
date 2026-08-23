@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-connect}"
+SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
@@ -13,7 +13,7 @@ TIMEOUT_SEC="${TIMEOUT_SEC:-90}"
 # Default root of the sibling zdtd checkout; empty when it is not checked
 # out here. Fail at the point of use (start_zdtd's listen wait), not here:
 # a failing command substitution in a default aborts the script under set -e.
-ZDTD_ROOT="$(cd "$ROOT/../zdtd" 2>/dev/null && pwd || true)"
+ZDTD_ROOT="$(cd "$ROOT/../zdtd-server" 2>/dev/null && pwd || true)"
 ZDTD_BIN="${ZDTD_BIN:-$ZDTD_ROOT/zig-out/bin/zdtd}"
 MAP_DIR="${MAP_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server/Data/Worlds/Navezgane}"
 GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"

@@ -1,10 +1,12 @@
-# AGENTS.md - 7dtd-connect
+# AGENTS.md - 7dtd-fastconnect
 
-Client-only mod: join by IP without Steam `steam://connect` (invalid for non-Steam servers like **zdtd**).
+Client-only mod: join by IP without Steam `steam://connect` (invalid for non-Steam servers like **zdtd-server**).
+
+Canonical modding guide: [MODDING_BEST_PRACTICES.md](https://github.com/hordeforge/.github/blob/main/MODDING_BEST_PRACTICES.md)
 
 ## Owns
 
-- `Mods/7dtd-connect` under the **stock client** game dir
+- `Mods/7dtd-fastconnect` under the **stock client** game dir
 - F1 `connect` / env `7DTD_CONNECT` / `-connect=host:port` auto-join after main menu
 - Intro/news/Discord/EULA skip and spawn-gate heartbeat for automated launch
 - Lifecycle scripts (`launch_client.sh`, `restart_pair.sh`, `one_shot_join.sh`)
@@ -41,17 +43,17 @@ Client-only mod: join by IP without Steam `steam://connect` (invalid for non-Ste
 ```bash
 make test     # offline gates (env naming, mute helper, platform swap/restore)
 make build    # requires local client install (game Assembly-CSharp)
-make package  # build + zip dist/7dtd-connect-<tag>.zip (needs a client install)
+make package  # build + zip dist/7dtd-fastconnect-<tag>.zip (needs a client install)
 make install
 env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```
 
-## Stock-game research -> 7dtd-research
+## Stock-game research -> 7dtd-engine-research
 
 Anything that studies the **stock** dedicated server belongs in
-[`../7dtd-research/`](../7dtd-research/), not here: reverse-engineering
+[`../7dtd-engine-research/`](../7dtd-engine-research/), not here: reverse-engineering
 narratives (`docs/`), the Mono.Cecil dump tooling (`tools/`), wire/protocol
 analysis, and engine cost/loop RE. This repo owns the client-only direct-connect mod;
 it does not host stock-game RE docs or dumpers. When RE is needed, add it
-under `../7dtd-research/` and link back. How to RE:
-[`../7dtd-research/docs/re-methodology.md`](../7dtd-research/docs/re-methodology.md).
+under `../7dtd-engine-research/` and link back. How to RE:
+[`../7dtd-engine-research/docs/re-methodology.md`](../7dtd-engine-research/docs/re-methodology.md).

@@ -3,7 +3,7 @@
   <Name value="7dtd-connect" />
   <DisplayName value="7dtd Connect" />
   <Description value="Client: F1 connect command + env/CLI auto-join for local/dev servers (EAC off)." />
-  <Author value="7dtd workspace" />
+  <Author value="HordeForge" />
   <Version value="0.10.4" />
-  <Website value="" />
+  <Website value="https://github.com/hordeforge/7dtd-fastconnect" />
 </xml>

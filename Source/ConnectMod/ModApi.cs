@@ -19,8 +19,8 @@ namespace SdtdConnect
         public void InitMod(Mod _modInstance)
         {
             DiagToggle.AnnounceOnce();
-            Log.Out("[7dtd-connect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest) — diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
-            Log.Out("[7dtd-connect] automation boot mode " + (AutomationMode.Enabled ? "enabled" : "disabled")
+            Log.Out("[7dtd-fastconnect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest) — diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
+            Log.Out("[7dtd-fastconnect] automation boot mode " + (AutomationMode.Enabled ? "enabled" : "disabled")
                 + " (auto when 7DTD_CONNECT/-connect is present; override with " + AutomationMode.EnvVar + ")");
 
             if (AutomationMode.Enabled) try
@@ -31,7 +31,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] boot unblock failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] boot unblock failed: " + ex.Message);
             }
 
             if (AutomationMode.Enabled) try
@@ -41,11 +41,11 @@ namespace SdtdConnect
                 GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
                 GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
                 // EULA gate blocks MainMenu (scroll+accept); force accepted for automation.
-                Log.Out("[7dtd-connect] EULA prefs accepted=" + EulaSkip.AcceptLatest());
+                Log.Out("[7dtd-fastconnect] EULA prefs accepted=" + EulaSkip.AcceptLatest());
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] Discord/intro/eula prefs set failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] Discord/intro/eula prefs set failed: " + ex.Message);
             }
 
             try
@@ -67,15 +67,15 @@ namespace SdtdConnect
                     catch (Exception ex)
                     {
                         fail++;
-                        Log.Warning("[7dtd-connect] Harmony skip " + t.Name + ": " + ex.Message);
+                        Log.Warning("[7dtd-fastconnect] Harmony skip " + t.Name + ": " + ex.Message);
                     }
                 }
-                Log.Out("[7dtd-connect] Harmony patches applied ok=" + ok + " fail=" + fail
+                Log.Out("[7dtd-fastconnect] Harmony patches applied ok=" + ok + " fail=" + fail
                     + " (news/discord skip for automation only)");
             }
             catch (Exception ex)
             {
-                Log.Error("[7dtd-connect] Harmony failed: " + ex.Message);
+                Log.Error("[7dtd-fastconnect] Harmony failed: " + ex.Message);
             }
 
             if (AutomationMode.Enabled) try
@@ -84,7 +84,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] InitMod news-screen skip failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] InitMod news-screen skip failed: " + ex.Message);
             }
 
             try
@@ -93,7 +93,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Error("[7dtd-connect] MainMenuOpened register failed: " + ex.Message);
+                Log.Error("[7dtd-fastconnect] MainMenuOpened register failed: " + ex.Message);
             }
         }
 
@@ -127,11 +127,11 @@ namespace SdtdConnect
             {
                 GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
                 GamePrefs.Instance?.Save();
-                Log.Out("[7dtd-connect] player name from " + PlayerNameEnv + "=" + requested);
+                Log.Out("[7dtd-fastconnect] player name from " + PlayerNameEnv + "=" + requested);
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] player name override failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] player name override failed: " + ex.Message);
             }
         }
 
@@ -146,7 +146,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] MainMenuOpened news/intro skip failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] MainMenuOpened news/intro skip failed: " + ex.Message);
             }
 
             if (_autoTried) return;
@@ -154,18 +154,18 @@ namespace SdtdConnect
 
             if (!ConnectTarget.TryFromLaunchContext(out string host, out int port, out string source))
             {
-                Log.Out("[7dtd-connect] no 7DTD_CONNECT / -connect= ; use F1: connect 127.0.0.1 27025");
+                Log.Out("[7dtd-fastconnect] no 7DTD_CONNECT / -connect= ; use F1: connect 127.0.0.1 27025");
                 return;
             }
 
-            Log.Out("[7dtd-connect] auto-join from " + source);
+            Log.Out("[7dtd-fastconnect] auto-join from " + source);
             try
             {
                 ThreadManager.StartCoroutine(DelayedConnect(host, port));
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] coroutine failed, connecting immediately: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] coroutine failed, connecting immediately: " + ex.Message);
                 ConnectAndLog(host, port);
             }
         }
@@ -191,13 +191,13 @@ namespace SdtdConnect
                 if (ConnectReady.IsReady(out string whyNot))
                 {
                     if (polls > 0)
-                        Log.Out("[7dtd-connect] connect-ready after polls=" + polls);
+                        Log.Out("[7dtd-fastconnect] connect-ready after polls=" + polls);
                     break;
                 }
                 if (polls == 0 || UnityEngine.Time.unscaledTime >= nextLog)
                 {
                     nextLog = UnityEngine.Time.unscaledTime + 5f;
-                    Log.Out("[7dtd-connect] connect wait polls=" + polls + " " + whyNot);
+                    Log.Out("[7dtd-fastconnect] connect wait polls=" + polls + " " + whyNot);
                 }
                 polls++;
                 // Fresh waiter per poll: WaitForSecondsRealtime reset semantics
@@ -208,7 +208,7 @@ namespace SdtdConnect
 
             if (!ConnectReady.IsReady(out string still))
             {
-                Log.Warning("[7dtd-connect] connect gate timeout polls=" + polls + " " + still + "; trying anyway");
+                Log.Warning("[7dtd-fastconnect] connect gate timeout polls=" + polls + " " + still + "; trying anyway");
             }
 
             ConnectAndLog(host, port);
@@ -217,9 +217,9 @@ namespace SdtdConnect
         static void ConnectAndLog(string host, int port)
         {
             if (!ConnectTarget.TryConnect(host, port, out string msg))
-                Log.Error("[7dtd-connect] " + msg);
+                Log.Error("[7dtd-fastconnect] " + msg);
             else
-                Log.Out("[7dtd-connect] " + msg);
+                Log.Out("[7dtd-fastconnect] " + msg);
         }
     }
 }

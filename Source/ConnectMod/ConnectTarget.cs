@@ -18,7 +18,7 @@ namespace SdtdConnect
         {
             if (_badTargetWarned) return;
             _badTargetWarned = true;
-            Log.Warning("[7dtd-connect] " + sourceLabel + "='" + raw + "' ignored: "
+            Log.Warning("[7dtd-fastconnect] " + sourceLabel + "='" + raw + "' ignored: "
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
@@ -27,17 +27,29 @@ namespace SdtdConnect
         /// strips a pasted steam://connect/ prefix (its colons must not mask
         /// an explicit port) and applies TryParse's port rule so the second
         /// token is only appended to a host that does not already carry a
-        /// port. portArg=null keeps just the scheme strip.
+        /// port. A dangling separator colon ("host:", "[v6]:") is an empty
+        /// port by that same rule, so it is dropped first: appending would
+        /// otherwise double the colon, and passing through would leave an
+        /// unparsable host behind. portArg=null keeps just the strips.
         /// </summary>
         public static string MergePortArg(string raw, string portArg)
         {
             if (raw == null) return null;
             if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
                 raw = raw.Substring("steam://connect/".Length);
-            int firstColon = raw.IndexOf(':');
-            bool hasPort = raw.StartsWith("[")
-                ? raw.Contains("]:")
-                : firstColon >= 0 && firstColon == raw.LastIndexOf(':');
+            bool hasPort;
+            if (raw.StartsWith("["))
+            {
+                if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
+                int close = raw.IndexOf(']');
+                hasPort = close >= 0 && close < raw.Length - 1 && raw[close + 1] == ':';
+            }
+            else
+            {
+                if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
+                int firstColon = raw.IndexOf(':');
+                hasPort = firstColon >= 0 && firstColon == raw.LastIndexOf(':');
+            }
             return hasPort || portArg == null ? raw : raw + ":" + portArg;
         }
 
@@ -270,11 +282,11 @@ namespace SdtdConnect
                     }
                     catch (Exception ex)
                     {
-                        Log.Warning("[7dtd-connect] SkipSpawnButton set failed: " + ex.Message);
+                        Log.Warning("[7dtd-fastconnect] SkipSpawnButton set failed: " + ex.Message);
                     }
                 }
 
-                Log.Out($"[7dtd-connect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={host})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={host})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";
@@ -352,7 +364,7 @@ namespace SdtdConnect
                                 reason = "cross user not logged in yet";
                                 return false;
                             }
-                            Log.Out("[7dtd-connect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
+                            Log.Out("[7dtd-fastconnect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
                         }
                         else if (user != null)
                         {
@@ -362,7 +374,7 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Out("[7dtd-connect] cross-user note: " + ex.Message);
+                    Log.Out("[7dtd-fastconnect] cross-user note: " + ex.Message);
                 }
 
                 // Native steam user is optional when EAC off: block only during the
@@ -380,12 +392,12 @@ namespace SdtdConnect
                             reason = "Native.User.PlatformUserId=null (early; retry in a moment)";
                             return false;
                         }
-                        Log.Out("[7dtd-connect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
+                        Log.Out("[7dtd-fastconnect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log.Out("[7dtd-connect] native-user note: " + ex.Message);
+                    Log.Out("[7dtd-fastconnect] native-user note: " + ex.Message);
                 }
 
                 if (!PermissionsManager.IsMultiplayerAllowed())

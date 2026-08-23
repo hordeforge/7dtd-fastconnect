@@ -15,7 +15,7 @@ namespace SdtdConnect
         static void Prefix(string _windowName)
         {
             if (!DiagToggle.Enabled) return;
-            try { Log.Out("[7dtd-connect] wt open " + _windowName + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-fastconnect] wt open " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }
 
@@ -25,7 +25,7 @@ namespace SdtdConnect
         static void Prefix(string _windowName)
         {
             if (!DiagToggle.Enabled) return;
-            try { Log.Out("[7dtd-connect] wt open3 " + _windowName + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-fastconnect] wt open3 " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }
 
@@ -36,7 +36,7 @@ namespace SdtdConnect
         {
             if (!DiagToggle.Enabled) return;
             string id = _w != null ? _w.Id : "null";
-            try { Log.Out("[7dtd-connect] wt openW " + id + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-fastconnect] wt openW " + id + " t=" + Time.unscaledTime); } catch { }
         }
     }
 
@@ -47,7 +47,7 @@ namespace SdtdConnect
         {
             if (!DiagToggle.Enabled) return;
             string id = _w != null ? _w.Id : "null";
-            try { Log.Out("[7dtd-connect] wt closeW " + id + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-fastconnect] wt closeW " + id + " t=" + Time.unscaledTime); } catch { }
         }
     }
 
@@ -57,7 +57,7 @@ namespace SdtdConnect
         static void Prefix(string _windowName)
         {
             if (!DiagToggle.Enabled) return;
-            try { Log.Out("[7dtd-connect] wt close " + _windowName + " t=" + Time.unscaledTime); } catch { }
+            try { Log.Out("[7dtd-fastconnect] wt close " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }
 }

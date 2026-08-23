@@ -40,17 +40,17 @@ namespace SdtdConnect
 
             if (!ConnectTarget.TryParse(raw, out string host, out int port, out string err))
             {
-                Out("[7dtd-connect] parse failed: " + err);
+                Out("[7dtd-fastconnect] parse failed: " + err);
                 return;
             }
 
             if (!ConnectTarget.TryConnect(host, port, out string msg))
             {
-                Out("[7dtd-connect] " + msg);
+                Out("[7dtd-fastconnect] " + msg);
                 return;
             }
 
-            Out("[7dtd-connect] " + msg);
+            Out("[7dtd-fastconnect] " + msg);
         }
 
         static void Out(string s)
