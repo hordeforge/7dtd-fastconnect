@@ -33,7 +33,12 @@ namespace SdtdConnect
             }
 
             string raw = _params[0];
-            if (_params.Count >= 2 && raw.IndexOf(':') < 0)
+            // Bracketed IPv6 hosts contain ':', so only "]:" closes off an
+            // explicit port there; a plain host/port pair has a bare ':'.
+            bool hasPort = raw.StartsWith("[")
+                ? raw.Contains("]:")
+                : raw.IndexOf(':') >= 0;
+            if (_params.Count >= 2 && !hasPort)
                 raw = raw + ":" + _params[1];
 
             if (!ConnectTarget.TryParse(raw, out string host, out int port, out string err))

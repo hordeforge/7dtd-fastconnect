@@ -114,7 +114,12 @@ namespace SdtdConnect
                 catch { }
                 requested = PlayerNames.Resolve();
             }
-            else requested = requested.Trim();
+            else
+            {
+                requested = requested.Trim();
+                if (requested.Length > PlayerNames.MaxLength)
+                    requested = requested.Substring(0, PlayerNames.MaxLength);
+            }
             try
             {
                 GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
@@ -164,12 +169,13 @@ namespace SdtdConnect
             // SetupProtocols NREs on PlatformManager.NativePlatform before EOS/Steam settle.
             // Force-open CheckLogin fires MainMenuOpened ~1s before [EOS] Login succeeded;
             // the connect-ready gate waits for the cross (EOS) user. Cap by wall time,
-            // not frames, because uncapped boot ticks thousands of frames per second.
-            const int maxFrames = 60000;
+            // not frames, because uncapped boot ticks thousands of frames per second
+            // (a frame cap would expire long before the EOS settle windows in ConnectReady).
             const float maxWaitSec = 45f;
             float waitStart = UnityEngine.Time.unscaledTime;
+            float nextLog = 0f;
             int waited = 0;
-            while (waited < maxFrames && UnityEngine.Time.unscaledTime - waitStart < maxWaitSec)
+            while (UnityEngine.Time.unscaledTime - waitStart < maxWaitSec)
             {
                 if (ConnectReady.IsReady(out string whyNot))
                 {
@@ -177,8 +183,11 @@ namespace SdtdConnect
                         Log.Out("[7dtd-connect] connect-ready after frames=" + waited);
                     break;
                 }
-                if (waited == 0 || waited % 300 == 0)
+                if (waited == 0 || UnityEngine.Time.unscaledTime >= nextLog)
+                {
+                    nextLog = UnityEngine.Time.unscaledTime + 5f;
                     Log.Out("[7dtd-connect] connect wait frames=" + waited + " " + whyNot);
+                }
                 waited++;
                 yield return null;
             }
