@@ -7,10 +7,10 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <AssemblyName>7dtd-connect</AssemblyName>
+    <AssemblyName>7dtd-fastconnect</AssemblyName>
     <RootNamespace>SdtdConnect</RootNamespace>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <OutputPath>$(MSBuildThisFileDirectory)../../dist/7dtd-connect/</OutputPath>
+    <OutputPath>$(MSBuildThisFileDirectory)../../dist/7dtd-fastconnect/</OutputPath>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <PropertyGroup>
