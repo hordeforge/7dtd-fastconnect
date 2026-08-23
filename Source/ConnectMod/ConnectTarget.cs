@@ -9,6 +9,19 @@ namespace SdtdConnect
         public const string EnvVar = "7DTD_CONNECT";
         public const int DefaultPort = 27025;
 
+        // Both the boot-mode probe and the menu-open auto-join read the same
+        // launch context; warn once so an invalid value cannot sit in the log
+        // three times or, worse, look like "no target set".
+        static bool _badTargetWarned;
+
+        static void WarnIgnoredTarget(string sourceLabel, string raw, string error)
+        {
+            if (_badTargetWarned) return;
+            _badTargetWarned = true;
+            Log.Warning("[7dtd-connect] " + sourceLabel + "='" + raw + "' ignored: "
+                + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
+        }
+
         public static bool TryParse(string raw, out string host, out int port, out string error)
         {
             host = null;
@@ -84,10 +97,14 @@ namespace SdtdConnect
             source = null;
 
             string env = Environment.GetEnvironmentVariable(EnvVar);
-            if (!string.IsNullOrWhiteSpace(env) && TryParse(env, out host, out port, out _))
+            if (!string.IsNullOrWhiteSpace(env))
             {
-                source = EnvVar + "=" + env.Trim();
-                return true;
+                if (TryParse(env, out host, out port, out string envError))
+                {
+                    source = EnvVar + "=" + env.Trim();
+                    return true;
+                }
+                WarnIgnoredTarget(EnvVar, env.Trim(), envError);
             }
 
             string[] args;
@@ -118,11 +135,14 @@ namespace SdtdConnect
                 }
 
                 if (val == null) continue;
-                if (TryParse(val, out host, out port, out _))
+                if (TryParse(val, out host, out port, out string argError))
                 {
                     source = a.Contains("=") ? a : (a + " " + val);
                     return true;
                 }
+                // Only the flag name; the value is already in the message.
+                string label = a.Contains("=") ? a.Substring(0, a.IndexOf('=')) : a;
+                WarnIgnoredTarget(label, val, argError);
             }
 
             return false;
@@ -153,7 +173,17 @@ namespace SdtdConnect
                 {
                     try
                     {
-                        var entry = Dns.GetHostEntry(host);
+                        // GetHostEntry has no timeout; a wedged resolver would
+                        // freeze the menu thread for the OS retry window. Bound
+                        // the wait and report instead.
+                        const int dnsTimeoutMs = 5000;
+                        var pending = Dns.BeginGetHostEntry(host, null, null);
+                        if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
+                        {
+                            message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + host;
+                            return false;
+                        }
+                        var entry = Dns.EndGetHostEntry(pending);
                         if (entry.AddressList == null || entry.AddressList.Length == 0)
                         {
                             message = "no IP for hostname " + host;

@@ -82,7 +82,10 @@ namespace SdtdConnect
             {
                 XUiC_MainMenu.shownNewsScreenOnce = true;
             }
-            catch { /* type may not be ready */ }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] InitMod news-screen skip failed: " + ex.Message);
+            }
 
             try
             {
@@ -141,7 +144,10 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
             }
-            catch { /* ignore */ }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] MainMenuOpened news/intro skip failed: " + ex.Message);
+            }
 
             if (_autoTried) return;
             _autoTried = true;

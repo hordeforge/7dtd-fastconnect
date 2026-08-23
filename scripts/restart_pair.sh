@@ -22,17 +22,31 @@ pkill -9 -f 'pressure-vessel|pv-adverb|pv-bwrap' 2>/dev/null || true
 pkill -9 -f 'proton.*7DaysToDie|SteamLaunch.*251570' 2>/dev/null || true
 sleep 3
 
+if [[ ! -x "$ZDTD" ]]; then
+  echo "ERROR: zdtd binary not found or not executable: $ZDTD" >&2
+  exit 1
+fi
+
 mkdir -p "$WORLD" "$LOGDIR"
+SERVER_LOG="$LOGDIR/zdtd-server-$(basename "$WORLD").log"
 nohup "$ZDTD" --port "$PORT" --world "$WORLD" \
   --map "$GAME_SRV/Data/Worlds/Navezgane" \
   --game-dir "$GAME_SRV" --world-name Navezgane --admin-port 8081 \
-  > "$LOGDIR/zdtd-server-$(basename "$WORLD").log" 2>&1 &
-echo "server pid $!"
+  > "$SERVER_LOG" 2>&1 &
+server_pid=$!
+echo "server pid $server_pid"
 
 for _ in $(seq 1 20); do
-  grep -q 'tick=20Hz' "$LOGDIR/zdtd-server-$(basename "$WORLD").log" 2>/dev/null && break
+  grep -q 'tick=20Hz' "$SERVER_LOG" 2>/dev/null && break
   sleep 1
 done
+
+if ! grep -q 'tick=20Hz' "$SERVER_LOG" 2>/dev/null; then
+  echo "ERROR: server not ready (no 'tick=20Hz' within 20s); log tail:" >&2
+  tail -20 "$SERVER_LOG" >&2 || true
+  kill "$server_pid" 2>/dev/null || true
+  exit 1
+fi
 
 # PLAYTEST / PLAYTEST_SUITE are inherited by Proton → the
 # **7dtd-playtest** mod (not connect). Prefer:

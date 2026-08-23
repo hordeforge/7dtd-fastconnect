@@ -162,15 +162,20 @@ namespace SdtdConnect
     {
         static void Prefix()
         {
-            // Stock Open() opens NewsScreen when shownNewsScreenOnce is false.
-            XUiC_MainMenu.shownNewsScreenOnce = true;
+            // A throwing prefix propagates into stock Open() and kills the menu,
+            // so guard like the other skip patches.
             try
             {
+                // Stock Open() opens NewsScreen when shownNewsScreenOnce is false.
+                XUiC_MainMenu.shownNewsScreenOnce = true;
                 BootUnblock.ApplyFrameUncap("MainMenu.Open");
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
             }
-            catch { /* ignore */ }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] MainMenu.Open prefix failed: " + ex.Message);
+            }
         }
     }
 

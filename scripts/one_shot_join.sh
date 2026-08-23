@@ -14,6 +14,12 @@ HOST="${HOST:-127.0.0.1}"
 CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
 CONNECT="${CONNECT:-$HOST:$PORT}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-240}"
+# Validate before the client is launched; arithmetic on a bad value would
+# otherwise abort mid-cycle with a cryptic error.
+if ! [[ "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
+  echo "WARN: TIMEOUT_SEC invalid ('$TIMEOUT_SEC'); using 240." >&2
+  TIMEOUT_SEC=240
+fi
 CYCLE="${CYCLE:-1}"
 START_SERVER="${START_SERVER:-0}"
 ZDTD_BIN="${ZDTD_BIN:-$(cd "$ROOT/../zdtd" && pwd)/zig-out/bin/zdtd}"

@@ -41,8 +41,13 @@ while ((SECONDS < deadline)); do
 	if [[ -n "$indexes" ]]; then
 		while read -r index; do
 			[[ -z "$index" ]] && continue
-			pactl set-sink-input-mute "$index" 1
-			echo "Muted 7 Days To Die audio stream (sink input $index)."
+			# The stream can vanish between listing and muting; one failure
+			# must not abort the rest of the list (best-effort helper).
+			if pactl set-sink-input-mute "$index" 1 2>/dev/null; then
+				echo "Muted 7 Days To Die audio stream (sink input $index)."
+			else
+				echo "WARN: could not mute sink input $index (stream may have closed)." >&2
+			fi
 		done <<< "$indexes"
 		exit 0
 	fi

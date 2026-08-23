@@ -75,6 +75,17 @@ count_nre_after_join() {
 
 : >"$SCRATCH/zero_nre_loop.log"
 log "start max_attempts=$MAX_ATTEMPTS"
+
+# Validate before start_zdtd: a bad value would abort after the server is up.
+if [[ ! "$MAX_ATTEMPTS" =~ ^[0-9]+$ ]]; then
+  log "WARN: MAX_ATTEMPTS invalid ('$MAX_ATTEMPTS'); using 6"
+  MAX_ATTEMPTS=6
+fi
+if [[ ! "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
+  log "WARN: TIMEOUT_SEC invalid ('$TIMEOUT_SEC'); using 90"
+  TIMEOUT_SEC=90
+fi
+
 start_zdtd
 
 attempt=1
