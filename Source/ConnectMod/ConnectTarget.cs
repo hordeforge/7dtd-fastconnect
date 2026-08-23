@@ -68,6 +68,11 @@ namespace SdtdConnect
             // Accept host, host:port, or a pasted steam://connect/ URL (scheme stripped).
             if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
                 raw = raw.Substring("steam://connect/".Length);
+            // Same dangling-separator rule MergePortArg applies: "host:" /
+            // "[v6]:" carry an empty port, so drop the colon instead of
+            // leaving an unparsable host behind (env/argv reach TryParse
+            // directly and would otherwise diverge from the F1 command).
+            if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
 
             string hostPart = raw;
             int portPart = DefaultPort;

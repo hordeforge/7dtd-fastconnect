@@ -77,6 +77,13 @@ static class TestMain
             CheckParse("[2001:db8::5]", true, "2001:db8::5", 27025);
             CheckParse("[::1", false, null, 0);
 
+            // Dangling separator colon is an empty port by the MergePortArg
+            // rule: dropped, so env/argv match the F1 command for the same
+            // input instead of failing DNS on a colon-suffixed host.
+            CheckParse("1.2.3.4:", true, "1.2.3.4", 27025);
+            CheckParse("[::1]:", true, "::1", 27025);
+            CheckParse(":", false, null, 0);
+
             // Bare IPv6 must not be split at colons (stays host, default port).
             CheckParse("::1", true, "::1", 27025);
             CheckParse("2001:db8::1", true, "2001:db8::1", 27025);
@@ -102,6 +109,9 @@ static class TestMain
             CheckMerge("steam://connect/1.2.3.4:9", "27015", "1.2.3.4:9");
             CheckMerge("[::1]", "27015", "[::1]:27015");
             CheckMerge("[::1]:9", "27015", "[::1]:9");
+            // Dangling colon dropped even without a port argument.
+            CheckMerge("h:", null, "h");
+            CheckMerge("[::1]:", null, "[::1]");
             // Bare IPv6 has several colons, so none of them is an explicit port.
             CheckMerge("2001:db8::1", "27015", "2001:db8::1:27015");
 

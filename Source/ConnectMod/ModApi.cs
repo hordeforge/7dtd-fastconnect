@@ -105,7 +105,8 @@ namespace SdtdConnect
         static void ApplyPlayerNameOverride()
         {
             string requested = Environment.GetEnvironmentVariable(PlayerNameEnv);
-            if (string.IsNullOrWhiteSpace(requested))
+            bool fromEnv = !string.IsNullOrWhiteSpace(requested);
+            if (!fromEnv)
             {
                 // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline.
                 // Ensure ClientInfo.playerName is never empty even without env.
@@ -127,7 +128,12 @@ namespace SdtdConnect
             {
                 GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
                 GamePrefs.Instance?.Save();
-                Log.Out("[7dtd-fastconnect] player name from " + PlayerNameEnv + "=" + requested);
+                // Name the real source: a fallback logged as "from 7DTD_PLAYER_NAME="
+                // would send someone debugging after an env value that is not set.
+                Log.Out(fromEnv
+                    ? "[7dtd-fastconnect] player name from " + PlayerNameEnv + "=" + requested
+                    : "[7dtd-fastconnect] player name fallback '" + requested
+                        + "' (" + PlayerNameEnv + " unset, stored PlayerName empty)");
             }
             catch (Exception ex)
             {
