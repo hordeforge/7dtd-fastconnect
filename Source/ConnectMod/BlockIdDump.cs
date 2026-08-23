@@ -158,23 +158,6 @@ namespace SdtdConnect
                 if (TryWalkDict(obj, rows)) return;
                 if (TryWalkList(obj, rows)) return;
             }
-
-            // Instance array: Block.list[id] style.
-            var listFi = bt.GetField("list", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            if (listFi != null)
-            {
-                var arr = listFi.GetValue(null) as Array;
-                if (arr != null)
-                {
-                    for (int i = 0; i < arr.Length; i++)
-                    {
-                        var b = arr.GetValue(i);
-                        if (b == null) continue;
-                        TryAddBlockInstance(b, rows);
-                    }
-                    if (rows.Count > 0) return;
-                }
-            }
         }
 
         static bool TryWalkDict(object obj, SortedDictionary<int, string> rows)

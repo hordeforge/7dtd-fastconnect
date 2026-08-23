@@ -241,11 +241,6 @@ while (( $(mono_sec) < deadline )); do
 done
 
 cp -f "$CLIENT_LOG_SRC" "$CLIENT_LOG_OUT" 2>/dev/null || true
-if [[ -n "$server_pid" && -f "$SERVER_LOG_OUT" ]]; then
-  :
-elif [[ -f /tmp/zdtd-stock-connect/server.log ]]; then
-  cp -f /tmp/zdtd-stock-connect/server.log "$SERVER_LOG_OUT" 2>/dev/null || true
-fi
 
 log "result=$result"
 log "client log -> $CLIENT_LOG_OUT"
