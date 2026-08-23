@@ -177,30 +177,38 @@ namespace SdtdConnect
             // the connect-ready gate waits for the cross (EOS) user. Cap by wall time,
             // not frames, because uncapped boot ticks thousands of frames per second
             // (a frame cap would expire long before the EOS settle windows in ConnectReady).
+            // Poll on a wall interval, not per frame: IsReady touches several
+            // subsystems and would otherwise run thousands of times per second
+            // under the uncapped boot; 10 Hz costs at most 100 ms of extra
+            // join latency against multi-second settle windows.
             const float maxWaitSec = 45f;
+            const float pollIntervalSec = 0.1f;
             float waitStart = UnityEngine.Time.unscaledTime;
             float nextLog = 0f;
-            int waited = 0;
+            int polls = 0;
             while (UnityEngine.Time.unscaledTime - waitStart < maxWaitSec)
             {
                 if (ConnectReady.IsReady(out string whyNot))
                 {
-                    if (waited > 0)
-                        Log.Out("[7dtd-connect] connect-ready after frames=" + waited);
+                    if (polls > 0)
+                        Log.Out("[7dtd-connect] connect-ready after polls=" + polls);
                     break;
                 }
-                if (waited == 0 || UnityEngine.Time.unscaledTime >= nextLog)
+                if (polls == 0 || UnityEngine.Time.unscaledTime >= nextLog)
                 {
                     nextLog = UnityEngine.Time.unscaledTime + 5f;
-                    Log.Out("[7dtd-connect] connect wait frames=" + waited + " " + whyNot);
+                    Log.Out("[7dtd-connect] connect wait polls=" + polls + " " + whyNot);
                 }
-                waited++;
-                yield return null;
+                polls++;
+                // Fresh waiter per poll: WaitForSecondsRealtime reset semantics
+                // vary across Unity versions, and a fresh instance degrades to a
+                // plain per-frame yield if Reset is not invoked.
+                yield return new UnityEngine.WaitForSecondsRealtime(pollIntervalSec);
             }
 
             if (!ConnectReady.IsReady(out string still))
             {
-                Log.Warning("[7dtd-connect] connect gate timeout frames=" + waited + " " + still + "; trying anyway");
+                Log.Warning("[7dtd-connect] connect gate timeout polls=" + polls + " " + still + "; trying anyway");
             }
 
             ConnectAndLog(host, port);
