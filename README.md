@@ -67,12 +67,6 @@ env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 -connect=127.0.0.1:27025
 ```
 
-Helper:
-
-```bash
-env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
-```
-
 After the main menu opens, the mod connects once.
 
 Automation boot patches are enabled automatically only when `7DTD_CONNECT` or

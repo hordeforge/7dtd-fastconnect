@@ -37,7 +37,7 @@ namespace SdtdConnect
             if (AutomationMode.Enabled) try
             {
                 ApplyPlayerNameOverride();
-                try { SdtdConnect.Patch_ClientInfo_PlayerName_Guard_FieldFallback.EnsurePrefsName(); } catch { }
+                Patch_ClientInfo_PlayerName_Guard_FieldFallback.EnsurePrefsName();
                 GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                 GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
                 GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
@@ -164,10 +164,7 @@ namespace SdtdConnect
             catch (Exception ex)
             {
                 Log.Warning("[7dtd-connect] coroutine failed, connecting immediately: " + ex.Message);
-                if (!ConnectTarget.TryConnect(host, port, out string msg))
-                    Log.Error("[7dtd-connect] " + msg);
-                else
-                    Log.Out("[7dtd-connect] " + msg);
+                ConnectAndLog(host, port);
             }
         }
 
@@ -200,6 +197,11 @@ namespace SdtdConnect
                 Log.Warning("[7dtd-connect] connect gate timeout frames=" + waited + " " + still + "; trying anyway");
             }
 
+            ConnectAndLog(host, port);
+        }
+
+        static void ConnectAndLog(string host, int port)
+        {
             if (!ConnectTarget.TryConnect(host, port, out string msg))
                 Log.Error("[7dtd-connect] " + msg);
             else

@@ -297,19 +297,15 @@ namespace SdtdConnect
     {
         static bool Prefix(Platform.Steam.AuthenticationClient __instance, ref string __result)
         {
+            // Pre-check: avoid calling SteamAPI if not running; the original's SteamUser.GetAuthSessionTicket throws InvalidOperationException.
             try
             {
-                // Pre-check: avoid calling SteamAPI if not running; the original's SteamUser.GetAuthSessionTicket throws InvalidOperationException.
-                try
+                if (!Steamworks.SteamAPI.IsSteamRunning())
                 {
-                    if (!Steamworks.SteamAPI.IsSteamRunning())
-                    {
-                        __result = "";
-                        Log.Out("[7dtd-connect] steam GetAuthTicket: no Steam, returning empty (EAC off LAN)");
-                        return false;
-                    }
+                    __result = "";
+                    Log.Out("[7dtd-connect] steam GetAuthTicket: no Steam, returning empty (EAC off LAN)");
+                    return false;
                 }
-                catch { __result = ""; return false; }
             }
             catch { __result = ""; return false; }
             return true;

@@ -92,11 +92,6 @@ while (( attempt <= MAX_ATTEMPTS )); do
   : >"$CLIENT_LOG_SRC"
   CYCLE="zn$attempt" TIMEOUT_SEC="$TIMEOUT_SEC" START_SERVER=0 PORT="$PORT" HOST="$HOST" \
     SCRATCH="$SCRATCH" bash "$ONE_SHOT" | tee "$SCRATCH/zero_nre-cycle-$attempt.txt" || true
-  # Prefer one_shot copy; also raw client log
-  LOG_COPY="$SCRATCH/stock-join-zn${attempt}.log"
-  if [[ ! -f "$LOG_COPY" ]]; then
-    LOG_COPY="$SCRATCH/stock-join-${attempt}.log"
-  fi
   # one_shot names stock-join-${CYCLE}.log
   LOG_COPY="$SCRATCH/stock-join-zn${attempt}.log"
   if [[ ! -f "$LOG_COPY" ]]; then

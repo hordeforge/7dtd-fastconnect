@@ -24,7 +24,6 @@ namespace SdtdConnect
                     _entityClassname.StartsWith("player", StringComparison.OrdinalIgnoreCase)
                     || _entityClassname.IndexOf("zombie", StringComparison.OrdinalIgnoreCase) >= 0
                     || _entityClassname.IndexOf("animal", StringComparison.OrdinalIgnoreCase) >= 0
-                    || _entityClassname.IndexOf("Trader", StringComparison.OrdinalIgnoreCase) >= 0
                     || _entityClassname.IndexOf("trader", StringComparison.OrdinalIgnoreCase) >= 0;
                 if (!interesting) return;
                 if (_logged > 80) return;

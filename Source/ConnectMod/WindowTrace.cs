@@ -7,24 +7,14 @@ namespace SdtdConnect
     /// <summary>
     /// Window open/close trace for join-diagnostics. Very spammy in normal play
     /// (toolTip/saveIndicator fire every tick), so this is now opt-in via
-    /// 7DTD_CONNECT_DEBUG or `diag on`.
+    /// 7DTD_CONNECT_DEBUG or `diag on`; when on, log everything including spam.
     /// </summary>
-    static class WindowTraceConfig
-    {
-        public static bool ShouldLog(string id)
-        {
-            if (!DiagToggle.Enabled) return false;
-            // When enabled, log everything including spam (that's the point of debug).
-            return true;
-        }
-    }
-
     [HarmonyPatch(typeof(GUIWindowManager), "Open", new[] { typeof(string), typeof(bool) })]
     static class Patch_GUIWindowManager_OpenName2
     {
         static void Prefix(string _windowName)
         {
-            if (!WindowTraceConfig.ShouldLog(_windowName)) return;
+            if (!DiagToggle.Enabled) return;
             try { Log.Out("[7dtd-connect] wt open " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }
@@ -34,7 +24,7 @@ namespace SdtdConnect
     {
         static void Prefix(string _windowName)
         {
-            if (!WindowTraceConfig.ShouldLog(_windowName)) return;
+            if (!DiagToggle.Enabled) return;
             try { Log.Out("[7dtd-connect] wt open3 " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }
@@ -44,8 +34,8 @@ namespace SdtdConnect
     {
         static void Prefix(GUIWindow _w)
         {
+            if (!DiagToggle.Enabled) return;
             string id = _w != null ? _w.Id : "null";
-            if (!WindowTraceConfig.ShouldLog(id)) return;
             try { Log.Out("[7dtd-connect] wt openW " + id + " t=" + Time.unscaledTime); } catch { }
         }
     }
@@ -55,8 +45,8 @@ namespace SdtdConnect
     {
         static void Prefix(GUIWindow _w)
         {
+            if (!DiagToggle.Enabled) return;
             string id = _w != null ? _w.Id : "null";
-            if (!WindowTraceConfig.ShouldLog(id)) return;
             try { Log.Out("[7dtd-connect] wt closeW " + id + " t=" + Time.unscaledTime); } catch { }
         }
     }
@@ -66,7 +56,7 @@ namespace SdtdConnect
     {
         static void Prefix(string _windowName)
         {
-            if (!WindowTraceConfig.ShouldLog(_windowName)) return;
+            if (!DiagToggle.Enabled) return;
             try { Log.Out("[7dtd-connect] wt close " + _windowName + " t=" + Time.unscaledTime); } catch { }
         }
     }

@@ -12,7 +12,6 @@ namespace SdtdConnect
 
         static void Prefix(XUiC_SpawnSelectionWindow __instance)
         {
-            _calls++;
             if (!DiagToggle.Enabled) return;
             _calls++;
             if (Time.unscaledTime < _next) return;
