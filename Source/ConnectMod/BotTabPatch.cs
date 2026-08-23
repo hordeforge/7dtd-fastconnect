@@ -12,7 +12,7 @@ namespace SdtdConnect
     /// Works with dedicated BotMod: bots are EntityZombie, so vanilla Tab never shows them.
     /// This postfix scans the world for alive entities whose EntityName starts with [Bot]
     /// and injects synthetic rows into XUiC_PlayersList by expanding its backing sortedPlayerList
-    /// via reflection-constructed PersistentPlayerData. Also covers server-side ConsoleCmdListPlayers (lp).
+    /// via reflection-constructed PersistentPlayerData.
     /// Client-only; dedicated server does not have XUi.
     /// </summary>
     [HarmonyPatch(typeof(XUiC_PlayersList), "updatePlayersList")]

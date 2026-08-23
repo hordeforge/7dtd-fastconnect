@@ -34,7 +34,7 @@ namespace SdtdConnect
             }
 
             raw = raw.Trim();
-            // Accept host, host:port, or steam-style leftover without scheme.
+            // Accept host, host:port, or a pasted steam://connect/ URL (scheme stripped).
             if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
                 raw = raw.Substring("steam://connect/".Length);
 

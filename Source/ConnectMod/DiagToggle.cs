@@ -30,7 +30,7 @@ namespace SdtdConnect
             if (Enabled) Log.Out("[7dtd-connect] diag verbose ON (7DTD_CONNECT_DEBUG=1 or `diag on`)");
         }
 
-        // Console command sets this via DiagToggle.Set(consoleValue, interactive: true)
+        // Console command sets this; it also re-announces via AnnounceOnce().
         internal static void Set(bool on)
         {
             _consoleHasOverride = true;

@@ -57,7 +57,7 @@ case "${MUTE_CLIENT,,}" in
 esac
 MUTE_WAIT="${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}"
 
-# Optional no-Steam client mode (see loadgen/docs/STOCK_AUTH.md Option A):
+# Optional no-Steam client mode (see ../7dtd-loadgen/docs/STOCK_AUTH.md Option A):
 # CLIENT_PLATFORM=local backs up the game's platform.cfg, selects the Local
 # platform with EOS crossplay off, and restores the original on exit. The
 # stock dedicated accepts Local clients with no ticket (serverplatforms

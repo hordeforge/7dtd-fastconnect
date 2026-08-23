@@ -11,7 +11,7 @@ namespace SdtdConnect
     /// <summary>
     /// Optional RE dump of runtime Block.blockID values (env 7DTD_DUMP_BLOCK_IDS=1).
     /// Stock AssignIds: terrain fills low ids, non-terrain starts at 256; not XML order.
-    /// Full dump writes name\tid lines (same shape as assets/fixtures/assignids_v314.txt).
+    /// Full dump writes id\tname lines (same shape as assets/fixtures/assignids_v314.txt).
     /// </summary>
     static class BlockIdDump
     {

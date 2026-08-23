@@ -4,7 +4,7 @@ Tiny **client** helper for joining local/dev servers (especially **zdtd**) witho
 
 Steam connect fails for zdtd (`app id specified by server is invalid`) because zdtd is not a Steam Game Server. This mod calls the same path as **Connect to IP**.
 
-**Scope (v0.9+):** connect / auto-join / skip news+Discord for headless testing only.
+**Scope (v0.9+):** connect / auto-join / skip news+EULA+Discord for headless testing only.
 Missing terrain, signs, inventory, spawn, or deco behaviour is fixed on the **server**
 (zdtd), never by inventing world state in this mod.
 
@@ -26,6 +26,7 @@ GitHub releases (`make package` produces `dist/7dtd-connect-<tag>.zip`).
 |---|---|
 | TFP intro splash video | Process arg **`-skipintro`** (must be on argv; splash runs before mods) |
 | News “click to continue” | **`-SkipNewsScreen=true`** + Harmony forces `shownNewsScreenOnce` / blocks `XUiC_NewsScreen.Open` |
+| EULA accept gate | Harmony forces `HasAcceptedLatestEula=true` and blocks the `windowEula` window: accepts latest and reopens the main menu |
 | Opener movie on world load | `showOpenerMovieOnLoad = false`, `OptionsIntroMovieEnabled = false` |
 | Discord login / SDK | `GamePrefs.DiscordDisabled=true` + Harmony skips `DiscordManager.Init` and Discord first-time menu |
 

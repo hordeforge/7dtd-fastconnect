@@ -8,9 +8,8 @@ namespace SdtdConnect
     /// <summary>
     /// In-game spawn/load heartbeat: logs the exact gates the
     /// "Starting game..." overlay checks, so a stuck join shows which
-    /// condition never flips. Very chatty, so this is now opt-in via
-    /// 7DTD_CONNECT_DEBUG=1 — normal play only gets useful one-shots
-    /// (spawn position, first frame, etc; those stay unconditional).
+    /// condition never flips. Very chatty, so fully gated behind
+    /// 7DTD_CONNECT_DEBUG=1 or `diag on`.
     /// </summary>
     [HarmonyPatch(typeof(GameManager), "gmUpdate")]
     static class Patch_GameManager_Update_SpawnHeartbeat

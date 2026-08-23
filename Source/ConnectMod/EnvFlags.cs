@@ -8,6 +8,7 @@ namespace SdtdConnect
     /// </summary>
     internal static class EnvFlags
     {
+        /// <summary>Opt-out flag: true only for 0/false/no/off (any case).</summary>
         internal static bool IsOptOut(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return false;

@@ -6,7 +6,7 @@ namespace SdtdConnect
 {
     /// <summary>
     /// Window open/close trace for join-diagnostics. Very spammy in normal play
-    /// (toolTip/saveIndicator fire every tick), so this is now opt-in via
+    /// (toolTip/saveIndicator fire every tick), so fully gated behind
     /// 7DTD_CONNECT_DEBUG or `diag on`; when on, log everything including spam.
     /// </summary>
     [HarmonyPatch(typeof(GUIWindowManager), "Open", new[] { typeof(string), typeof(bool) })]
