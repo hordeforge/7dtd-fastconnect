@@ -19,8 +19,8 @@ namespace SdtdConnect
         {
             try
             {
-                string dump = Environment.GetEnvironmentVariable("7DTD_DUMP_ENTITY_CLASS");
-                return !string.IsNullOrEmpty(dump) && dump != "0";
+                return EnvFlags.IsSetOn(
+                    Environment.GetEnvironmentVariable("7DTD_DUMP_ENTITY_CLASS"));
             }
             catch { return false; }
         }

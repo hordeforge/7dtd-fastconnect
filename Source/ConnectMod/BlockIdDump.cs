@@ -29,10 +29,23 @@ namespace SdtdConnect
 
         static bool _dumped;
 
+        // Env cannot change mid-process; snapshot once like the other flags
+        // instead of re-reading per hook call.
+        static readonly bool _dumpEnabled = IsEnabled();
+
+        static bool IsEnabled()
+        {
+            try
+            {
+                return EnvFlags.IsSetOn(
+                    Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS"));
+            }
+            catch { return false; }
+        }
+
         static void DumpOnce(string reason)
         {
-            var dump = Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS");
-            if (string.IsNullOrEmpty(dump) || dump == "0") return;
+            if (!_dumpEnabled) return;
             if (_dumped) return;
             try
             {
