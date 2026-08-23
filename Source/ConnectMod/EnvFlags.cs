@@ -23,5 +23,12 @@ namespace SdtdConnect
         {
             return !string.IsNullOrWhiteSpace(raw) && !IsOptOut(raw);
         }
+
+        /// <summary>IsSetOn for an env var name; unreadable env counts as unset.</summary>
+        internal static bool VarIsSetOn(string name)
+        {
+            try { return IsSetOn(Environment.GetEnvironmentVariable(name)); }
+            catch { return false; }
+        }
     }
 }

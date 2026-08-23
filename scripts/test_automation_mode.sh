@@ -4,14 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="$ROOT/Source/ConnectMod/AutomationMode.cs"
 API="$ROOT/Source/ConnectMod/ModApi.cs"
 PATCHES="$ROOT/Source/ConnectMod/SkipIntroPatches.cs"
-FAILS=0
-
-assert() {
-	local name="$1"
-	shift
-	if "$@"; then echo "PASS $name"
-	else echo "FAIL $name" >&2; FAILS=$((FAILS + 1)); fi
-}
+source "$ROOT/scripts/test_common.sh"
 
 assert "names the automation env var" grep -q 'EnvVar = "7DTD_CONNECT_AUTOMATION"' "$MODE"
 assert "derives default from the launch context" grep -q 'return ConnectTarget.TryFromLaunchContext' "$MODE"
@@ -23,9 +16,4 @@ assert "every Harmony patch is automation-gated" \
 	-eq "$(grep -c '^[[:space:]]*\[HarmonyPatch' "$PATCHES")"
 assert "documents regular-client mode" grep -q 'A regular client launch still loads the' "$ROOT/README.md"
 
-if ((FAILS > 0)); then
-	echo "RESULT FAIL ($FAILS)" >&2
-	exit 1
-fi
-
-echo "RESULT PASS"
+finish

@@ -3,18 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SOURCE="$ROOT/Source/ConnectMod/SkipIntroPatches.cs"
 ENVFLAGS="$ROOT/Source/ConnectMod/EnvFlags.cs"
-FAILS=0
-
-assert() {
-    local name="$1"
-    shift
-    if "$@"; then
-        echo "PASS $name"
-    else
-        echo "FAIL $name" >&2
-        FAILS=$((FAILS + 1))
-    fi
-}
+source "$ROOT/scripts/test_common.sh"
 
 # Within ApplyForceLoadSync the ForceLoadSyncEnabled() gate must run before
 # any reflection into LoadManager.forceLoadSync.
@@ -44,9 +33,4 @@ assert "checks the override before changing LoadManager" \
 assert "documents the Steam launch option" \
     grep -q 'env 7DTD_CONNECT_FORCE_LOAD_SYNC=0 mangohud %command%' "$ROOT/README.md"
 
-if ((FAILS > 0)); then
-    echo "RESULT FAIL ($FAILS)" >&2
-    exit 1
-fi
-
-echo "RESULT PASS"
+finish

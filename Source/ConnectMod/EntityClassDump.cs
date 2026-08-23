@@ -13,17 +13,7 @@ namespace SdtdConnect
 
         // Env cannot change mid-process; EntityClass.Add fires for every
         // entityclass at load, so read the flag once instead of per add.
-        static readonly bool _dumpEnabled = IsEnabled();
-
-        static bool IsEnabled()
-        {
-            try
-            {
-                return EnvFlags.IsSetOn(
-                    Environment.GetEnvironmentVariable("7DTD_DUMP_ENTITY_CLASS"));
-            }
-            catch { return false; }
-        }
+        static readonly bool _dumpEnabled = EnvFlags.VarIsSetOn("7DTD_DUMP_ENTITY_CLASS");
 
         [HarmonyPatch(typeof(EntityClass), nameof(EntityClass.Add))]
         static class Patch_Add

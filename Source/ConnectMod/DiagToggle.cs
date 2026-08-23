@@ -1,5 +1,3 @@
-using System;
-
 namespace SdtdConnect
 {
     /// <summary>Runtime + persistent toggle for verbose 7dtd-connect traces.</summary>
@@ -8,16 +6,7 @@ namespace SdtdConnect
         // Snapshot once: Enabled sits first in per-frame/per-package hooks, and
         // a getenv there costs a native call plus a string alloc every frame.
         // The process env never changes at runtime; live toggling is Set().
-        static readonly bool _envEnabled = ReadEnv();
-
-        static bool ReadEnv()
-        {
-            try
-            {
-                return EnvFlags.IsSetOn(Environment.GetEnvironmentVariable("7DTD_CONNECT_DEBUG"));
-            }
-            catch { return false; }
-        }
+        static readonly bool _envEnabled = EnvFlags.VarIsSetOn("7DTD_CONNECT_DEBUG");
 
         // Console toggle: F1 `diag on/off/toggle/status`
         static bool _consoleOverride;

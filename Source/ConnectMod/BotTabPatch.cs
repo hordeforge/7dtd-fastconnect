@@ -184,9 +184,7 @@ namespace SdtdConnect
                 }
                 catch { }
 
-                // Reuse vanilla row-binding logic by re-invoking the binding loop via a second call?
-                // Easiest: call updatePlayersList again with a reentrancy guard (Postfix will early-exit second time if bots already added).
-                // Instead, manually fill the remaining empty row slots with bot data using same visual logic vanilla uses.
+                // Vanilla's binding pass already ran; fill the tail rows the appended bots landed in.
                 try
                 {
                     var entries = EntriesField?.GetValue(__instance) as XUiC_PlayersListEntry[];
@@ -251,9 +249,6 @@ namespace SdtdConnect
                     }
                 }
                 catch { }
-
-                // Throttle log
-                // Log.Out($"[7dtd-connect] Tab bots injected +{added} total={sorted.Count}");
             }
             catch (Exception ex)
             {
