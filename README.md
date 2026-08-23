@@ -2,6 +2,12 @@
 
 > **Part of [HordeForge](https://github.com/hordeforge)** — High-Performance Systems Engineering for 7 Days to Die.
 
+![CI](https://github.com/hordeforge/7dtd-fastconnect/actions/workflows/ci.yml/badge.svg)
+![license](https://img.shields.io/github/license/hordeforge/7dtd-fastconnect)
+![release](https://img.shields.io/github/v/release/hordeforge/7dtd-fastconnect)
+![languages](https://img.shields.io/github/languages/count/hordeforge/7dtd-fastconnect)
+![top language](https://img.shields.io/github/languages/top/hordeforge/7dtd-fastconnect)
+
 Tiny **client** helper for joining local/dev servers (especially **zdtd-server**) without Steam `steam://connect`, plus automation hooks for automated join tests.
 
 Steam connect fails for zdtd (`app id specified by server is invalid`) because zdtd is not a Steam Game Server. This mod calls the same path as **Connect to IP**.

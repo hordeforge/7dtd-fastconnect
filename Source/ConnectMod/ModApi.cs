@@ -14,7 +14,6 @@ namespace SdtdConnect
         public const string Version = "0.10.4";
         public const string PlayerNameEnv = "7DTD_PLAYER_NAME";
         static bool _autoTried;
-        static Harmony _harmony;
 
         public void InitMod(Mod _modInstance)
         {
@@ -50,7 +49,7 @@ namespace SdtdConnect
 
             try
             {
-                _harmony = new Harmony(HarmonyId);
+                var harmony = new Harmony(HarmonyId);
                 int ok = 0, fail = 0;
                 foreach (var t in typeof(ModApi).Assembly.GetTypes())
                 {
@@ -61,7 +60,7 @@ namespace SdtdConnect
                         continue;
                     try
                     {
-                        _harmony.CreateClassProcessor(t).Patch();
+                        harmony.CreateClassProcessor(t).Patch();
                         ok++;
                     }
                     catch (Exception ex)

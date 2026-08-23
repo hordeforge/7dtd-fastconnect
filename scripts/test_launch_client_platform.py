@@ -80,11 +80,6 @@ def _write_executable(path: Path, body: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
 
-def _stub_path_prefix(bin_dir: Path) -> str:
-    """A stub dir only; _launch appends the guard and the host PATH behind it."""
-    return str(bin_dir)
-
-
 def _setup(
     tmp_path: Path,
     *,
@@ -272,7 +267,7 @@ def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
         # This test IS the fallback: PROTON pinned to None skips the default
         # injection, and its recording stub shadows the guard on PATH.
         extra_env={
-            "PATH": _stub_path_prefix(bin_dir),
+            "PATH": str(bin_dir),
             "STEAM_ARGV": str(steam_argv),
             "STEAM_ENV_CONNECT": str(steam_env),
             "PROTON": None,
@@ -315,7 +310,7 @@ def test_default_mute_mutes_game_stream_via_launch(tmp_path: Path) -> None:
         tmp_path,
         mute=True,
         extra_env={
-            "PATH": _stub_path_prefix(bin_dir),
+            "PATH": str(bin_dir),
             "PACTL_JSON": str(streams),
             "PACTL_LOG": str(mute_log),
         },
@@ -340,7 +335,7 @@ def test_client_mute_opt_out_never_invokes_pactl(tmp_path: Path) -> None:
     )
     r = _launch(
         tmp_path,
-        extra_env={"PATH": _stub_path_prefix(bin_dir), "CLIENT_MUTE": "0"},
+        extra_env={"PATH": str(bin_dir), "CLIENT_MUTE": "0"},
     )
     assert r.returncode == 0, r.stderr
     assert "Client mute" not in r.stdout

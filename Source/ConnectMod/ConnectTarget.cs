@@ -30,7 +30,10 @@ namespace SdtdConnect
         /// port. A dangling separator colon ("host:", "[v6]:") is an empty
         /// port by that same rule, so it is dropped first: appending would
         /// otherwise double the colon, and passing through would leave an
-        /// unparsable host behind. portArg=null keeps just the strips.
+        /// unparsable host behind. A bare IPv6 address gets the port appended
+        /// in bracketed form: TryParse reads any ":port" suffix off a bare
+        /// IPv6 as part of the address, so the merged string must come back
+        /// as [addr]:port to round-trip. portArg=null keeps just the strips.
         /// </summary>
         public static string MergePortArg(string raw, string portArg)
         {
@@ -38,7 +41,8 @@ namespace SdtdConnect
             if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
                 raw = raw.Substring("steam://connect/".Length);
             bool hasPort;
-            if (raw.StartsWith("["))
+            bool bracketed = raw.StartsWith("[");
+            if (bracketed)
             {
                 if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
                 int close = raw.IndexOf(']');
@@ -50,7 +54,12 @@ namespace SdtdConnect
                 int firstColon = raw.IndexOf(':');
                 hasPort = firstColon >= 0 && firstColon == raw.LastIndexOf(':');
             }
-            return hasPort || portArg == null ? raw : raw + ":" + portArg;
+            if (hasPort || portArg == null) return raw;
+            // Hostnames and IPv4 never contain ':', so a colon here means bare
+            // IPv6; only the bracketed form survives TryParse with the port.
+            return bracketed || raw.IndexOf(':') < 0
+                ? raw + ":" + portArg
+                : "[" + raw + "]:" + portArg;
         }
 
         public static bool TryParse(string raw, out string host, out int port, out string error)
@@ -143,14 +152,10 @@ namespace SdtdConnect
                 WarnIgnoredTarget(EnvVar, env.Trim(), envError);
             }
 
-            string[] args;
-            try { args = Environment.GetCommandLineArgs(); }
-            catch { return false; }
-
+            string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length; i++)
             {
                 string a = args[i];
-                if (a == null) continue;
                 // Steam lobby path is not a host:port join.
                 if (string.Equals(a, "+connect_lobby", StringComparison.OrdinalIgnoreCase))
                 {

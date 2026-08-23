@@ -52,8 +52,6 @@ namespace SdtdConnect
     public class ConnectionManager
     {
         public bool IsConnected { get { throw new NotImplementedException(); } }
-        public bool IsClient { get { throw new NotImplementedException(); } }
-        public bool IsServer { get { throw new NotImplementedException(); } }
         public GameServerInfo LastGameServerInfo { set { throw new NotImplementedException(); } }
         public void Connect(GameServerInfo gsi) { throw new NotImplementedException(); }
     }
@@ -68,13 +66,10 @@ namespace SdtdConnect
     public class VersionInformation { public string SerializableString; }
     public static class Constants { public static VersionInformation cVersionInformation; }
 
-    public enum EnumGamePrefs { PlayerName, SkipSpawnButton }
+    public enum EnumGamePrefs { SkipSpawnButton }
     public static class GamePrefs
     {
         public static void Set(EnumGamePrefs k, object v) { throw new NotImplementedException(); }
-        public static int GetInt(EnumGamePrefs k) { throw new NotImplementedException(); }
-        public class Prefs { public void Save() { throw new NotImplementedException(); } }
-        public static Prefs Instance;
     }
 
     namespace Platform

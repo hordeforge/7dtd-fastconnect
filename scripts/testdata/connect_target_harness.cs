@@ -49,6 +49,20 @@ static class TestMain
             + (expected ?? "<null>") + "'", string.Equals(got, expected, StringComparison.Ordinal));
     }
 
+    // The merged string is what the F1 command actually hands to TryParse,
+    // so every merge result must parse back to the intended host and port.
+    static void CheckMergeRoundTrip(string raw, string portArg, string expHost, int expPort)
+    {
+        string merged = ConnectTarget.MergePortArg(raw, portArg);
+        string label = "round-trip '" + (raw ?? "<null>") + "' + '" + (portArg ?? "<null>") + "'";
+        string host; int port; string err;
+        bool ok = ConnectTarget.TryParse(merged, out host, out port, out err);
+        Check(label + " parses", ok);
+        if (!ok) return;
+        Check(label + " host==" + expHost, string.Equals(host, expHost, StringComparison.Ordinal));
+        Check(label + " port==" + expPort, port == expPort);
+    }
+
     static int Run()
     {
         string[] a = Environment.GetCommandLineArgs();
@@ -112,8 +126,24 @@ static class TestMain
             // Dangling colon dropped even without a port argument.
             CheckMerge("h:", null, "h");
             CheckMerge("[::1]:", null, "[::1]");
-            // Bare IPv6 has several colons, so none of them is an explicit port.
-            CheckMerge("2001:db8::1", "27015", "2001:db8::1:27015");
+            // A bare IPv6 address cannot carry an unbracketed ":port" suffix:
+            // TryParse would read the port as part of the address, so the
+            // merge emits the standard bracketed form instead.
+            CheckMerge("2001:db8::1", "27015", "[2001:db8::1]:27015");
+
+            // Round trips through TryParse, the same hand-off the F1
+            // command makes.
+            CheckMergeRoundTrip("1.2.3.4", "27015", "1.2.3.4", 27015);
+            CheckMergeRoundTrip("zdtd.lan", null, "zdtd.lan", ConnectTarget.DefaultPort);
+            CheckMergeRoundTrip("1.2.3.4:5", "27015", "1.2.3.4", 5);
+            CheckMergeRoundTrip("steam://connect/1.2.3.4:9", "27015", "1.2.3.4", 9);
+            CheckMergeRoundTrip("steam://connect/1.2.3.4", "27015", "1.2.3.4", 27015);
+            CheckMergeRoundTrip("[::1]", "27030", "::1", 27030);
+            CheckMergeRoundTrip("[::1]:9", "27030", "::1", 9);
+            CheckMergeRoundTrip("[::1]:", "27030", "::1", 27030);
+            CheckMergeRoundTrip("h:", "27025", "h", 27025);
+            CheckMergeRoundTrip("::1", "27030", "::1", 27030);
+            CheckMergeRoundTrip("2001:db8::1", "27025", "2001:db8::1", 27025);
 
             return Done();
         }
