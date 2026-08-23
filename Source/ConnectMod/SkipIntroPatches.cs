@@ -425,25 +425,6 @@ namespace SdtdConnect
             __result = PlayerNames.Resolve();
         }
     }
-    // Fallback: if Harmony can't find getter by name, patch via field access pattern (ClientInfo.playerName is field, not property, in some builds)
-    static class Patch_ClientInfo_PlayerName_Guard_FieldFallback
-    {
-        // Called from ModApi if Harmony skip occurred; ensure prefs name is never empty.
-        internal static void EnsurePrefsName()
-        {
-            try
-            {
-                string pref = GamePrefs.GetString(EnumGamePrefs.PlayerName);
-                if (string.IsNullOrWhiteSpace(pref))
-                {
-                    string fallback = PlayerNames.Resolve();
-                    GamePrefs.Set(EnumGamePrefs.PlayerName, fallback);
-                    Log.Out("[7dtd-connect] ensured PlayerName=" + fallback);
-                }
-            }
-            catch { }
-        }
-    }
 
     // EOS path: patch concrete type directly (interface dispatch fails IL). The NRE is at Platform.EOS.AuthClient.GetAuthTicket when EOS not logged in.
     [AutomationPatch]

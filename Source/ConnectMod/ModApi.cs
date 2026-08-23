@@ -37,7 +37,6 @@ namespace SdtdConnect
             if (AutomationMode.Enabled) try
             {
                 ApplyPlayerNameOverride();
-                Patch_ClientInfo_PlayerName_Guard_FieldFallback.EnsurePrefsName();
                 GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                 GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
                 GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);

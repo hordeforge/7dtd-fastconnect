@@ -151,19 +151,11 @@ while (( SECONDS < deadline )); do
     # Strong success first: in-world entity exists. Later package noise must not demote this.
     if grep -Eq "$JOINED_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
       result="joined"
-      # Optional settle for post-join work (local chunk gen, control unlock).
+      # Optional settle for post-join work (control unlock, world settle).
       settle="${SETTLE_SEC:-0}"
       if [[ "$settle" =~ ^[0-9]+$ ]] && (( settle > 0 )); then
         log "joined; settling ${settle}s for post-join (chunks/controls)"
-        # Prefer explicit chunk-gen done signal when present.
-        settle_deadline=$((SECONDS + settle))
-        while (( SECONDS < settle_deadline )); do
-          if grep -Eq 'local chunks generated around player' "$CLIENT_LOG_SRC" 2>/dev/null; then
-            log "local chunks generated signal seen"
-            break
-          fi
-          sleep 1
-        done
+        sleep "$settle"
       fi
       break
     fi

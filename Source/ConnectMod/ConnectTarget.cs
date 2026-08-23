@@ -319,7 +319,8 @@ namespace SdtdConnect
                     var nUser = native.User;
                     if (nUser != null && nUser.PlatformUserId == null)
                     {
-                        if (GameManager.Instance != null && UnityEngine.Time.unscaledTime < nativeUserBootWindowSec)
+                        // GameManager.Instance was already verified non-null above.
+                        if (UnityEngine.Time.unscaledTime < nativeUserBootWindowSec)
                         {
                             reason = "Native.User.PlatformUserId=null (early; retry in a moment)";
                             return false;

@@ -46,12 +46,6 @@ namespace SdtdConnect
             _consoleHasOverride = true;
             _consoleOverride = on;
             _reported = false;
-            try
-            {
-                // Also mirror into process env so fresh reads agree.
-                Environment.SetEnvironmentVariable("7DTD_CONNECT_DEBUG", on ? "1" : "0");
-            }
-            catch { }
         }
 
         internal static string StatusLine()
