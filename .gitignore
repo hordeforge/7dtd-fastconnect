@@ -2,3 +2,4 @@ dist/
 Source/ConnectMod/bin/
 Source/ConnectMod/obj/
 __pycache__/
+.venv/
