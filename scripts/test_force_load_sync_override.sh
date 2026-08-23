@@ -32,9 +32,9 @@ force_sync_order() {
 assert "names the force-load-sync override" \
     grep -q 'ForceLoadSyncEnv = "7DTD_CONNECT_FORCE_LOAD_SYNC"' "$SOURCE"
 assert "keeps force-load-sync enabled by default" \
-    grep -q 'if (string.IsNullOrWhiteSpace(value)) return true;' "$SOURCE"
+    grep -q 'string.IsNullOrWhiteSpace(value) || EnvFlags.IsSetOn(value)' "$SOURCE"
 assert "delegates opt-outs to the shared env parser" \
-    grep -q 'return EnvFlags.IsSetOn(value);' "$SOURCE"
+    grep -q 'EnvFlags.IsSetOn(value)' "$SOURCE"
 assert "accepts zero as an opt-out" \
     grep -q 'value == "0"' "$ENVFLAGS"
 assert "accepts false-like opt-outs" \

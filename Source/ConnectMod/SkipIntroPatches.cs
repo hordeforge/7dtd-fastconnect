@@ -16,22 +16,31 @@ namespace SdtdConnect
 
         static bool _forceSyncSet;
         static bool _forceSyncOptOutLogged;
+        // Snapshot once: hooks call this every frame and the process env
+        // cannot change at runtime.
+        static bool? _forceSyncEnabled;
 
         internal static bool ForceLoadSyncEnabled()
         {
-            string value = Environment.GetEnvironmentVariable(ForceLoadSyncEnv);
-            if (string.IsNullOrWhiteSpace(value)) return true;
-            return EnvFlags.IsSetOn(value);
+            if (_forceSyncEnabled.HasValue) return _forceSyncEnabled.Value;
+            string value = null;
+            try { value = Environment.GetEnvironmentVariable(ForceLoadSyncEnv); }
+            catch { }
+            _forceSyncEnabled = string.IsNullOrWhiteSpace(value) || EnvFlags.IsSetOn(value);
+            return _forceSyncEnabled.Value;
         }
 
         internal static void ApplyFrameUncap(string reason)
         {
             try
             {
-                Application.runInBackground = true;
-                QualitySettings.vSyncCount = 0;
-                Application.targetFrameRate = -1;
-                Application.backgroundLoadingPriority = ThreadPriority.High;
+                // Hooks call this every frame; stock re-caps between calls, so
+                // write only what changed instead of all four engine properties.
+                if (!Application.runInBackground) Application.runInBackground = true;
+                if (QualitySettings.vSyncCount != 0) QualitySettings.vSyncCount = 0;
+                if (Application.targetFrameRate != -1) Application.targetFrameRate = -1;
+                if (Application.backgroundLoadingPriority != ThreadPriority.High)
+                    Application.backgroundLoadingPriority = ThreadPriority.High;
             }
             catch (Exception ex)
             {

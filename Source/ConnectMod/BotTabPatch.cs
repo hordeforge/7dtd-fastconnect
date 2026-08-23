@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
@@ -16,6 +17,81 @@ namespace SdtdConnect
     [HarmonyPatch(typeof(XUiC_PlayersList), "updatePlayersList")]
     static class Patch_PlayersList_Bots
     {
+        // Stock reflection targets resolved once: updatePlayersList fires every
+        // frame while Tab is open, so re-walking metadata per refresh is waste.
+        static readonly FieldInfo SortedListField =
+            InstanceField(typeof(XUiC_PlayersList), "sortedPlayerList");
+        static readonly FieldInfo EntriesField =
+            InstanceField(typeof(XUiC_PlayersList), "playerEntries");
+        static readonly FieldInfo NumPlayersField =
+            InstanceField(typeof(XUiC_PlayersList), "numberOfPlayers");
+        static readonly FieldInfo PagerField =
+            InstanceField(typeof(XUiC_PlayersList), "playerPager");
+        static readonly FieldInfo GridField =
+            InstanceField(typeof(XUiC_PlayersList), "playerList");
+
+        static readonly FieldInfo EntryEntityIdField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "EntityId");
+        static readonly FieldInfo EntryPlayerDataField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "PlayerData");
+        static readonly FieldInfo EntryPlayerNameField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "PlayerName");
+        static readonly FieldInfo EntryIsOfflineField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "IsOffline");
+        static readonly PropertyInfo EntryIsLocalPlayerProp =
+            typeof(XUiC_PlayersListEntry).GetProperty("IsLocalPlayer",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        static readonly FieldInfo EntryAdminSpriteField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "AdminSprite");
+        static readonly FieldInfo EntryVoiceField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "Voice");
+        static readonly FieldInfo EntryChatField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "Chat");
+        static readonly FieldInfo EntryZombieKillsField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "ZombieKillsText");
+        static readonly FieldInfo EntryPlayerKillsField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "PlayerKillsText");
+        static readonly FieldInfo EntryDeathsField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "DeathsText");
+        static readonly FieldInfo EntryLevelField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "LevelText");
+        static readonly FieldInfo EntryGamestageField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "GamestageText");
+        static readonly FieldInfo EntryPingField =
+            InstanceField(typeof(XUiC_PlayersListEntry), "PingText");
+
+        static Comparison<PersistentPlayerData> _comparator;
+        static bool _comparatorResolved;
+
+        static FieldInfo InstanceField(Type t, string name)
+        {
+            return t.GetField(name,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        }
+
+        static void SetLabel(FieldInfo field, object entry, string text)
+        {
+            var lbl = field?.GetValue(entry) as XUiV_Label;
+            if (lbl != null) lbl.Text = text;
+        }
+
+        static Comparison<PersistentPlayerData> PlayerComparator()
+        {
+            if (!_comparatorResolved)
+            {
+                _comparatorResolved = true;
+                try
+                {
+                    var mi = typeof(XUiC_PlayersList).GetMethod("PlayerComparator",
+                        BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                    if (mi != null)
+                        _comparator = (Comparison<PersistentPlayerData>)Delegate.CreateDelegate(
+                            typeof(Comparison<PersistentPlayerData>), mi);
+                }
+                catch { _comparator = null; }
+            }
+            return _comparator;
+        }
         static void Postfix(XUiC_PlayersList __instance)
         {
             try
@@ -62,15 +138,8 @@ namespace SdtdConnect
 
                 if (bots.Count == 0) return;
 
-                // Access private sortedPlayerList via reflection to append synthetic entries.
-                // We'll create a PersistentPlayerData per bot and add to the list that XUi just sorted/counted.
-                // The vanilla loop after sortedPlayerList sorts has already run; we need to rebind rows.
-                // Approach: inject into sortedPlayerList then force a second layout pass by calling a helper via reflection,
-                // or simpler: directly populate the visible row entries that are still empty.
-                var listField = typeof(XUiC_PlayersList).GetField("sortedPlayerList", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-                var entriesField = typeof(XUiC_PlayersList).GetField("playerEntries", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-                if (listField == null) return;
-                var sorted = listField.GetValue(__instance) as List<PersistentPlayerData>;
+                // Expand the backing sorted list via cached reflection handles.
+                var sorted = SortedListField?.GetValue(__instance) as List<PersistentPlayerData>;
                 if (sorted == null) return;
 
                 int added = 0;
@@ -95,29 +164,21 @@ namespace SdtdConnect
                 // Re-sort to keep deterministic order (bots after players, alphabetical)
                 try
                 {
-                    var comp = typeof(XUiC_PlayersList).GetMethod("PlayerComparator", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                    var comp = PlayerComparator();
                     if (comp != null)
-                    {
-                        Comparison<PersistentPlayerData> del = (Comparison<PersistentPlayerData>)Delegate.CreateDelegate(typeof(Comparison<PersistentPlayerData>), comp);
-                        sorted.Sort(del);
-                    }
+                        sorted.Sort(comp);
                     else
-                    {
                         sorted.Sort((a, b) => string.Compare(a?.PlayerName?.DisplayName, b?.PlayerName?.DisplayName, StringComparison.OrdinalIgnoreCase));
-                    }
                 }
                 catch { }
 
                 // Update the count label and paging to reflect new size
                 try
                 {
-                    var numLabel = typeof(XUiC_PlayersList).GetField("numberOfPlayers", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-                    var pager = typeof(XUiC_PlayersList).GetField("playerPager", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-                    var grid = typeof(XUiC_PlayersList).GetField("playerList", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-                    var lbl = numLabel?.GetValue(__instance) as XUiV_Label;
+                    var lbl = NumPlayersField?.GetValue(__instance) as XUiV_Label;
                     if (lbl != null) lbl.Text = sorted.Count.ToString();
-                    var pg = pager?.GetValue(__instance) as XUiC_Paging;
-                    var gv = grid?.GetValue(__instance) as XUiV_Grid;
+                    var pg = PagerField?.GetValue(__instance) as XUiC_Paging;
+                    var gv = GridField?.GetValue(__instance) as XUiV_Grid;
                     if (pg != null && gv != null) pg.SetLastPageByElementsAndPageLength(sorted.Count, gv.Rows);
                 }
                 catch { }
@@ -127,11 +188,16 @@ namespace SdtdConnect
                 // Instead, manually fill the remaining empty row slots with bot data using same visual logic vanilla uses.
                 try
                 {
-                    var entries = entriesField?.GetValue(__instance) as XUiC_PlayersListEntry[];
+                    var entries = EntriesField?.GetValue(__instance) as XUiC_PlayersListEntry[];
                     if (entries == null) return;
-                    var pager = typeof(XUiC_PlayersList).GetField("playerPager", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.GetValue(__instance) as XUiC_Paging;
-                    int rows = 0;
-                    try { var gv2 = typeof(XUiC_PlayersList).GetField("playerList", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)?.GetValue(__instance) as XUiV_Grid; rows = gv2 != null ? gv2.Rows : entries.Length; } catch { rows = entries.Length; }
+                    var pager = PagerField?.GetValue(__instance) as XUiC_Paging;
+                    int rows;
+                    try
+                    {
+                        var gv2 = GridField?.GetValue(__instance) as XUiV_Grid;
+                        rows = gv2 != null ? gv2.Rows : entries.Length;
+                    }
+                    catch { rows = entries.Length; }
                     int page = pager != null ? pager.GetPage() : 0;
                     int start = page * rows;
                     // Find first empty slot and fill sequentially with overflow bots that didn't fit in first page due to prior binding.
@@ -146,42 +212,39 @@ namespace SdtdConnect
                         // If this row already shows correct entity (via EntityId), skip
                         try
                         {
-                            var curId = (int)typeof(XUiC_PlayersListEntry).GetField("EntityId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic).GetValue(entry);
+                            var curId = EntryEntityIdField != null ? (int)EntryEntityIdField.GetValue(entry) : -1;
                             if (curId == ppd.EntityId && curId != -1) continue;
                             // Check if row is empty (EntityId == -1 and PlayerData == null before our injection) or mismatched bot
                             var worldEnt = world.GetEntity(ppd.EntityId) as EntityAlive;
-                            if (worldEnt != null && worldEnt.EntityName != null && worldEnt.EntityName.StartsWith("[Bot]", StringComparison.Ordinal))
-                            {
-                                // Bind this row to bot ppd: mimic vanilla online path but for zombie bots
-                                typeof(XUiC_PlayersListEntry).GetField("EntityId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic).SetValue(entry, ppd.EntityId);
-                                typeof(XUiC_PlayersListEntry).GetField("PlayerData", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic).SetValue(entry, ppd);
-                                entry.ViewComponent.IsVisible = true;
-                                var pn = typeof(XUiC_PlayersListEntry).GetField("PlayerName", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiC_PlayerName;
-                                if (pn != null) pn.UpdatePlayerData(ppd.PlayerData, false, ppd.PlayerName.DisplayName);
-                                typeof(XUiC_PlayersListEntry).GetField("IsOffline", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.SetValue(entry, false);
-                                typeof(XUiC_PlayersListEntry).GetProperty("IsLocalPlayer", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.SetValue(entry, false, null);
-                                // Stats: show bot's alive stats (health/level trivially)
-                                var zk = typeof(XUiC_PlayersListEntry).GetField("ZombieKillsText", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Label;
-                                var pk = typeof(XUiC_PlayersListEntry).GetField("PlayerKillsText", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Label;
-                                var de = typeof(XUiC_PlayersListEntry).GetField("DeathsText", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Label;
-                                var lv = typeof(XUiC_PlayersListEntry).GetField("LevelText", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Label;
-                                var gs = typeof(XUiC_PlayersListEntry).GetField("GamestageText", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Label;
-                                var ping = typeof(XUiC_PlayersListEntry).GetField("PingText", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Label;
-                                if (zk != null) zk.Text = worldEnt.KilledZombies.ToString();
-                                if (pk != null) pk.Text = worldEnt.KilledPlayers.ToString();
-                                if (de != null) de.Text = worldEnt.Died.ToString();
-                                if (lv != null) lv.Text = (worldEnt.Progression != null ? worldEnt.Progression.GetLevel() : 1).ToString();
-                                if (gs != null) gs.Text = (worldEnt is EntityPlayer ep ? ep.gameStage : 0).ToString();
-                                if (ping != null) ping.Text = "--"; // bots have no ping
-                                // Hide moderation/party UI for bots
-                                var admin = typeof(XUiC_PlayersListEntry).GetField("AdminSprite", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Sprite;
-                                if (admin != null) admin.IsVisible = false;
-                                var voice = typeof(XUiC_PlayersListEntry).GetField("Voice", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Button;
-                                if (voice != null) voice.IsVisible = false;
-                                var chat = typeof(XUiC_PlayersListEntry).GetField("Chat", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(entry) as XUiV_Button;
-                                if (chat != null) chat.IsVisible = false;
-                                entry.RefreshBindings();
-                            }
+                            if (worldEnt == null || worldEnt.EntityName == null
+                                || !worldEnt.EntityName.StartsWith("[Bot]", StringComparison.Ordinal))
+                                continue;
+
+                            // Bind this row to bot ppd: mimic vanilla online path but for zombie bots
+                            EntryEntityIdField?.SetValue(entry, ppd.EntityId);
+                            EntryPlayerDataField?.SetValue(entry, ppd);
+                            entry.ViewComponent.IsVisible = true;
+                            var pn = EntryPlayerNameField?.GetValue(entry) as XUiC_PlayerName;
+                            if (pn != null) pn.UpdatePlayerData(ppd.PlayerData, false, ppd.PlayerName.DisplayName);
+                            EntryIsOfflineField?.SetValue(entry, false);
+                            EntryIsLocalPlayerProp?.SetValue(entry, false, null);
+                            // Stats: show bot's alive stats (health/level trivially)
+                            SetLabel(EntryZombieKillsField, entry, worldEnt.KilledZombies.ToString());
+                            SetLabel(EntryPlayerKillsField, entry, worldEnt.KilledPlayers.ToString());
+                            SetLabel(EntryDeathsField, entry, worldEnt.Died.ToString());
+                            SetLabel(EntryLevelField, entry,
+                                (worldEnt.Progression != null ? worldEnt.Progression.GetLevel() : 1).ToString());
+                            SetLabel(EntryGamestageField, entry,
+                                (worldEnt is EntityPlayer ep ? ep.gameStage : 0).ToString());
+                            SetLabel(EntryPingField, entry, "--"); // bots have no ping
+                            // Hide moderation/party UI for bots
+                            var admin = EntryAdminSpriteField?.GetValue(entry) as XUiV_Sprite;
+                            if (admin != null) admin.IsVisible = false;
+                            var voice = EntryVoiceField?.GetValue(entry) as XUiV_Button;
+                            if (voice != null) voice.IsVisible = false;
+                            var chat = EntryChatField?.GetValue(entry) as XUiV_Button;
+                            if (chat != null) chat.IsVisible = false;
+                            entry.RefreshBindings();
                         }
                         catch { }
                     }

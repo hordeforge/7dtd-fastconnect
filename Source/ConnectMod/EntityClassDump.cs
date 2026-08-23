@@ -11,13 +11,26 @@ namespace SdtdConnect
     {
         static int _logged;
 
+        // Env cannot change mid-process; EntityClass.Add fires for every
+        // entityclass at load, so read the flag once instead of per add.
+        static readonly bool _dumpEnabled = IsEnabled();
+
+        static bool IsEnabled()
+        {
+            try
+            {
+                string dump = Environment.GetEnvironmentVariable("7DTD_DUMP_ENTITY_CLASS");
+                return !string.IsNullOrEmpty(dump) && dump != "0";
+            }
+            catch { return false; }
+        }
+
         [HarmonyPatch(typeof(EntityClass), nameof(EntityClass.Add))]
         static class Patch_Add
         {
             static void Postfix(string _entityClassname, EntityClass _entityClass)
             {
-                var dump = Environment.GetEnvironmentVariable("7DTD_DUMP_ENTITY_CLASS");
-                if (string.IsNullOrEmpty(dump) || dump == "0") return;
+                if (!_dumpEnabled) return;
                 if (_entityClassname == null) return;
                 // Log players + first zombies + any name containing zombie/animal/trader
                 bool interesting =

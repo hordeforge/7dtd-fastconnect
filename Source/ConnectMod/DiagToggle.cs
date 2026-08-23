@@ -5,17 +5,18 @@ namespace SdtdConnect
     /// <summary>Runtime + persistent toggle for verbose 7dtd-connect traces.</summary>
     internal static class DiagToggle
     {
-        // Env flip set at launch: 7DTD_CONNECT_DEBUG=1 / true
-        static bool EnvEnabled
+        // Snapshot once: Enabled sits first in per-frame/per-package hooks, and
+        // a getenv there costs a native call plus a string alloc every frame.
+        // The process env never changes at runtime; live toggling is Set().
+        static readonly bool _envEnabled = ReadEnv();
+
+        static bool ReadEnv()
         {
-            get
+            try
             {
-                try
-                {
-                    return EnvFlags.IsSetOn(Environment.GetEnvironmentVariable("7DTD_CONNECT_DEBUG"));
-                }
-                catch { return false; }
+                return EnvFlags.IsSetOn(Environment.GetEnvironmentVariable("7DTD_CONNECT_DEBUG"));
             }
+            catch { return false; }
         }
 
         // Console toggle: F1 `diag on/off/toggle/status`
@@ -28,7 +29,7 @@ namespace SdtdConnect
             get
             {
                 if (_consoleHasOverride) return _consoleOverride;
-                return EnvEnabled;
+                return _envEnabled;
             }
         }
 
@@ -50,7 +51,7 @@ namespace SdtdConnect
 
         internal static string StatusLine()
         {
-            string src = _consoleHasOverride ? "console" : (EnvEnabled ? "env" : "default");
+            string src = _consoleHasOverride ? "console" : (_envEnabled ? "env" : "default");
             return "[7dtd-connect] diag " + (Enabled ? "ON" : "OFF") + " (" + src + ")";
         }
     }
