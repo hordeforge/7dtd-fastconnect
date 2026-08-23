@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCRATCH="${SCRATCH:-/tmp/grok-goal-67089ec46dbc/implementer}"
+SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-connect}"
 mkdir -p "$SCRATCH"
 
 PORT="${PORT:-27025}"
@@ -104,13 +104,13 @@ if [[ "$START_SERVER" == "1" ]]; then
   log "server_pid=$server_pid"
   # Wait for TCP GSI port
   for i in $(seq 1 40); do
-    if ss -tln | rg -q ":${PORT}\\b"; then
+    if ss -tln | grep -Eq ":${PORT}\\b"; then
       log "server listening on $PORT after ${i}s"
       break
     fi
     sleep 0.5
   done
-  if ! ss -tln | rg -q ":${PORT}\\b"; then
+  if ! ss -tln | grep -Eq ":${PORT}\\b"; then
     log "server failed to listen on $PORT"
     tail -40 "$SERVER_LOG_OUT" | tee -a "$LIFE_OUT" || true
     exit 3
@@ -119,7 +119,7 @@ if [[ "$START_SERVER" == "1" ]]; then
   sleep 1
 else
   log "START_SERVER=0; expecting existing listener on $PORT"
-  if ! ss -tln | rg -q ":${PORT}\\b"; then
+  if ! ss -tln | grep -Eq ":${PORT}\\b"; then
     log "no listener on $PORT"
     exit 3
   fi
@@ -145,7 +145,7 @@ result="timeout"
 while (( SECONDS < deadline )); do
   if [[ -f "$CLIENT_LOG_SRC" ]]; then
     # Strong success first: in-world entity exists. Later package noise must not demote this.
-    if rg -q 'Found own player entity with id|PlayerSpawnedInWorld|Spawned in world' "$CLIENT_LOG_SRC" 2>/dev/null; then
+    if grep -Eq 'Found own player entity with id|PlayerSpawnedInWorld|Spawned in world' "$CLIENT_LOG_SRC" 2>/dev/null; then
       result="joined"
       # Optional settle for post-join work (local chunk gen, control unlock).
       settle="${SETTLE_SEC:-0}"
@@ -154,7 +154,7 @@ while (( SECONDS < deadline )); do
         # Prefer explicit chunk-gen done signal when present.
         settle_deadline=$((SECONDS + settle))
         while (( SECONDS < settle_deadline )); do
-          if rg -q 'local chunks generated around player' "$CLIENT_LOG_SRC" 2>/dev/null; then
+          if grep -Eq 'local chunks generated around player' "$CLIENT_LOG_SRC" 2>/dev/null; then
             log "local chunks generated signal seen"
             break
           fi
@@ -163,36 +163,36 @@ while (( SECONDS < deadline )); do
       fi
       break
     fi
-    if rg -q 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed' "$CLIENT_LOG_SRC" 2>/dev/null; then
+    if grep -Eq 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed' "$CLIENT_LOG_SRC" 2>/dev/null; then
       # Only treat as fail if we never saw a good join signal
-      if ! rg -q 'PlayerSpawnedInWorld|\[7dtd-connect\] .*connected|Created player|Local Player|Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if ! grep -Eq 'PlayerSpawnedInWorld|\[7dtd-connect\] .*connected|Created player|Local Player|Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
         result="kick_or_disconnect"
         break
       fi
     fi
     # Strong join bar: PlayerId ProcessPackage created local player, no parse/create failures.
-    if rg -q 'NET: LiteNetLib: Accepted by server' "$CLIENT_LOG_SRC" 2>/dev/null; then
-      if rg -q 'EntityFactory CreateEntity: unknown type|NCSimple_Deserializer|Attempted to read past the end of the stream' "$CLIENT_LOG_SRC" 2>/dev/null; then
+    if grep -Eq 'NET: LiteNetLib: Accepted by server' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if grep -Eq 'EntityFactory CreateEntity: unknown type|NCSimple_Deserializer|Attempted to read past the end of the stream' "$CLIENT_LOG_SRC" 2>/dev/null; then
         # Soft: only fail if we never found our player.
-        if ! rg -q 'Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        if ! grep -Eq 'Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
           result="parse_fail"
           break
         fi
       fi
-      if rg -q 'Found own player entity with id|PlayerSpawnedInWorld|Spawned in world' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if grep -Eq 'Found own player entity with id|PlayerSpawnedInWorld|Spawned in world' "$CLIENT_LOG_SRC" 2>/dev/null; then
         result="joined"
         break
       fi
       # PlayerId processed without CreateEntity error is partial success (in-world path)
-      if rg -q 'PlayerId\([0-9]+, [0-9]+\)' "$CLIENT_LOG_SRC" 2>/dev/null \
-        && rg -q 'Allowed ChunkViewDistance' "$CLIENT_LOG_SRC" 2>/dev/null \
-        && ! rg -q 'EntityFactory CreateEntity' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if grep -Eq 'PlayerId\([0-9]+, [0-9]+\)' "$CLIENT_LOG_SRC" 2>/dev/null \
+        && grep -Eq 'Allowed ChunkViewDistance' "$CLIENT_LOG_SRC" 2>/dev/null \
+        && ! grep -Eq 'EntityFactory CreateEntity' "$CLIENT_LOG_SRC" 2>/dev/null; then
         sleep 10
-        if rg -q 'Found own player entity with id|PlayerSpawnedInWorld' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        if grep -Eq 'Found own player entity with id|PlayerSpawnedInWorld' "$CLIENT_LOG_SRC" 2>/dev/null; then
           result="joined"
           break
         fi
-        if ! rg -q 'EntityFactory CreateEntity|NCSimple_Deserializer|Kicked from server' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        if ! grep -Eq 'EntityFactory CreateEntity|NCSimple_Deserializer|Kicked from server' "$CLIENT_LOG_SRC" 2>/dev/null; then
           result="joined"
           break
         fi
@@ -222,7 +222,7 @@ fi
 log "result=$result"
 log "client log -> $CLIENT_LOG_OUT"
 log "key client lines:"
-rg -n '7dtd-connect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|error|ERR' \
+grep -En '7dtd-connect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|error|ERR' \
   "$CLIENT_LOG_OUT" 2>/dev/null | head -80 | tee -a "$LIFE_OUT" || true
 
 log "after clients before kill: $(list_client_pids | tr '\n' ' ')"

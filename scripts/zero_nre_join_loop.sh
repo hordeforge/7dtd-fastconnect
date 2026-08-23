@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCRATCH="${SCRATCH:-/tmp/grok-goal-67089ec46dbc/implementer}"
+SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-connect}"
 mkdir -p "$SCRATCH"
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
@@ -19,6 +19,13 @@ STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 CLIENT_LOG_SRC="${CLIENT_LOG_SRC:-$STEAM_ROOT/steamapps/compatdata/251570/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt}"
 
 log() { printf '[zero_nre] %s\n' "$*" | tee -a "$SCRATCH/zero_nre_loop.log"; }
+
+# Count matching lines; "0" when the log is missing or has no matches.
+count_matches() {
+  local n
+  n="$(grep -Eac -- "$1" "$2" 2>/dev/null || true)"
+  printf '%s\n' "${n:-0}"
+}
 
 kill_zdtd() {
   python3 - <<'PY'
@@ -49,7 +56,7 @@ start_zdtd() {
     >"$SCRATCH/zdtd-server-zero-nre.log" 2>&1) &
   local i
   for i in $(seq 1 40); do
-    if ss -tln | rg -q ":${PORT}\\b"; then
+    if ss -tln | grep -Eq ":${PORT}\\b"; then
       log "server up on $PORT"
       return 0
     fi
@@ -98,8 +105,8 @@ while (( attempt <= MAX_ATTEMPTS )); do
     cp -f "$CLIENT_LOG_SRC" "$LOG_COPY" 2>/dev/null || true
   fi
   NRE=$(count_nre_after_join "$LOG_COPY")
-  FOUND=$(rg -c "Found own player entity with id" "$LOG_COPY" 2>/dev/null || echo 0)
-  RESULT=$(rg -n "^result=" "$SCRATCH/zero_nre-cycle-$attempt.txt" | tail -1 || true)
+  FOUND=$(count_matches "Found own player entity with id" "$LOG_COPY")
+  RESULT=$(grep -En "^result=" "$SCRATCH/zero_nre-cycle-$attempt.txt" | tail -1 || true)
   log "result_line=$RESULT found_own=$FOUND nre_after_join=$NRE"
   echo "attempt=$attempt found=$FOUND nre=$NRE $RESULT" >>"$SCRATCH/zero_nre_summary.txt"
   if [[ "$FOUND" != "0" && "$NRE" == "0" ]]; then
@@ -111,7 +118,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
       SCRATCH="$SCRATCH" bash "$ONE_SHOT" | tee "$SCRATCH/zero_nre-cycle-confirm.txt" || true
     LOG2="$SCRATCH/stock-join-znok2.log"
     NRE2=$(count_nre_after_join "$LOG2")
-    FOUND2=$(rg -c "Found own player entity with id" "$LOG2" 2>/dev/null || echo 0)
+    FOUND2=$(count_matches "Found own player entity with id" "$LOG2")
     log "confirm found=$FOUND2 nre=$NRE2"
     if [[ "$FOUND2" != "0" && "$NRE2" == "0" ]]; then
       log "CONFIRM SUCCESS"
