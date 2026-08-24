@@ -229,6 +229,26 @@ def test_leftover_backup_is_restored_then_reswapped(tmp_path: Path) -> None:
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
+@pytest.mark.skipif(os.getuid() == 0, reason="root ignores dir permissions")
+def test_failed_setup_restores_swapped_platform(tmp_path: Path) -> None:
+    """A failure AFTER the Local-platform swap must still reach the exit traps.
+    The traps used to be installed after swap_local_platform, so a set -e abort
+    in between (here: mkdir -p of LOGDIR under a read-only COMPAT) left the
+    game install swapped to the Local platform with no restore until the next
+    launch self-healed it."""
+    game = _setup(tmp_path)
+    compat = tmp_path / "compat-ro"
+    compat.mkdir()
+    compat.chmod(0o500)  # -d passes; mkdir beneath fails for non-root
+    try:
+        r = _launch(tmp_path, extra_env={"COMPAT": str(compat)})
+    finally:
+        compat.chmod(0o700)
+    assert r.returncode != 0, r.stdout + r.stderr
+    assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+    assert not (game / "platform.cfg.re-localbak").exists()
+
+
 def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
     """TERM must not kill the launcher dead where it stands: one_shot_join.sh
     stops launchers with TERM, so the exit traps have to run (restore

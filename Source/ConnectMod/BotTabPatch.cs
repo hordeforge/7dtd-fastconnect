@@ -65,6 +65,19 @@ namespace SdtdConnect
         static bool _comparatorResolved;
         static bool _failLogged;
 
+        // Announce-once channel shared by every guarded section below. The
+        // inner per-section catches must route through this too: they swallow
+        // locally by design (one bad row must not kill the rest), but without
+        // this hook a persistently dead patch (reflection drift after a game
+        // update) would look like an empty player list working fine.
+        static void WarnOnce(string where, Exception ex)
+        {
+            if (_failLogged) return;
+            _failLogged = true;
+            try { Log.Warning("[7dtd-fastconnect] BotTabPatch " + where + " failed (further failures muted): " + ex); }
+            catch { }
+        }
+
         static FieldInfo InstanceField(Type t, string name)
         {
             return t.GetField(name,
@@ -136,7 +149,12 @@ namespace SdtdConnect
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // A scan that always fails means zero bots are ever found;
+                    // that must not be silent.
+                    WarnOnce("bot scan", ex);
+                }
 
                 if (bots.Count == 0) return;
 
@@ -172,7 +190,10 @@ namespace SdtdConnect
                     else
                         sorted.Sort((a, b) => string.Compare(a?.PlayerName?.DisplayName, b?.PlayerName?.DisplayName, StringComparison.OrdinalIgnoreCase));
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    WarnOnce("sort", ex);
+                }
 
                 // Update the count label and paging to reflect new size
                 try
@@ -183,7 +204,10 @@ namespace SdtdConnect
                     var gv = GridField?.GetValue(__instance) as XUiV_Grid;
                     if (pg != null && gv != null) pg.SetLastPageByElementsAndPageLength(sorted.Count, gv.Rows);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    WarnOnce("pager", ex);
+                }
 
                 // Vanilla's binding pass already ran; fill the tail rows the appended bots landed in.
                 try
@@ -246,22 +270,26 @@ namespace SdtdConnect
                             if (chat != null) chat.IsVisible = false;
                             entry.RefreshBindings();
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            // Per-row tolerance stays, but the first failure is
+                            // announced: if every row fails the same way this is
+                            // a broken patch, not a bad row.
+                            WarnOnce("row bind", ex);
+                        }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    WarnOnce("row bind", ex);
+                }
             }
             catch (Exception ex)
             {
                 // This postfix runs every 0.25s while Tab is open; a persistent
                 // failure must not flood the log, but silence would look like
                 // an empty player list working fine. Announce once.
-                if (!_failLogged)
-                {
-                    _failLogged = true;
-                    try { Log.Warning("[7dtd-fastconnect] BotTabPatch failed (further failures muted): " + ex); }
-                    catch { }
-                }
+                WarnOnce("list inject", ex);
             }
         }
 
@@ -311,7 +339,13 @@ namespace SdtdConnect
                 ppd.LastLogin = DateTime.UtcNow;
                 return ppd;
             }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                // If creation fails for every bot the list stays empty with no
+                // visible cause; route through the shared announce-once hook.
+                WarnOnce("bot ppd create", ex);
+                return null;
+            }
         }
     }
 }

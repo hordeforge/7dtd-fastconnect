@@ -94,17 +94,6 @@ restore_platform() {
   fi
 }
 
-if [[ "$LOCAL_PLATFORM" == 1 ]]; then
-  swap_local_platform
-fi
-
-LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
-mkdir -p "$LOGDIR"
-# Same file as WIN_LOGFILE below: LOGFILE is the prefix-side path, WIN_LOGFILE
-# the in-guest path handed to -logfile.
-LOGFILE="$LOGDIR/output_log_client_7dtd_connect.txt"
-WIN_LOGFILE="C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
-
 if [[ ! -d "$GAME" ]]; then
   echo "Game not found: $GAME" >&2
   exit 1
@@ -152,6 +141,20 @@ on_exit() {
 trap on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+# Side effects start only below the traps: a failure between the swap and the
+# old trap installation point (mkdir -p LOGDIR under set -e) used to leave
+# platform.cfg swapped with no restore until the next launch self-healed it.
+if [[ "$LOCAL_PLATFORM" == 1 ]]; then
+  swap_local_platform
+fi
+
+LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
+mkdir -p "$LOGDIR"
+# Same file as WIN_LOGFILE below: LOGFILE is the prefix-side path, WIN_LOGFILE
+# the in-guest path handed to -logfile.
+LOGFILE="$LOGDIR/output_log_client_7dtd_connect.txt"
+WIN_LOGFILE="C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
 
 if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   export STEAM_COMPAT_DATA_PATH="$COMPAT"
