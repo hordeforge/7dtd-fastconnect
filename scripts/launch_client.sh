@@ -8,6 +8,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MUTE_HELPER="$SCRIPT_DIR/mute_client_audio.sh"
 source "$SCRIPT_DIR/proton_paths.sh"
+# Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
+# scripts/log_sanitize.sh; same contract as ConnectTarget.SanitizeForLog.
+source "$SCRIPT_DIR/log_sanitize.sh"
 
 GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 STEAM_APPID="${STEAM_APPID:-251570}"
@@ -174,7 +177,7 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   export STEAM_COMPAT_DATA_PATH="$COMPAT"
   export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$STEAM_ROOT}"
   echo "Proton: $PROTON"
-  echo "Connect: ${CONNECT:-"(none; use F1 connect after menu)"}"
+  echo "Connect: $(sanitize_log_text "${CONNECT:-"(none; use F1 connect after menu)"}")"
   echo "Log: $LOGFILE"
   cd "$GAME"
   # Cannot mute after exec — run proton, mute in parallel, wait for the game.
@@ -189,7 +192,7 @@ fi
 
 # Fallback: Steam app launch (may still run EAC depending on launcher settings).
 echo "Proton not found; using steam -applaunch $STEAM_APPID (set UseEAC false in launcher if needed)"
-echo "Connect: ${CONNECT:-"(none)"}"
+echo "Connect: $(sanitize_log_text "${CONNECT:-"(none)"}")"
 # Steam does not reliably pass -connect=; pass the canonical name through
 # `env` because bash cannot export a name starting with a digit.
 env 7DTD_CONNECT="${CONNECT:-}" steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@" &

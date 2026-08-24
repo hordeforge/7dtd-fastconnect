@@ -73,6 +73,9 @@ log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
 # Monotonic deadline source shared with mute_client_audio.sh: see
 # scripts/monotonic_clock.sh for why $SECONDS must not bound these waits.
 source "$ROOT/scripts/monotonic_clock.sh"
+# Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
+# scripts/log_sanitize.sh; same contract as ConnectTarget.SanitizeForLog.
+source "$ROOT/scripts/log_sanitize.sh"
 
 # Join success signal; some checks accept extra partial-progress markers too.
 JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'
@@ -150,7 +153,7 @@ cleanup() {
 trap cleanup EXIT
 
 : >"$LIFE_OUT"
-log "=== one_shot_join cycle=$CYCLE connect=$CONNECT timeout=${TIMEOUT_SEC}s ==="
+log "=== one_shot_join cycle=$(sanitize_log_text "$CYCLE") connect=$(sanitize_log_text "$CONNECT") timeout=${TIMEOUT_SEC}s ==="
 log "before clients: $(list_client_pids | tr '\n' ' ')"
 
 if [[ "$START_SERVER" == "1" ]]; then
@@ -200,7 +203,7 @@ mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
 # Kill any leftover client before launch.
 kill_clients || true
 
-log "launching client connect=$CONNECT"
+log "launching client connect=$(sanitize_log_text "$CONNECT")"
 # Launch in background; capture proton/game children via pgrep after a beat.
 setsid env 7DTD_CONNECT="$CONNECT" "$LAUNCH" >"$SCRATCH/launch-${CYCLE}.log" 2>&1 &
 launch_pid=$!

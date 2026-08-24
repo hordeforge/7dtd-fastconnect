@@ -33,6 +33,7 @@ test:
 	$(ROOT)/scripts/test_mute_client_audio.sh
 	$(ROOT)/scripts/test_monotonic_deadlines.sh
 	$(ROOT)/scripts/test_log_marker_cache.sh
+	$(ROOT)/scripts/test_log_sanitize.sh
 	$(ROOT)/scripts/test_version_sync.sh
 	@if command -v shellcheck >/dev/null; then \
 	  echo "shellcheck:"; \
