@@ -211,7 +211,7 @@ namespace SdtdConnect
             // window (toolTip/saveIndicator per tick), so the non-EULA path
             // must stay allocation-free.
             if (_windowName != EulaSkip.GateWindowName) return true;
-            return EulaSkip.BlockGateWindow(__instance, _windowName,
+            return EulaSkip.BlockGateWindow(__instance,
                 "windowEula modal=" + _bModal + " esc=" + _bIsNotEscClosable);
         }
     }
@@ -225,7 +225,7 @@ namespace SdtdConnect
         {
             // Same allocation-free non-EULA path as the 3-arity gate above.
             if (_windowName != EulaSkip.GateWindowName) return true;
-            return EulaSkip.BlockGateWindow(__instance, _windowName,
+            return EulaSkip.BlockGateWindow(__instance,
                 "windowEula(2) modal=" + _bModal);
         }
     }

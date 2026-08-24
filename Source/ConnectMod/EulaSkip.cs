@@ -24,9 +24,11 @@ namespace SdtdConnect
         /// </summary>
         internal const string GateWindowName = "windowEula";
 
-        internal static bool BlockGateWindow(GUIWindowManager wm, string _windowName, string logTag)
+        // Callers gate on GateWindowName before calling: GUIWindowManager.Open
+        // fires for every UI window per tick, so the non-EULA path must stay
+        // allocation-free.
+        internal static bool BlockGateWindow(GUIWindowManager wm, string logTag)
         {
-            if (_windowName != GateWindowName) return true;
             try
             {
                 Log.Out("[7dtd-fastconnect] blocking GUI " + logTag);
