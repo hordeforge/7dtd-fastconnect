@@ -35,5 +35,9 @@ STAGE="$ROOT/dist/.package-stage-$$"
 mkdir -p "$STAGE"
 trap 'rm -rf "$STAGE"' EXIT INT TERM
 cp -a "$ROOT/dist/7dtd-fastconnect" "$STAGE/"
+# Start from an empty archive: zip -r updates entries into an existing file,
+# so a stale or truncated zip left by an interrupted run would keep deleted
+# files in the shipped artifact or fail confusingly mid-update.
+rm -f "$OUT"
 ( cd "$STAGE" && zip -qr "$OUT" 7dtd-fastconnect )
 echo "Packaged -> $OUT"

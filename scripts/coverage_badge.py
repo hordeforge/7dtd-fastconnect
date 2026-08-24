@@ -47,7 +47,12 @@ def badge(pct: int, fill: str) -> str:
 def rate(xmls: list[str], filt: str) -> int:
     hit = total = 0
     for x in xmls:
-        for cls in ET.parse(x).getroot().iter("class"):
+        try:
+            root = ET.parse(x).getroot()
+        except (OSError, ET.ParseError) as ex:
+            print(f"error: cannot read coverage report {x}: {ex}", file=sys.stderr)
+            raise SystemExit(1) from ex
+        for cls in root.iter("class"):
             if filt not in cls.get("filename", ""):
                 continue
             for ln in cls.iter("line"):

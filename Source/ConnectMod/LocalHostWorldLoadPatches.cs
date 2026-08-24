@@ -73,8 +73,25 @@ namespace SdtdConnect
             if (playerPrefab != null)
             {
                 Log.Out("[7dtd-fastconnect] Local-host prewarming local player prefab");
-                while (!playerPrefab.IsDone) yield return null;
-                Log.Out("[7dtd-fastconnect] Local-host local player prefab ready");
+                // Bounded like PrepareCreateWorld's drain below: a request that
+                // never completes (renamed asset after a game update, wedged
+                // LoadManager) must not hang startup silently past its budget.
+                // Falling through only skips the head start; the held sync load
+                // still creates the player.
+                const float prewarmMaxSec = 60f;
+                float prewarmDeadline = Time.realtimeSinceStartup + prewarmMaxSec;
+                while (!playerPrefab.IsDone)
+                {
+                    if (Time.realtimeSinceStartup >= prewarmDeadline)
+                    {
+                        Log.Warning("[7dtd-fastconnect] Local-host prefab prewarm timed out after "
+                            + prewarmMaxSec + "s; continuing without it");
+                        break;
+                    }
+                    yield return null;
+                }
+                if (playerPrefab.IsDone)
+                    Log.Out("[7dtd-fastconnect] Local-host local player prefab ready");
             }
 
             // Stock leaves backgroundLoadingPriority at Low, which caps how much

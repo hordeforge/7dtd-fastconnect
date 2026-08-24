@@ -265,6 +265,14 @@ static class TestMain
             CheckParse("[::1]:", true, "::1", 27025);
             CheckParse(":", false, null, 0);
 
+            // A lone leading colon is an empty host before a port; it must be
+            // rejected at parse time rather than deferring to DNS with the
+            // caller's port silently reset to the default.
+            CheckParse(":27025", false, null, 0);
+            CheckParse(":abc", false, null, 0);
+            // Doubled dangling colons are the same mistake as one.
+            CheckParse("h::", true, "h", 27025);
+
             // Bare IPv6 must not be split at colons (stays host, default port).
             CheckParse("::1", true, "::1", 27025);
             CheckParse("2001:db8::1", true, "2001:db8::1", 27025);
@@ -293,6 +301,7 @@ static class TestMain
             // Dangling colon dropped even without a port argument.
             CheckMerge("h:", null, "h");
             CheckMerge("[::1]:", null, "[::1]");
+            CheckMerge("h::", null, "h");
             // A bare IPv6 address cannot carry an unbracketed ":port" suffix:
             // TryParse would read the port as part of the address, so the
             // merge emits the standard bracketed form instead.

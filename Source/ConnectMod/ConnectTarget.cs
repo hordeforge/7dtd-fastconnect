@@ -48,15 +48,15 @@ namespace SdtdConnect
 
         // Shared normalization for every target grammar (F1 merge, env, argv),
         // so the entry paths cannot drift: a pasted steam://connect/ prefix is
-        // stripped (its colons must not mask an explicit port), and a dangling
-        // separator colon ("host:", "[v6]:") carries an empty port by
-        // TryParse's rule, so it is dropped instead of leaving an unparsable
-        // host behind.
+        // stripped (its colons must not mask an explicit port), and dangling
+        // separator colons ("host:", "[v6]:", the doubled "host::") carry an
+        // empty port by TryParse's rule, so they are dropped instead of
+        // leaving an unparsable host behind.
         static string StripSchemeAndEmptyPort(string raw)
         {
             if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
                 raw = raw.Substring("steam://connect/".Length);
-            if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
+            while (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
             return raw;
         }
 
@@ -154,6 +154,17 @@ namespace SdtdConnect
             }
 
             if (string.IsNullOrWhiteSpace(hostPart))
+            {
+                error = "empty host";
+                return false;
+            }
+
+            // A lone leading colon (":27025", ":abc") is an empty host before
+            // a port: no hostname or IPv4 literal starts with ':', and bare
+            // IPv6 always carries '::'. Accepted here it would defer failure
+            // to a DNS lookup while the caller's port silently falls back to
+            // the default.
+            if (hostPart.StartsWith(":") && !hostPart.StartsWith("::"))
             {
                 error = "empty host";
                 return false;
