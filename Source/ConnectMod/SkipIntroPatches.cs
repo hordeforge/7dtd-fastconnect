@@ -213,6 +213,10 @@ namespace SdtdConnect
     {
         static bool Prefix(GUIWindowManager __instance, string _windowName, bool _bModal, bool _bIsNotEscClosable)
         {
+            // Name guard before the logTag concat: Open fires for every UI
+            // window (toolTip/saveIndicator per tick), so the non-EULA path
+            // must stay allocation-free.
+            if (_windowName != EulaSkip.GateWindowName) return true;
             return EulaSkip.BlockGateWindow(__instance, _windowName,
                 "windowEula modal=" + _bModal + " esc=" + _bIsNotEscClosable);
         }
@@ -225,6 +229,8 @@ namespace SdtdConnect
     {
         static bool Prefix(GUIWindowManager __instance, string _windowName, bool _bModal)
         {
+            // Same allocation-free non-EULA path as the 3-arity gate above.
+            if (_windowName != EulaSkip.GateWindowName) return true;
             return EulaSkip.BlockGateWindow(__instance, _windowName,
                 "windowEula(2) modal=" + _bModal);
         }

@@ -22,9 +22,11 @@ namespace SdtdConnect
         /// MainMenuOpened directly so auto-join fires even if the XUi path is gated.
         /// Once the window is windowEula it never falls back to stock Open.
         /// </summary>
+        internal const string GateWindowName = "windowEula";
+
         internal static bool BlockGateWindow(GUIWindowManager wm, string _windowName, string logTag)
         {
-            if (_windowName != "windowEula") return true;
+            if (_windowName != GateWindowName) return true;
             try
             {
                 Log.Out("[7dtd-fastconnect] blocking GUI " + logTag);
