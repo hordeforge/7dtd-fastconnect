@@ -4,6 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT/scripts/proton_paths.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 # Bound accumulation: zero_nre creates per-attempt logs that would grow without
@@ -22,8 +23,17 @@ MAP_DIR="${MAP_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedi
 GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 WORLD_DIR="${WORLD_DIR:-$ZDTD_ROOT/worlds/zdtd_goal}"
 ONE_SHOT="$ROOT/scripts/one_shot_join.sh"
+STEAM_APPID="${STEAM_APPID:-251570}"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
-CLIENT_LOG_SRC="${CLIENT_LOG_SRC:-$STEAM_ROOT/steamapps/compatdata/251570/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt}"
+# Same prefix resolution as launch_client.sh / one_shot_join.sh: the launcher
+# and the one-shot cycle both derive the client log path from GAME's own
+# Steam library, so a second-disk install must not fall back to the default
+# prefix here or every attempt would read an empty log.
+if [[ -z "${CLIENT_LOG_SRC:-}" ]]; then
+  CLIENT_GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
+  COMPAT="$(resolve_compat "$CLIENT_GAME" "$STEAM_APPID" "$STEAM_ROOT" "${COMPAT:-}")"
+  CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
+fi
 
 log() { printf '[zero_nre] %s\n' "$*" | tee -a "$SCRATCH/zero_nre_loop.log"; }
 

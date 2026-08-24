@@ -4,6 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT/scripts/proton_paths.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 # Bound disk growth: one_shot creates per-cycle logs that would otherwise
@@ -51,7 +52,13 @@ MAP_DIR="${MAP_DIR:-$GAME_DIR/Data/Worlds/Navezgane}"
 WORLD_DIR="${WORLD_DIR:-$ZDTD_ROOT/worlds/zdtd_goal}"
 STEAM_APPID="${STEAM_APPID:-251570}"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
-COMPAT="${COMPAT:-$STEAM_ROOT/steamapps/compatdata/$STEAM_APPID}"
+# Resolve the client's Proton prefix exactly like launch_client.sh (same GAME
+# override, same second-library rule): the launcher truncates and writes the
+# client log under its own derived prefix, so polling a differently resolved
+# one would watch an empty file and report every join as a timeout on any
+# non-default Steam library layout.
+CLIENT_GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
+COMPAT="$(resolve_compat "$CLIENT_GAME" "$STEAM_APPID" "$STEAM_ROOT" "${COMPAT:-}")"
 CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
 CLIENT_LOG_OUT="$SCRATCH/stock-join-${CYCLE}.log"
 SERVER_LOG_OUT="$SCRATCH/zdtd-server-${CYCLE}.log"

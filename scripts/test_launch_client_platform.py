@@ -492,3 +492,51 @@ def test_client_mute_opt_out_never_invokes_pactl(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stderr
     assert "Client mute" not in r.stdout
     assert mute_log.read_text(encoding="utf-8") == ""
+
+
+PROTON_PATHS = ROOT / "scripts" / "proton_paths.sh"
+
+
+def _resolve_compat(game: str, appid: str, steam_root: str, compat: str = "") -> str:
+    """Run scripts/proton_paths.sh resolve_compat in a clean bash."""
+    script = (
+        f"source {shlex.quote(str(PROTON_PATHS))} && resolve_compat "
+        + " ".join(shlex.quote(a) for a in (game, appid, steam_root, compat))
+    )
+    return subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True, text=True, check=True, timeout=30,
+    ).stdout.strip()
+
+
+def test_resolve_compat_derives_second_library_prefix() -> None:
+    """The launcher writes its log under GAME's own library prefix and
+    one_shot_join.sh reads it back through the same helper: a second-disk
+    install must resolve to <library>/compatdata/<appid>, not the default
+    root, or the join poll watches an empty file and reports timeouts."""
+    assert _resolve_compat(
+        "/disks/b/steamapps/common/7 Days To Die", "251570", "/home/u/.local/share/Steam",
+    ) == "/disks/b/steamapps/compatdata/251570"
+
+
+def test_resolve_compat_explicit_override_wins() -> None:
+    assert _resolve_compat(
+        "/disks/b/steamapps/common/Game", "251570", "/home/u/.local/share/Steam",
+        "/custom/compat",
+    ) == "/custom/compat"
+
+
+def test_resolve_compat_falls_back_to_steam_root() -> None:
+    assert _resolve_compat("/opt/games/Game", "251570", "/steamroot") == (
+        "/steamroot/steamapps/compatdata/251570"
+    )
+
+
+def test_harnesses_resolve_log_prefix_through_shared_helper() -> None:
+    """The join harnesses must take the client-log prefix from proton_paths.sh,
+    never from their own copy of the rule: duplicated derivation is exactly how
+    second-disk installs drifted into polling a log the launcher never wrote."""
+    for name in ("one_shot_join.sh", "zero_nre_join_loop.sh"):
+        src = (ROOT / "scripts" / name).read_text(encoding="utf-8")
+        assert "proton_paths.sh" in src, name
+        assert "resolve_compat" in src, name

@@ -7,21 +7,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MUTE_HELPER="$SCRIPT_DIR/mute_client_audio.sh"
+source "$SCRIPT_DIR/proton_paths.sh"
 
 GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 STEAM_APPID="${STEAM_APPID:-251570}"
+# Prefer Proton Experimental / GE if present; fall back to steam launch.
+STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 # Derive the Proton prefix from GAME, so a library on another disk works. A
 # hardcoded default path silently falls through to the `steam -applaunch`
 # branch below on such an install, which loses the environment this script was
 # given -- and passing 7DTD_CONNECT or a playtest suite variable through the
-# environment is the whole point of launching Proton directly.
-COMPAT="${COMPAT:-}"
-if [[ -z "$COMPAT" && "$GAME" == */steamapps/common/* ]]; then
-  COMPAT="${GAME%/common/*}/compatdata/$STEAM_APPID"
-fi
-COMPAT="${COMPAT:-$HOME/.local/share/Steam/steamapps/compatdata/$STEAM_APPID}"
-# Prefer Proton Experimental / GE if present; fall back to steam launch.
-STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
+# environment is the whole point of launching Proton directly. The harnesses
+# (one_shot_join.sh) read the client log back from this same resolved prefix,
+# so the rule lives once in proton_paths.sh.
+COMPAT="$(resolve_compat "$GAME" "$STEAM_APPID" "$STEAM_ROOT" "${COMPAT:-}")"
 PROTON="${PROTON:-}"
 if [[ -z "$PROTON" ]]; then
   # The library holding GAME is searched first, so an install on a second disk
