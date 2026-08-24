@@ -100,6 +100,12 @@ if [[ ! -d "$GAME" ]]; then
 fi
 
 MUTE_PID=""
+# PID of the direct-Proton game child this script waits on. INT/TERM forward
+# to it so a stop aimed at the launcher cannot orphan the wine/Proton stack
+# behind it; the EXIT trap still reaps the mute poller and restores
+# platform.cfg afterwards. The steam -applaunch fallback never registers here:
+# that pid is the shared desktop Steam client, not a child this script owns.
+GAME_PID=""
 start_mute_poll() {
   if [[ -z "$MUTE_CLIENT" ]]; then
     return 0
@@ -139,8 +145,17 @@ on_exit() {
   restore_platform
 }
 trap on_exit EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+# Forward to the game child first (no-op when it already exited, as when
+# one_shot_join.sh kills clients before stopping this launcher), then take the
+# normal exit path so on_exit still runs.
+on_signal() {
+  if [[ -n "$GAME_PID" ]]; then
+    kill -TERM "$GAME_PID" 2>/dev/null || true
+  fi
+  exit "$1"
+}
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 # Side effects start only below the traps: a failure between the swap and the
 # old trap installation point (mkdir -p LOGDIR under set -e) used to leave
@@ -166,6 +181,7 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   # Cannot mute after exec — run proton, mute in parallel, wait for the game.
   env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "$WIN_LOGFILE" "${EXTRA_ARGS[@]}" "$@" &
   game_pid=$!
+  GAME_PID="$game_pid"
   start_mute_poll
   launch_status=0
   wait "$game_pid" || launch_status=$?

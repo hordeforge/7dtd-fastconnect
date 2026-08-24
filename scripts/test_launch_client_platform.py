@@ -249,15 +249,26 @@ def test_failed_setup_restores_swapped_platform(tmp_path: Path) -> None:
     assert not (game / "platform.cfg.re-localbak").exists()
 
 
+def _game_exe_pids() -> list[str]:
+    """PIDs of running stub game exes (matched by exe name, like the harnesses)."""
+    out = subprocess.run(
+        ["pgrep", "-f", r"[/]7DaysToDie\.exe"],
+        capture_output=True, text=True, check=False,
+    )
+    return out.stdout.split()
+
+
 def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
     """TERM must not kill the launcher dead where it stands: one_shot_join.sh
     stops launchers with TERM, so the exit traps have to run (restore
-    platform.cfg) and the exit status must propagate as 143."""
+    platform.cfg) and the exit status must propagate as 143. The TERM is also
+    forwarded to the waited game child: a launcher that exited while Proton
+    kept running would orphan the wine stack."""
     game = _setup(tmp_path, game_run_seconds=30)
     env = _launch_env(tmp_path)
-    # Pipes would be held open by the orphaned stub game after the launcher
-    # exits, deadlocking communicate/wait; devnull avoids that. A new session
-    # lets the test reap the stub's sleep afterwards.
+    # Pipes would be held open by the stub game if it outlived the launcher,
+    # deadlocking communicate/wait; devnull avoids that. A new session keeps
+    # the game subtree killable as a unit.
     proc = subprocess.Popen(
         ["bash", str(LAUNCH)], env=env,
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -271,9 +282,14 @@ def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
         # The EXIT trap restored the original config.
         assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
         assert not (game / "platform.cfg.re-localbak").exists()
+        # The forwarded TERM took the stub game down with the launcher.
+        deadline = time.monotonic() + 10
+        while _game_exe_pids():
+            assert time.monotonic() < deadline, "stub game survived launcher TERM"
+            time.sleep(0.1)
     finally:
-        # The stub game outlives the launcher (nothing forwards TERM to it);
-        # reap the whole session so nothing is left sleeping.
+        # Belt and braces: reap anything left in the session (e.g. an orphaned
+        # sleep grandchild of the stub) so nothing outlives the test.
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:

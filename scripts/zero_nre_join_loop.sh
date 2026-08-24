@@ -92,6 +92,14 @@ count_nre_after_join() {
 }
 
 : >"$SCRATCH/zero_nre_loop.log"
+# zero_nre_summary.txt appends per attempt across runs, so its mtime never
+# goes stale and the -mtime prune above can never fire on it. Trim to the
+# newest lines once per run instead; per-run growth is a handful of lines.
+SUMMARY="$SCRATCH/zero_nre_summary.txt"
+if [[ -f "$SUMMARY" ]] && (( $(wc -l <"$SUMMARY") > 400 )); then
+  tail -n 200 "$SUMMARY" >"$SCRATCH/.zero_nre_summary.tmp" \
+    && mv "$SCRATCH/.zero_nre_summary.tmp" "$SUMMARY"
+fi
 log "start max_attempts=$MAX_ATTEMPTS"
 
 # Validate before start_zdtd: a bad value would abort after the server is up.
