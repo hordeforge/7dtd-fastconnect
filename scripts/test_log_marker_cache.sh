@@ -5,6 +5,8 @@
 #     append-only log), so later polls skip rescanning the file
 #   - misses are never cached: bytes appended after a miss must flip it
 #   - a missing log file counts as "not seen"
+#   - scans resume from an offset (only new bytes plus the overlap window),
+#     so a match split across a poll boundary is still found
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/test_common.sh"
@@ -54,10 +56,51 @@ partial_line_does_not_match_until_complete() {
 	log_seen 'Found own player entity with id'
 }
 
+# The offset resume: after scanning a file larger than the overlap window,
+# LOG_MARK_OFFSET must sit at EOF, and a marker completed across the next
+# poll boundary (its first half already inside the overlap window, not
+# before it) must still be found.
+offset_advances_and_boundary_match_is_found() {
+	local old_overlap="$LOG_MARK_OVERLAP"
+	LOG_MARK_OVERLAP=1024
+	log_marks_reset
+	: >"$LOG_MARK_FILE"
+	head -c 4096 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
+	printf 'NET: Found own player enti' >>"$LOG_MARK_FILE"
+	if log_seen 'Found own player entity with id'; then
+		LOG_MARK_OVERLAP="$old_overlap"
+		return 1
+	fi
+	((LOG_MARK_OFFSET == $(wc -c <"$LOG_MARK_FILE"))) || {
+		LOG_MARK_OVERLAP="$old_overlap"
+		return 1
+	}
+	printf 'ty with id 9\n' >>"$LOG_MARK_FILE"
+	local rc=0
+	if log_seen 'Found own player entity with id'; then rc=0; else rc=1; fi
+	LOG_MARK_OVERLAP="$old_overlap"
+	return "$rc"
+}
+
+# External truncation (file shrinks below the recorded offset) falls back to
+# a full scan instead of skipping everything.
+truncated_log_resets_offset() {
+	log_marks_reset
+	: >"$LOG_MARK_FILE"
+	head -c 4096 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
+	log_seen 'never written anywhere' || true
+	((LOG_MARK_OFFSET > 0)) || return 1
+	: >"$LOG_MARK_FILE"
+	printf 'NET: PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
+	log_seen 'PlayerSpawnedInWorld'
+}
+
 assert "missing log is not seen" missing_log_is_not_seen
 assert "miss flips when matching bytes arrive" miss_flips_when_bytes_arrive
 assert "cached positive survives other-marker misses" positive_sticks_after_miss_on_other_marker
 assert "distinct patterns do not collide" distinct_patterns_do_not_collide
 assert "partial line matches only once complete" partial_line_does_not_match_until_complete
+assert "scan offset advances and boundary match is found" offset_advances_and_boundary_match_is_found
+assert "truncated log falls back to full scan" truncated_log_resets_offset
 
 finish
