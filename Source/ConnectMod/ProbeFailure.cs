@@ -15,9 +15,24 @@ namespace SdtdConnect
 
         internal static void Once(string what, Exception ex)
         {
-            if (_announced) return;
+            if (_announced || ex == null) return;
+            Announce(what + " failed:\n" + ex);
+        }
+
+        // Reason-shaped variant for drift detected without an exception
+        // (a reflection target that resolved to null): same once-and-mute
+        // contract, so a renamed game member is named instead of degrading
+        // silently.
+        internal static void Once(string what, string reason)
+        {
+            if (_announced || string.IsNullOrEmpty(reason)) return;
+            Announce(what + ": " + reason);
+        }
+
+        static void Announce(string body)
+        {
             _announced = true;
-            try { Log.Warning("[7dtd-fastconnect] " + what + " failed (further failures muted):\n" + ex); }
+            try { Log.Warning("[7dtd-fastconnect] " + body + " (further failures muted)"); }
             catch { }
         }
     }

@@ -60,7 +60,9 @@ kill_zdtd() {
 # 20 Hz until someone notices.
 stop_zdtd() {
   if pgrep -x zdtd >/dev/null 2>&1; then
-    log "stopping zdtd server"
+    # || true: this runs in the EXIT trap, and a failed log write must not
+    # abort (set -e) before the server below is actually stopped.
+    log "stopping zdtd server" || true
     kill_zdtd
     pkill -KILL -x zdtd 2>/dev/null || true
   fi

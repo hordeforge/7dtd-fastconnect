@@ -41,8 +41,12 @@ namespace SdtdConnect
             {
                 if (!Block.BlocksLoaded) return;
             }
-            catch
+            catch (Exception ex)
             {
+                // An always-throwing probe would otherwise disable the
+                // requested dump with no trace; announce once, keep retrying
+                // on later hook fires.
+                ProbeFailure.Once("BlockIdDump blocks-loaded probe", ex);
                 return;
             }
             _dumped = true;

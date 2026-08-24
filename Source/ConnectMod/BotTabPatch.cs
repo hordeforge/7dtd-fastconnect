@@ -100,7 +100,20 @@ namespace SdtdConnect
                         _comparator = (Comparison<PersistentPlayerData>)Delegate.CreateDelegate(
                             typeof(Comparison<PersistentPlayerData>), mi);
                 }
-                catch { _comparator = null; }
+                catch (Exception ex)
+                {
+                    ProbeFailure.Once("BotTabPatch comparator resolve", ex);
+                }
+                if (_comparator == null)
+                {
+                    // Covers the throw above (muted by the once channel) and
+                    // the rename case GetMethod cannot throw for: either way
+                    // stock ordering is gone after a game update and bot rows
+                    // fall back to name order, which must not pass silently.
+                    ProbeFailure.Once(
+                        "BotTabPatch stock PlayerComparator unavailable; bot rows sort by name",
+                        "XUiC_PlayersList.PlayerComparator did not resolve");
+                }
             }
             return _comparator;
         }

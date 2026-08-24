@@ -150,15 +150,17 @@ cleanup() {
   # The launcher runs detached (setsid) and normally exits when its waited
   # game dies. If the game never appeared (wedged Proton) it would block in
   # wait forever, stacking one orphaned launcher per cycle. TERM lets its own
-  # trap restore platform.cfg and stop the mute poller.
+  # trap restore platform.cfg and stop the mute poller. The log calls carry
+  # || true so a failed log write can never abort this trap (set -e) before
+  # the processes below are stopped.
   if [[ -n "$launch_pid" ]] && kill -0 "$launch_pid" 2>/dev/null; then
-    log "stopping launcher pid=$launch_pid"
+    log "stopping launcher pid=$launch_pid" || true
     kill "$launch_pid" 2>/dev/null || true
     sleep 1
     kill -9 "$launch_pid" 2>/dev/null || true
   fi
   if [[ -n "$server_pid" ]] && kill -0 "$server_pid" 2>/dev/null; then
-    log "stopping server pid=$server_pid"
+    log "stopping server pid=$server_pid" || true
     kill "$server_pid" 2>/dev/null || true
     sleep 1
     kill -9 "$server_pid" 2>/dev/null || true

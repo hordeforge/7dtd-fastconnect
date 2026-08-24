@@ -95,7 +95,14 @@ namespace SdtdConnect
                         return true;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // Same naming rule as the auth-ticket prefix: a wedged
+                // Steamworks init must not look like plain "no Steam" --
+                // here it also silently swaps the real platform id for the
+                // synthetic one, which changes the server-side identity.
+                ProbeFailure.Once("Steam identity probe", ex);
+            }
             try
             {
                 if (_fake == null) _fake = SyntheticId();
