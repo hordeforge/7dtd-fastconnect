@@ -17,13 +17,21 @@ ifneq ($(DOTNET_ROOT),)
   export PATH := $(DOTNET_ROOT):$(PATH)
 endif
 
-.PHONY: build install uninstall clean test package
+.PHONY: build install uninstall clean test coverage package
 
 build:
 	dotnet build "$(ROOT)/Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
 		-p:GameRoot="$(GAME)"
 	cp -f "$(ROOT)/ModInfo.xml" "$(DIST)/"
 	@echo "OK → $(DIST)"
+
+# Line coverage of the ConnectTarget offline gate compiled with the dotnet
+# SDK (scripts/coverage-cs.sh mirrors scripts/test_connect_target_parse.sh);
+# the badge filters to /Source/ so stub and harness lines stay out.
+coverage:
+	$(ROOT)/scripts/coverage-cs.sh
+	cd "$(ROOT)" && uv run --frozen --group dev python scripts/coverage_badge.py \
+		coverage.cobertura.xml coverage.svg "/Source/"
 
 test:
 	$(ROOT)/scripts/test_connect_target_parse.sh
