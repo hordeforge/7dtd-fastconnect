@@ -13,7 +13,6 @@ find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-*.log' -o -name 'launch
 # Also cap count: keep at most 20 newest of each pattern so a tight loop
 # with mtime < 3 days cannot fill the disk.
 for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt'; do
-  # shellcheck disable=SC2012,SC2044
   old="$(find "$SCRATCH" -maxdepth 1 -type f -name "$pat" -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n -20 | cut -d' ' -f2-)" || true
   if [[ -n "$old" ]]; then
     # shellcheck disable=SC2086

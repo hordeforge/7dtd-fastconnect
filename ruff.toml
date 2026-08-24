@@ -15,4 +15,13 @@ select = [
     "RUF", # ruff-native rules
     "EXE", # shebang/executable-bit hygiene
     "PL",  # pylint-derived correctness checks
+    "A",   # builtin shadowing
+    "ARG", # unused function arguments
+    "C4",  # comprehension simplification
+    "DTZ", # naive datetime construction
+    "FURB",# refurb modernization checks
+    "PTH", # os.path -> pathlib
+    "PERF",# performance lints
+    "RET", # return simplification
+    "RSE", # unnecessary parens on raise
 ]
