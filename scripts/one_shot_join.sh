@@ -285,7 +285,11 @@ while (( $(mono_sec) < deadline )); do
   sleep 2
 done
 
-cp -f "$CLIENT_LOG_SRC" "$CLIENT_LOG_OUT" 2>/dev/null || true
+if ! cp -f "$CLIENT_LOG_SRC" "$CLIENT_LOG_OUT" 2>/dev/null; then
+  # The copy is the cycle's only retained evidence; losing it must be visible
+  # or the lines below read like the log was captured.
+  log "WARN: client log copy failed (src=$CLIENT_LOG_SRC out=$CLIENT_LOG_OUT); no client evidence retained"
+fi
 
 log "result=$result"
 log "client log -> $CLIENT_LOG_OUT"

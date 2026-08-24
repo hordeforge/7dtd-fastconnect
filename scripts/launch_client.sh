@@ -98,8 +98,14 @@ swap_local_platform() {
   # config swapped with a backup behind; restore it first so the swap is
   # idempotent and self-healing.
   if [[ -f "$PLATFORM_BAK" ]]; then
-    mv "$PLATFORM_BAK" "$PLATFORM_CFG"
-    echo "Client platform.cfg restored from a previous interrupted run"
+    if mv "$PLATFORM_BAK" "$PLATFORM_CFG"; then
+      echo "Client platform.cfg restored from a previous interrupted run"
+    else
+      # Swapping over an unrestorable original would risk losing the user's
+      # real platform choice, so refuse the swap instead.
+      echo "WARN: could not restore $PLATFORM_CFG from backup; refusing the Local-platform swap" >&2
+      return 1
+    fi
   fi
   if [[ ! -f "$PLATFORM_CFG" ]]; then
     echo "WARN: $PLATFORM_CFG missing; cannot switch to Local platform" >&2
@@ -112,8 +118,14 @@ swap_local_platform() {
 
 restore_platform() {
   if [[ -f "$PLATFORM_BAK" ]]; then
-    mv "$PLATFORM_BAK" "$PLATFORM_CFG"
-    echo "Client platform.cfg restored"
+    # Runs from the EXIT/signal traps; a failure cannot be retried there, but
+    # it must at least be named (the backup survives, so the next launch's
+    # self-heal retries).
+    if mv "$PLATFORM_BAK" "$PLATFORM_CFG"; then
+      echo "Client platform.cfg restored"
+    else
+      echo "WARN: platform.cfg restore failed; backup kept at $PLATFORM_BAK" >&2
+    fi
   fi
 }
 

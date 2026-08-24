@@ -67,4 +67,13 @@ PLAYTEST="${PLAYTEST:-}" \
 PLAYTEST_SUITE="${PLAYTEST_SUITE:-}" \
   nohup "$SCRIPTDIR/launch_client.sh" \
   > "$LOGDIR/client-launch-$(basename "$WORLD").log" 2>&1 &
-echo "client launcher pid $!"
+client_launch_pid=$!
+echo "client launcher pid $client_launch_pid"
+# Same treatment as the server readiness wait: a launcher that dies right away
+# (missing game dir, no usable Proton) must not look like a successful
+# relaunch. The server stays up either way; only the exit status signals.
+sleep 3
+if ! kill -0 "$client_launch_pid" 2>/dev/null; then
+  echo "ERROR: client launcher exited immediately; see $LOGDIR/client-launch-$(basename "$WORLD").log" >&2
+  exit 1
+fi

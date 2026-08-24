@@ -47,7 +47,9 @@ sources=(
 } > "$work/cov.csproj"
 
 cd "$work"
-dotnet build -c Release -v q 2>&1 | tail -1 > /dev/null
+# No output redirect: quiet verbosity is silent on success and must still show
+# compile errors, otherwise a broken coverage build fails with no diagnosis.
+dotnet build -c Release -v q --nologo
 dll="$(find bin -name 'cov.dll' | head -1)"
 
 modes=(argv argvenv automation connectready envflags forcesync launchctx parse playernames sanitize)

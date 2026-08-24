@@ -143,6 +143,11 @@ while (( attempt <= MAX_ATTEMPTS )); do
   if [[ ! -f "$LOG_COPY" ]]; then
     cp -f "$CLIENT_LOG_SRC" "$LOG_COPY" 2>/dev/null || true
   fi
+  if [[ ! -f "$LOG_COPY" ]]; then
+    # Without the log, found=0/nre=9998 below mean "no evidence", which must
+    # not be mistaken for a join attempt that cleanly failed.
+    log "WARN: no client log for attempt $attempt (one_shot copy and $CLIENT_LOG_SRC both unavailable)"
+  fi
   NRE=$(count_nre_after_join "$LOG_COPY")
   FOUND=$(count_matches "Found own player entity with id" "$LOG_COPY")
   RESULT=$(grep -En "^result=" "$SCRATCH/zero_nre-cycle-$attempt.txt" | tail -1 || true)
