@@ -129,7 +129,17 @@ so this variable is unnecessary for ordinary Steam play.
 
 The stock Local platform derives its identity from `GamePrefs.PlayerName`.
 Set `7DTD_PLAYER_NAME` before launch to select that identity before the
-auto-join runs. This is useful only for an isolated second client in a real
+auto-join runs.
+
+That identity also names the save's player file, so **switching platform
+changes which character a save loads**. A world played under Steam stores
+`Saves/<world>/<game>/Player/EOS_<id>.ttp`; the same world opened with
+`CLIENT_PLATFORM=local` looks for `Local_<name>.ttp`, does not find it, and
+spawns a fresh character in the existing world — `PlayerSpawnedInWorld
+(reason: NewGame)` rather than `LoadedGame`. Nothing is lost; the original
+`.ttp` stays on disk and comes back under the original platform. But a test
+that means to exercise the load-an-existing-character path has to check that
+reason, or it silently tests the new-character path instead. This is useful only for an isolated second client in a real
 multi-client test: the server sees and authorizes a normal distinct player,
 and will reject a duplicate identity. It persists the chosen name in that
 client profile, so use a dedicated Proton profile for automation rather than
@@ -140,6 +150,35 @@ Launch a peer named `atomic-peer`:
 ```bash
 env 7DTD_PLAYER_NAME=atomic-peer 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```
+
+### Diagnosing in-world frame hitches
+
+A Local host runs a frame-hitch monitor that logs only under `diag on`. Open
+the F1 console in-world, arm it, and play for a few minutes:
+
+```text
+diag on
+```
+
+Every frame over 200 ms then logs one line with the GC generation deltas, the
+`LoadManager` backlog, the managed heap, and the live frame cap:
+
+```text
+[7dtd-fastconnect] hitch 412ms frame 9214 gc +3/+1/+0 pendingLoads 0 heap 2841MB targetFps -1 vsync 0
+```
+
+`targetFps` and `vsync` are what the renderer is actually running with, not
+what the options screen claims. Change Options → Video → FPS Limit In Game and
+check whether the next hitch line reports the new value: if it does not, the
+cap is not reaching the renderer, which is a different bug from a stutter.
+Pair it with `gpu_busy_percent` for whether the GPU is the constraint:
+
+```bash
+watch -n1 cat /sys/class/drm/card*/device/gpu_busy_percent
+```
+
+`diag off` stops the logging; the coroutine keeps running either way, so diag
+can be toggled mid-session without a restart.
 
 ### Client audio mute (default on)
 
