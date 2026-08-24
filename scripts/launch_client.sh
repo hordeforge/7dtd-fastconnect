@@ -118,7 +118,9 @@ start_mute_poll() {
   if [[ -x "$MUTE_HELPER" ]]; then
     echo "Client mute: on (opt-out CLIENT_MUTE=0); polling up to ${MUTE_WAIT}s"
     # Background: audio stream appears after Unity init, not at process start.
-    CLIENT_MUTE_TIMEOUT="$MUTE_WAIT" "$MUTE_HELPER" "$MUTE_WAIT" &
+    # The timeout rides argv ($1); the helper's env fallbacks are only for
+    # standalone use, so no duplicate channel here.
+    "$MUTE_HELPER" "$MUTE_WAIT" &
     MUTE_PID=$!
   else
     echo "WARN: mute helper missing ($MUTE_HELPER); client audio not muted." >&2

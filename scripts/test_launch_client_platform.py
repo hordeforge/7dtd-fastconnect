@@ -250,17 +250,20 @@ def test_failed_setup_restores_swapped_platform(tmp_path: Path) -> None:
     assert not (game / "platform.cfg.re-localbak").exists()
 
 
-def _game_exe_pids(game_dir: Path) -> list[str]:
-    """PIDs of THIS test's running stub game exe. Scoped to the sandboxed game
-    dir: a bare exe-name match would see a real 7 Days To Die client running
-    elsewhere on the host and either fail the survival wait spuriously or,
-    worse, kill-sweep decisions on foreign pids."""
-    pattern = rf"{re.escape(str(game_dir))}/7DaysToDie\.exe"
+def _pgrep_pids(pattern: str) -> list[str]:
     out = subprocess.run(
         ["pgrep", "-f", pattern],
         capture_output=True, text=True, check=False,
     )
     return out.stdout.split()
+
+
+def _game_exe_pids(game_dir: Path) -> list[str]:
+    """PIDs of THIS test's running stub game exe. Scoped to the sandboxed game
+    dir: a bare exe-name match would see a real 7 Days To Die client running
+    elsewhere on the host and either fail the survival wait spuriously or,
+    worse, kill-sweep decisions on foreign pids."""
+    return _pgrep_pids(rf"{re.escape(str(game_dir))}/7DaysToDie\.exe")
 
 
 def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
@@ -305,12 +308,9 @@ def _mute_poller_pids(timeout_arg: str) -> list[str]:
     """PIDs of running mute_client_audio.sh pollers started with timeout_arg.
     Anchored to this repo's scripts dir so a poller from another checkout (or
     another developer's parallel run) cannot satisfy or poison the wait."""
-    pattern = rf"{re.escape(str(ROOT / 'scripts'))}/mute_client_audio\.sh {re.escape(timeout_arg)}"
-    out = subprocess.run(
-        ["pgrep", "-f", pattern],
-        capture_output=True, text=True, check=False,
+    return _pgrep_pids(
+        rf"{re.escape(str(ROOT / 'scripts'))}/mute_client_audio\.sh {re.escape(timeout_arg)}"
     )
-    return out.stdout.split()
 
 
 def test_sigterm_does_not_orphan_mute_poller(tmp_path: Path) -> None:
