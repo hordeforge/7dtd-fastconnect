@@ -23,6 +23,8 @@ assert "uses the stock player-name preference inside the override" \
 	body_contains 'GamePrefs.Set(EnumGamePrefs.PlayerName, requested)'
 assert "persists the preference inside the override" \
 	body_contains 'GamePrefs.Instance?.Save();'
+assert "sanitizes the echoed name before logging (no log-marker forging via env)" \
+	body_contains 'ConnectTarget.SanitizeForLog(requested)'
 assert "documents the separate-client mechanism" grep -q 'Local player identity for an isolated test client' "$ROOT/README.md"
 
 finish

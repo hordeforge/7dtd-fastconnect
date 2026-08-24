@@ -127,11 +127,15 @@ namespace SdtdConnect
             {
                 GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
                 GamePrefs.Instance?.Save();
+                // Same log rule as 7DTD_CONNECT/-connect: env values are
+                // attacker-shapable and harnesses grep fixed markers, so the
+                // echoed value must not carry control characters.
+                string logged = ConnectTarget.SanitizeForLog(requested);
                 // Name the real source: a fallback logged as "from 7DTD_PLAYER_NAME="
                 // would send someone debugging after an env value that is not set.
                 Log.Out(fromEnv
-                    ? "[7dtd-fastconnect] player name from " + PlayerNameEnv + "=" + requested
-                    : "[7dtd-fastconnect] player name fallback '" + requested
+                    ? "[7dtd-fastconnect] player name from " + PlayerNameEnv + "=" + logged
+                    : "[7dtd-fastconnect] player name fallback '" + logged
                         + "' (" + PlayerNameEnv + " unset, stored PlayerName empty)");
             }
             catch (Exception ex)
