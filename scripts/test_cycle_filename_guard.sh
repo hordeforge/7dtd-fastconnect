@@ -27,8 +27,25 @@ no_unquoted_prune() {
 	! grep -qE 'rm -f \$old' "$src"
 }
 
+# Every per-cycle artifact the script writes into SCRATCH must be covered by
+# both prune rules (-mtime sweep and count cap), or repeated cycles with a
+# fresh CYCLE accumulate server logs forever. The writer lines below name each
+# file; keep them in sync when adding an output.
+prune_covers_all_writes() {
+	local pat
+	for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt' 'zdtd-server-*.log'; do
+		grep -qF -- "'$pat'" "$src" || return 1
+	done
+	# The -mtime find and the count-cap loop must list the same set.
+	local find_block loop_block
+	find_block="$(grep -c 'zdtd-server-\*\.log' "$src")"
+	loop_block="$(grep -oF "for pat in 'stock-join-*.log'" "$src" | wc -l)"
+	[[ "$find_block" -eq 2 && "$loop_block" -eq 1 ]]
+}
+
 assert "one_shot_join.sh guards CYCLE before filename use" cycle_guard
 assert "one_shot_join.sh prunes without word-splitting expansion" no_unquoted_prune
 assert "prune reads candidates as quoted lines" grep -q 'IFS= read -r f' "$src"
+assert "prune patterns cover every SCRATCH artifact incl. zdtd-server logs" prune_covers_all_writes
 
 finish

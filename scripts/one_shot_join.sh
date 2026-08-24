@@ -10,10 +10,10 @@ mkdir -p "$SCRATCH"
 # Bound disk growth: one_shot creates per-cycle logs that would otherwise
 # accumulate forever across repeated harness runs. Keep only recent cycles.
 # Defer pruning failures (read-only FS) so a full cache never aborts the join.
-find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-*.log' -o -name 'launch-*.log' -o -name 'client-lifecycle-*.txt' \) -mtime +3 -delete 2>/dev/null || true
+find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-*.log' -o -name 'launch-*.log' -o -name 'client-lifecycle-*.txt' -o -name 'zdtd-server-*.log' \) -mtime +3 -delete 2>/dev/null || true
 # Also cap count: keep at most 20 newest of each pattern so a tight loop
 # with mtime < 3 days cannot fill the disk.
-for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt'; do
+for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt' 'zdtd-server-*.log'; do
   old="$(find "$SCRATCH" -maxdepth 1 -type f -name "$pat" -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n -20 | cut -d' ' -f2-)" || true
   # Read line-by-line instead of an unquoted expansion: a filename holding
   # whitespace or glob metacharacters must reach rm as one argument.
