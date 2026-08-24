@@ -31,7 +31,7 @@ build:
 coverage:
 	$(ROOT)/scripts/coverage-cs.sh
 	cd "$(ROOT)" && uv run --frozen --group dev python scripts/coverage_badge.py \
-		coverage.cobertura.xml coverage.svg "/Source/"
+		coverage.svg "/Source/" coverage.cobertura.xml
 
 test:
 	$(ROOT)/scripts/test_connect_target_parse.sh
