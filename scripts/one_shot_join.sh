@@ -15,10 +15,12 @@ find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-*.log' -o -name 'launch
 # with mtime < 3 days cannot fill the disk.
 for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt'; do
   old="$(find "$SCRATCH" -maxdepth 1 -type f -name "$pat" -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n -20 | cut -d' ' -f2-)" || true
-  if [[ -n "$old" ]]; then
-    # shellcheck disable=SC2086
-    rm -f $old 2>/dev/null || true
-  fi
+  # Read line-by-line instead of an unquoted expansion: a filename holding
+  # whitespace or glob metacharacters must reach rm as one argument.
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    rm -f -- "$f" 2>/dev/null || true
+  done <<<"$old"
 done
 
 PORT="${PORT:-27025}"
@@ -41,6 +43,14 @@ if ! [[ "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
   TIMEOUT_SEC=240
 fi
 CYCLE="${CYCLE:-1}"
+# CYCLE is interpolated into output filenames (stock-join-${CYCLE}.log,
+# client-lifecycle-${CYCLE}.txt) and is attacker-shapable like 7DTD_CONNECT:
+# a '/' or '..' would aim this cycle's writes outside SCRATCH. Keep it to
+# filename-safe characters and reject a leading dot (".." and hidden files).
+if ! [[ "$CYCLE" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$CYCLE" == .* ]]; then
+  echo "WARN: CYCLE invalid ('$CYCLE'); using 1." >&2
+  CYCLE=1
+fi
 START_SERVER="${START_SERVER:-0}"
 # Default root of the sibling zdtd checkout; empty when it is not checked
 # out here. A hard failure must wait for the point of use (START_SERVER=1
