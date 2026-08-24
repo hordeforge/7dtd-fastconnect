@@ -8,6 +8,15 @@
 //                   process env per case)
 //   - `envflags`  : EnvFlags opt-out/opt-in truthiness contract (gates
 //                   AutomationMode and force-load-sync)
+//   - `playernames`: PlayerNames.Resolve invariants (server kicks empty or
+//                   duplicate names: resolved identity must be non-empty,
+//                   trimmed, and within the stock client-name cap)
+//   - `forcesync` : BootUnblock force-load-sync contract (default-on,
+//                   opt-out honored once-logged, env decision snapshotted)
+//   - `automation ...`: AutomationMode.Enabled decision table, one process per
+//                   case (static-readonly detection): unset resolves from the
+//                   launch context, explicit values ride EnvFlags truthiness,
+//                   and an explicit opt-out beats a detected target
 //   - `connectready`: ConnectReady.IsReady gate state machine driven by a
 //                   manually advanced monotonic clock: gate chain order,
 //                   bounded cross-user wait measured from FIRST null-id
@@ -75,6 +84,19 @@ static class TestMain
 
     sealed class FakeUser : SdtdConnect.Platform.IUser { }
 
+    static readonly System.Reflection.BindingFlags BootStatic =
+        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+
+    // BootUnblock caches its env decision and its one-shot state in statics;
+    // reset them so every forcesync case starts from a fresh process state.
+    static void ResetBootUnblock()
+    {
+        typeof(BootUnblock).GetField("_forceSyncSet", BootStatic).SetValue(null, false);
+        typeof(BootUnblock).GetField("_forceSyncOptOutLogged", BootStatic).SetValue(null, false);
+        typeof(BootUnblock).GetField("_forceSyncEnabled", BootStatic).SetValue(null, null);
+        LoadManager.forceLoadSync = false;
+    }
+
     static readonly System.Reflection.FieldInfo CrossWaitStartField =
         typeof(ConnectReady).GetField("_crossWaitStart",
             System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
@@ -138,7 +160,14 @@ static class TestMain
         Check("static data pending -> not ready", !Ready(out reason) && reason == "staticData=false");
         GameManager.Instance.bStaticDataLoaded = true;
         Check("no connection manager -> not ready", !Ready(out reason) && reason == "ConnectionManager=null");
-        SingletonMonoBehaviour<ConnectionManager>.Instance = new ConnectionManager();
+        var cmGate = new ConnectionManager();
+        SingletonMonoBehaviour<ConnectionManager>.Instance = cmGate;
+        // A live session must short-circuit the gate by name: the auto-join
+        // poll re-runs IsReady, and without this branch a second join attempt
+        // would fire against an established connection.
+        cmGate.IsConnected = true;
+        Check("already connected -> gate names it", !Ready(out reason) && reason == "already-connected");
+        cmGate.IsConnected = false;
         Check("no native platform -> not ready", !Ready(out reason) && reason == "NativePlatform=null");
 
         SdtdConnect.Platform.PlatformManager.NativePlatform = new SdtdConnect.Platform.PlatformManager();
@@ -312,8 +341,20 @@ static class TestMain
                 !ConnectTarget.TryFromLaunchContext(out host, out port, out source));
 
             Env(env, "[unterminated");
-            Check("invalid env var does not fake a join target",
-                !ConnectTarget.TryFromLaunchContext(out host, out port, out source));
+            // The launch context is re-read on every menu open / boot probe,
+            // so an invalid value must warn once per process, not once per
+            // read: repeated warnings would flood the client log that join
+            // harnesses grep for fixed markers.
+            string warnLog = CaptureStderr(delegate
+            {
+                Check("invalid env var does not fake a join target",
+                    !ConnectTarget.TryFromLaunchContext(out host, out port, out source));
+                ConnectTarget.TryFromLaunchContext(out host, out port, out source);
+            });
+            Check("invalid target warns exactly once per process",
+                CountOccurrences(warnLog, "ignored:") == 1);
+            Check("warning tells the reader auto-join is off",
+                warnLog.IndexOf("auto-join disabled", StringComparison.Ordinal) >= 0);
 
             Env(env, null);
             Check("nothing configured resolves to no target",
@@ -402,6 +443,77 @@ static class TestMain
             Check("VarIsSetOn true for one", EnvFlags.VarIsSetOn(flag));
 
             return Done();
+        }
+
+        if (mode == "forcesync")
+        {
+            // BootUnblock's force-load-sync contract: default-on for
+            // automation, opt-out honored, and the env decision snapshotted on
+            // first use because hooks re-check every frame.
+            const string env = BootUnblock.ForceLoadSyncEnv;
+
+            ResetBootUnblock();
+            Env(env, null);
+            Check("force-load-sync defaults to enabled when unset",
+                BootUnblock.ForceLoadSyncEnabled());
+            BootUnblock.ApplyForceLoadSync();
+            Check("apply flips LoadManager.forceLoadSync when enabled",
+                LoadManager.forceLoadSync);
+
+            ResetBootUnblock();
+            Env(env, "0");
+            Check("explicit zero opts out", !BootUnblock.ForceLoadSyncEnabled());
+            string optOutLog = CaptureStderr(delegate
+            {
+                BootUnblock.ApplyForceLoadSync();
+                BootUnblock.ApplyForceLoadSync();
+            });
+            Check("opt-out leaves LoadManager.forceLoadSync untouched",
+                !LoadManager.forceLoadSync);
+            Check("opt-out note logged once across repeated applies",
+                CountOccurrences(optOutLog, "disabled by") == 1);
+
+            ResetBootUnblock();
+            Env(env, "1");
+            Check("enabled decision cached", BootUnblock.ForceLoadSyncEnabled());
+            Env(env, "0");
+            Check("env change after first read does not flip the snapshot",
+                BootUnblock.ForceLoadSyncEnabled());
+
+            return Done();
+        }
+
+        if (mode == "playernames")
+        {
+            // Stock dedi kicks "Empty name or player ID" for loopback joins
+            // when Steam is offline, and rejects duplicate names: whatever the
+            // host environment holds, Resolve must return a usable identity.
+            string name = PlayerNames.Resolve();
+            Check("resolved name is never empty", !string.IsNullOrEmpty(name));
+            Check("resolved name fits the stock client-name cap",
+                name.Length <= PlayerNames.MaxLength);
+            Check("resolved name carries no outer whitespace", name == name.Trim());
+
+            return Done();
+        }
+
+        if (mode == "automation")
+        {
+            // Decision table for the gate every automation patch hangs on.
+            // Detection is static-readonly per process, so each case runs as
+            // its own process; tokens after the mode configure the context:
+            //   conn          set 7DTD_CONNECT (a detected launch target)
+            //   auto=<value>  set 7DTD_CONNECT_AUTOMATION
+            Env(ConnectTarget.EnvVar, null);
+            Env(AutomationMode.EnvVar, null);
+            foreach (string token in a)
+            {
+                if (token == "conn") Env(ConnectTarget.EnvVar, "5.6.7.8:99");
+                else if (token.StartsWith("auto=", StringComparison.Ordinal))
+                    Env(AutomationMode.EnvVar, token.Substring("auto=".Length));
+            }
+            Console.WriteLine(AutomationMode.Enabled ? "ON" : "OFF");
+            return 0;
         }
 
         if (mode == "argv" || mode == "argvenv")

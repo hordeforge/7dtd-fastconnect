@@ -15,11 +15,19 @@
 #     documented precedence (7DTD_CONNECT beats -connect= argv)
 #   - EnvFlags: behavioral opt-out/opt-in truthiness table (gates
 #     AutomationMode and force-load-sync), not just source-text greps
+#   - ConnectReady: gate state machine incl. already-connected short-circuit
+#     and warn-once expiry notes
+#   - PlayerNames: fallback identity invariants (never empty, trimmed, capped)
+#   - AutomationMode: decision table (launch-context detection vs explicit
+#     opt-in/opt-out), one process per case
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/Source/ConnectMod/ConnectTarget.cs"
 ENVFLAGS_SRC="$ROOT/Source/ConnectMod/EnvFlags.cs"
 READY_SRC="$ROOT/Source/ConnectMod/ConnectReady.cs"
+NAMES_SRC="$ROOT/Source/ConnectMod/PlayerNames.cs"
+AUTOMATION_SRC="$ROOT/Source/ConnectMod/AutomationMode.cs"
+BOOT_SRC="$ROOT/Source/ConnectMod/BootUnblock.cs"
 STUBS="$ROOT/scripts/testdata/connect_target_stubs.cs"
 HARNESS="$ROOT/scripts/testdata/connect_target_harness.cs"
 source "$ROOT/scripts/test_common.sh"
@@ -32,7 +40,7 @@ fi
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/7dtd-connect-parse.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
-mcs -out:"$WORK/connect_target_tests.exe" -warn:1 "$SRC" "$ENVFLAGS_SRC" "$READY_SRC" "$STUBS" "$HARNESS" 1>&2
+mcs -out:"$WORK/connect_target_tests.exe" -warn:1 "$SRC" "$ENVFLAGS_SRC" "$READY_SRC" "$NAMES_SRC" "$AUTOMATION_SRC" "$BOOT_SRC" "$STUBS" "$HARNESS" 1>&2
 
 run_mode() {
 	# Bash cannot assign names starting with a digit, so the precedence cases
@@ -59,6 +67,21 @@ assert "launch-context env resolution" run_mode launchctx
 assert "log-safe flattening of launch targets" run_mode sanitize
 assert "EnvFlags opt-out/opt-in truthiness table" run_mode envflags
 assert "ConnectReady gate state machine" run_mode connectready
+assert "PlayerNames fallback invariants (never empty, capped, trimmed)" run_mode playernames
+assert "force-load-sync default-on / opt-out / snapshot contract" run_mode forcesync
+
+# AutomationMode gates every automation patch; its decision table is
+# documented on AutomationMode.Detect: unset resolves from the launch
+# context (7DTD_CONNECT/-connect present means on), explicit values ride the
+# EnvFlags truthiness contract, and an explicit opt-out beats a detected
+# target. One process per case because detection is static-readonly.
+expect_argv automation "automation off with nothing configured" "OFF" --
+expect_argv automation "automation auto-on from detected launch target" "ON" -- conn
+expect_argv automation "automation explicit opt-in value" "ON" -- auto=1
+expect_argv automation "automation unknown value opts in" "ON" -- auto=sure
+expect_argv automation "automation explicit opt-out value" "OFF" -- auto=0
+expect_argv automation "automation opt-out beats detected target" "OFF" -- conn auto=0
+expect_argv automation "automation false-like value beats detected target" "OFF" -- conn auto=off
 
 TAB=$'\t'
 expect_argv argv "argv -connect= picks target" \

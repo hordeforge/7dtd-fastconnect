@@ -2,7 +2,6 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SOURCE="$ROOT/Source/ConnectMod/BootUnblock.cs"
-ENVFLAGS="$ROOT/Source/ConnectMod/EnvFlags.cs"
 source "$ROOT/scripts/test_common.sh"
 
 # Within ApplyForceLoadSync the ForceLoadSyncEnabled() gate must run before
@@ -24,10 +23,10 @@ assert "keeps force-load-sync enabled by default" \
     grep -q 'string.IsNullOrWhiteSpace(value) || EnvFlags.IsSetOn(value)' "$SOURCE"
 assert "delegates opt-outs to the shared env parser" \
     grep -q 'EnvFlags.IsSetOn(value)' "$SOURCE"
-assert "accepts zero as an opt-out" \
-    grep -q 'value == "0"' "$ENVFLAGS"
-assert "accepts false-like opt-outs" \
-    grep -q 'StringComparison.OrdinalIgnoreCase' "$ENVFLAGS"
+# The opt-out truthiness table itself (zero, false/no/off in any case) and the
+# default-on / snapshot-once / once-logged behavior are asserted against the
+# compiled production source by the forcesync mode of
+# test_connect_target_parse.sh, not re-grepped here.
 assert "checks the override before changing LoadManager" \
     force_sync_order "$SOURCE"
 assert "documents the Steam launch option" \
