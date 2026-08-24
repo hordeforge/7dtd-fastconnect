@@ -60,13 +60,12 @@ namespace SdtdConnect
 
         static void LogLoadGate(GameManager gm, World world)
         {
-            bool started = gm.gameStateManager != null && gm.gameStateManager.IsGameStarted();
-            int cgo = world.m_ChunkManager != null
-                ? world.m_ChunkManager.GetDisplayedChunkGameObjectsCount() : -1;
+            bool started = LoadGate.GameStarted(gm);
+            int cgo = LoadGate.DisplayedChunkObjects(world);
             int viewDist = GameUtils.GetViewDistance();
-            bool fixedSize = world.ChunkCache != null && world.ChunkCache.IsFixedSize;
-            int needed = fixedSize ? 0 : viewDist * viewDist - 10;
-            bool terrainReady = DistantTerrain.Instance == null || DistantTerrain.Instance.IsTerrainReady;
+            bool fixedSize = LoadGate.FixedSizeCache(world);
+            int needed = LoadGate.NeededChunkObjects(fixedSize);
+            bool terrainReady = LoadGate.TerrainReady;
             var player = world.GetPrimaryPlayer();
             var ui = LocalPlayerUI.GetUIForPrimaryPlayer();
             bool xuiReady = ui != null && ui.xui != null && ui.xui.IsReady;

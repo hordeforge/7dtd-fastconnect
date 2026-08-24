@@ -21,18 +21,16 @@ namespace SdtdConnect
             {
                 var gm = GameManager.Instance;
                 var world = gm != null ? gm.World : null;
-                int cgo = world != null && world.m_ChunkManager != null
-                    ? world.m_ChunkManager.GetDisplayedChunkGameObjectsCount() : -1;
-                int vd = GameUtils.GetViewDistance();
-                bool fixedSize = world != null && world.ChunkCache != null && world.ChunkCache.IsFixedSize;
-                int needed = fixedSize ? 0 : vd * vd - 10;
+                int cgo = world != null ? LoadGate.DisplayedChunkObjects(world) : -1;
+                bool fixedSize = world != null && LoadGate.FixedSizeCache(world);
+                int needed = LoadGate.NeededChunkObjects(fixedSize);
                 var cm = SingletonMonoBehaviour<ConnectionManager>.Instance;
                 Log.Out("[7dtd-fastconnect] load hb calls=" + _calls + " started="
-                    + (gm != null && gm.gameStateManager != null && gm.gameStateManager.IsGameStarted())
+                    + LoadGate.GameStarted(gm)
                     + " gameState=" + GameStats.GetInt(EnumGameStats.GameState)
                     + " delay=" + __instance.delayCountdownTime
                     + " cgo=" + cgo + "/" + needed
-                    + " terrainReady=" + (DistantTerrain.Instance == null || DistantTerrain.Instance.IsTerrainReady)
+                    + " terrainReady=" + LoadGate.TerrainReady
                     + " isClient=" + (cm != null && cm.IsClient)
                     + " isServer=" + (cm != null && cm.IsServer)
                     + " uiNull=" + (LocalPlayerUI.GetUIForPrimaryPlayer() == null)

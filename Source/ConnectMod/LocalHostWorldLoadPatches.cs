@@ -56,43 +56,10 @@ namespace SdtdConnect
         {
             Log.Out("[7dtd-fastconnect] Local-host world-load workaround active");
 
-            // EntityFactory.CreateEntity loads Prefabs/prefabEntityPlayerLocal with
-            // _loadSync:true. Start the same load asynchronously here and yield
-            // until it is done, so the main thread keeps pumping; CreateEntity then
-            // finds a completed handle. Does not fix the hang alone, shortens it.
-            LoadManager.AssetRequestTask<GameObject> playerPrefab = null;
-            try
-            {
-                playerPrefab = LoadManager.LoadAsset<GameObject>(
-                    "Prefabs/prefabEntityPlayerLocal", null, null, false, false);
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] Local-host player prefab prewarm failed: " + ex.Message);
-            }
-            if (playerPrefab != null)
-            {
-                Log.Out("[7dtd-fastconnect] Local-host prewarming local player prefab");
-                // Bounded like PrepareCreateWorld's drain below: a request that
-                // never completes (renamed asset after a game update, wedged
-                // LoadManager) must not hang startup silently past its budget.
-                // Falling through only skips the head start; the held sync load
-                // still creates the player.
-                const float prewarmMaxSec = 60f;
-                float prewarmDeadline = Time.realtimeSinceStartup + prewarmMaxSec;
-                while (!playerPrefab.IsDone)
-                {
-                    if (Time.realtimeSinceStartup >= prewarmDeadline)
-                    {
-                        Log.Warning("[7dtd-fastconnect] Local-host prefab prewarm timed out after "
-                            + prewarmMaxSec + "s; continuing without it");
-                        break;
-                    }
-                    yield return null;
-                }
-                if (playerPrefab.IsDone)
-                    Log.Out("[7dtd-fastconnect] Local-host local player prefab ready");
-            }
+            // One MoveNext of this child per frame: it only ever yields null
+            // while waiting on the prefab, so forwarding preserves pacing.
+            IEnumerator prewarm = PrewarmPlayerPrefab();
+            while (prewarm.MoveNext()) yield return prewarm.Current;
 
             // Stock leaves backgroundLoadingPriority at Low, which caps how much
             // time Unity gives async loads per frame, and enables runInBackground
@@ -161,6 +128,45 @@ namespace SdtdConnect
             }
             Log.Out("[7dtd-fastconnect] Local-host startup completed");
             StartHitchMonitor();
+        }
+
+        // EntityFactory.CreateEntity loads Prefabs/prefabEntityPlayerLocal with
+        // _loadSync:true. Start the same load asynchronously here and yield
+        // until it is done, so the main thread keeps pumping; CreateEntity then
+        // finds a completed handle. Does not fix the hang alone, shortens it.
+        // Bounded like PrepareCreateWorld's drain below: a request that never
+        // completes (renamed asset after a game update, wedged LoadManager)
+        // must not hang startup silently past its budget. Falling through only
+        // skips the head start; the held sync load still creates the player.
+        static IEnumerator PrewarmPlayerPrefab()
+        {
+            LoadManager.AssetRequestTask<GameObject> playerPrefab;
+            try
+            {
+                playerPrefab = LoadManager.LoadAsset<GameObject>(
+                    "Prefabs/prefabEntityPlayerLocal", null, null, false, false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-fastconnect] Local-host player prefab prewarm failed: " + ex.Message);
+                yield break;
+            }
+
+            Log.Out("[7dtd-fastconnect] Local-host prewarming local player prefab");
+            const float prewarmMaxSec = 60f;
+            float prewarmDeadline = Time.realtimeSinceStartup + prewarmMaxSec;
+            while (!playerPrefab.IsDone)
+            {
+                if (Time.realtimeSinceStartup >= prewarmDeadline)
+                {
+                    Log.Warning("[7dtd-fastconnect] Local-host prefab prewarm timed out after "
+                        + prewarmMaxSec + "s; continuing without it");
+                    break;
+                }
+                yield return null;
+            }
+            if (playerPrefab.IsDone)
+                Log.Out("[7dtd-fastconnect] Local-host local player prefab ready");
         }
 
         // Flatten completes once per local-host StartAsServer, so an
@@ -319,23 +325,13 @@ namespace SdtdConnect
                 : "[7dtd-fastconnect] Local-host async loads drained, sync loading held until startup completes");
         }
 
-        static FieldInfo _forceSyncField;
-        static bool _forceSyncResolved, _forceSyncHeld, _forceSyncPrevious;
+        static bool _forceSyncHeld, _forceSyncPrevious;
 
-        static FieldInfo ForceSyncField()
-        {
-            if (_forceSyncResolved) return _forceSyncField;
-            _forceSyncResolved = true;
-            var field = typeof(LoadManager).GetField("forceLoadSync",
-                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-            if (field == null || field.FieldType != typeof(bool))
-            {
-                Log.Warning("[7dtd-fastconnect] LoadManager.forceLoadSync field missing");
-                return null;
-            }
-            _forceSyncField = field;
-            return field;
-        }
+        // Reflection target shared with BootUnblock.ForceLoadSyncField: one
+        // lookup and one missing-field warning serve both the automation
+        // set-once path and this hold/release wrapper, so the two cannot
+        // disagree after a game update renames the field.
+        static FieldInfo ForceSyncField() => BootUnblock.ForceLoadSyncField();
 
         static void HoldForceLoadSync()
         {
@@ -353,7 +349,7 @@ namespace SdtdConnect
         static void ReleaseForceLoadSync()
         {
             if (!_forceSyncHeld) return;
-            try { _forceSyncField.SetValue(null, _forceSyncPrevious); }
+            try { ForceSyncField().SetValue(null, _forceSyncPrevious); }
             catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync release failed: " + ex.Message); }
             _forceSyncHeld = false;
         }

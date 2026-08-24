@@ -5,14 +5,16 @@ SOURCE="$ROOT/Source/ConnectMod/BootUnblock.cs"
 source "$ROOT/scripts/test_common.sh"
 
 # Within ApplyForceLoadSync the ForceLoadSyncEnabled() gate must run before
-# any reflection into LoadManager.forceLoadSync.
+# any reflection into LoadManager.forceLoadSync. The reflection itself lives
+# in the shared ForceLoadSyncField() resolver (also used by
+# LocalHostWorldLoadPatches), so the call site is what orders here.
 force_sync_order() {
     local source="$1" sig rest check_off field_off
     sig="$(grep -n 'internal static void ApplyForceLoadSync' "$source" | cut -d: -f1)"
     [[ -n "$sig" ]] || return 1
     rest="$(tail -n +"$sig" "$source")"
     check_off="$(printf '%s\n' "$rest" | grep -nm1 -F 'ForceLoadSyncEnabled()' | cut -d: -f1)"
-    field_off="$(printf '%s\n' "$rest" | grep -nm1 -F 'GetField("forceLoadSync"' | cut -d: -f1)"
+    field_off="$(printf '%s\n' "$rest" | grep -nm1 -F 'ForceLoadSyncField()' | cut -d: -f1)"
     [[ -n "$check_off" && -n "$field_off" ]] || return 1
     (( check_off < field_off ))
 }
@@ -29,6 +31,8 @@ assert "delegates opt-outs to the shared env parser" \
 # test_connect_target_parse.sh, not re-grepped here.
 assert "checks the override before changing LoadManager" \
     force_sync_order "$SOURCE"
+assert "forceLoadSync reflection has one home (BootUnblock's shared resolver)" \
+    bash -c "! grep -q 'GetField(\"forceLoadSync\"' '$ROOT/Source/ConnectMod/LocalHostWorldLoadPatches.cs'"
 assert "documents the Steam launch option" \
     grep -q 'env 7DTD_CONNECT_FORCE_LOAD_SYNC=0 mangohud %command%' "$ROOT/README.md"
 

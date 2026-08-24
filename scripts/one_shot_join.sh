@@ -263,7 +263,9 @@ while (( $(mono_sec) < deadline )); do
       if log_seen 'PlayerId\([0-9]+, [0-9]+\)' && log_seen 'Allowed ChunkViewDistance' \
         && ! log_seen 'EntityFactory CreateEntity'; then
         sleep 10
-        if log_seen 'Found own player entity with id|PlayerSpawnedInWorld'; then
+        # Same join bar as the primary check above; a private copy here would
+        # drift when the marker set grows.
+        if log_seen "$JOINED_RE"; then
           result="joined"
           break
         fi

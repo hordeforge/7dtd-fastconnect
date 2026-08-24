@@ -20,6 +20,29 @@ namespace SdtdConnect
         // cannot change at runtime.
         static bool? _forceSyncEnabled;
 
+        // Reflection target for LoadManager.forceLoadSync, resolved once and
+        // shared with LocalHostWorldLoad's hold/release wrapper so the
+        // automation set-once path and the local-host hold/release path cannot
+        // drift apart when a game update renames the field (and cannot flood
+        // the log with repeated missing-field warnings either).
+        static FieldInfo _forceSyncField;
+        static bool _forceSyncFieldResolved;
+
+        internal static FieldInfo ForceLoadSyncField()
+        {
+            if (_forceSyncFieldResolved) return _forceSyncField;
+            _forceSyncFieldResolved = true;
+            var fi = typeof(LoadManager).GetField("forceLoadSync",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            if (fi == null || fi.FieldType != typeof(bool))
+            {
+                Log.Warning("[7dtd-fastconnect] LoadManager.forceLoadSync field missing");
+                return null;
+            }
+            _forceSyncField = fi;
+            return fi;
+        }
+
         internal static bool ForceLoadSyncEnabled()
         {
             if (_forceSyncEnabled.HasValue) return _forceSyncEnabled.Value;
@@ -66,13 +89,8 @@ namespace SdtdConnect
             }
             try
             {
-                var fi = typeof(LoadManager).GetField("forceLoadSync",
-                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-                if (fi == null || fi.FieldType != typeof(bool))
-                {
-                    Log.Warning("[7dtd-fastconnect] LoadManager.forceLoadSync field missing");
-                    return;
-                }
+                var fi = ForceLoadSyncField();
+                if (fi == null) return;
                 fi.SetValue(null, true);
                 _forceSyncSet = true;
                 Log.Out("[7dtd-fastconnect] LoadManager.forceLoadSync=true (automation addressables)");

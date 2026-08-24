@@ -325,7 +325,7 @@ namespace SdtdConnect
         // Per-instance throttle state. ConditionalWeakTable so entries die
         // with the window: XUi recreates this list across world loads, and a
         // plain dictionary would accumulate destroyed instances forever.
-        static readonly ConditionalWeakTable<XUiC_PlayersList, ThrottleState> _last =
+        static readonly ConditionalWeakTable<XUiC_PlayersList, ThrottleState> _throttleStates =
             new ConditionalWeakTable<XUiC_PlayersList, ThrottleState>();
 
         sealed class ThrottleState
@@ -336,7 +336,7 @@ namespace SdtdConnect
         static bool ShouldRun(XUiC_PlayersList inst)
         {
             float now = Time.unscaledTime;
-            ThrottleState state = _last.GetOrCreateValue(inst);
+            ThrottleState state = _throttleStates.GetOrCreateValue(inst);
             if (now - state.LastRun < 0.25f) return false;
             state.LastRun = now;
             return true;
