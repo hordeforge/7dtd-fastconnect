@@ -23,6 +23,15 @@ source "$SCRIPTDIR/proton_paths.sh"
 ZDTD_ROOT="$(cd "$SCRIPTDIR/../zdtd-server" 2>/dev/null && pwd || true)"
 ZDTD="${ZDTD:-${ZDTD_ROOT:+$ZDTD_ROOT/zig-out/bin/zdtd}}"
 
+# Validate and prepare BEFORE tearing anything down: a missing binary or
+# unwritable dir discovered after the pkill sweep would leave the previous
+# server/client pair dead with nothing relaunched.
+if [[ ! -x "$ZDTD" ]]; then
+  echo "ERROR: zdtd binary not found or not executable: ${ZDTD:-<unset>; set ZDTD=/path/to/zdtd}" >&2
+  exit 1
+fi
+mkdir -p "$WORLD" "$LOGDIR"
+
 pkill -f 'zig-out/bin/zdtd' 2>/dev/null || true
 # Kill the whole Proton/wine stack, not just the game exe. Leftover
 # pressure-vessel containers + wineservers leak threads across relaunches and
@@ -32,12 +41,6 @@ pkill -9 -f '7DaysToDie' 2>/dev/null || true
 kill_wine_stack
 sleep 3
 
-if [[ ! -x "$ZDTD" ]]; then
-  echo "ERROR: zdtd binary not found or not executable: ${ZDTD:-<unset>; set ZDTD=/path/to/zdtd}" >&2
-  exit 1
-fi
-
-mkdir -p "$WORLD" "$LOGDIR"
 SERVER_LOG="$LOGDIR/zdtd-server-$(basename "$WORLD").log"
 nohup "$ZDTD" --port "$PORT" --world "$WORLD" \
   --map "$GAME_SRV/Data/Worlds/Navezgane" \

@@ -53,6 +53,18 @@ log_seen() {
 	fi
 	local start=$((off - LOG_MARK_OVERLAP))
 	if ((start < 0)); then start=0; fi
+	# A resume at byte zero is the common cold case (first poll of every
+	# pattern, or post-truncation fallback): grep the file directly instead
+	# of forking tail to copy the whole log through a pipe first.
+	if ((start == 0)); then
+		if grep -Eq -- "$re" "$LOG_MARK_FILE" 2>/dev/null; then
+			SEEN_MARK[$re]=0
+			MARK_OFFSET[$re]=$size
+			return 0
+		fi
+		MARK_OFFSET[$re]=$size
+		return 1
+	fi
 	# tail -c +N is 1-based; a start past EOF yields an empty stream, which
 	# correctly matches nothing.
 	if grep -Eq -- "$re" <(tail -c +"$((start + 1))" "$LOG_MARK_FILE" 2>/dev/null); then

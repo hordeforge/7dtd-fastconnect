@@ -132,6 +132,14 @@ if [[ ! "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
   TIMEOUT_SEC=90
 fi
 
+# start_zdtd always spawns its own server, so a missing binary is a setup
+# error, not a listen failure: name it before the trap instead of stalling
+# through start_zdtd's 10s wait and reporting "server failed to listen".
+if [[ ! -x "$ZDTD_BIN" ]]; then
+  log "missing zdtd binary: $ZDTD_BIN"
+  exit 2
+fi
+
 trap stop_zdtd EXIT
 
 start_zdtd
