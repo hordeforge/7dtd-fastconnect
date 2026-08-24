@@ -214,6 +214,13 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
 fi
 
 # Fallback: Steam app launch (may still run EAC depending on launcher settings).
+# Feature-test like every other external tool in this repo (package.sh): with
+# neither Proton nor a steam launcher on PATH, fail here with the fix instead
+# of a bare background-job "command not found" and exit 127.
+if ! command -v steam >/dev/null 2>&1; then
+  echo "ERROR: no usable Proton found and no 'steam' launcher on PATH; install Steam or set PROTON=/path/to/proton" >&2
+  exit 1
+fi
 echo "Proton not found; using steam -applaunch $STEAM_APPID (set UseEAC false in launcher if needed)"
 echo "Connect: $(sanitize_log_text "${CONNECT:-"(none)"}")"
 # Steam does not reliably pass -connect=; pass the canonical name through

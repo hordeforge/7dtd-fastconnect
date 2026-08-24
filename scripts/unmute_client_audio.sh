@@ -33,13 +33,16 @@ fi
 echo "No running 7 Days To Die audio stream found." >&2
 
 if grep -qiE '^Output/Audio:application\.name:7DaysToDie[^=]*=.*"mute":true' "$STATE_FILE" 2>/dev/null; then
-	cat >&2 <<-'EOF'
+	# Unquoted delimiter so the resolved STATE_FILE is shown: XDG_STATE_HOME
+	# may move it away from ~/.local/state, and a hint pointing at a file the
+	# user does not have is worse than none.
+	cat >&2 <<-EOF
 
 		The saved state still says muted, so the next launch will start silent.
 		Start the game and run this script again, or edit the saved state
 		directly and restart WirePlumber so it reloads the file:
 
-		    "${EDITOR:-nano}" ~/.local/state/wireplumber/stream-properties
+		    "\${EDITOR:-nano}" $STATE_FILE
 		    systemctl --user restart wireplumber
 	EOF
 	exit 1
