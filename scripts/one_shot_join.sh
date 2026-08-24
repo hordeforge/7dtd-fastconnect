@@ -82,10 +82,19 @@ JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world
 JOIN_SOFT_RE='Found own player entity with id|PlayerSpawnedInWorld|\[7dtd-fastconnect\] .*connected|Created player|Local Player'
 
 list_client_pids() {
-  # Match real game process only (not this script's shell line containing the name).
-  pgrep -f '[/]7DaysToDie\.exe' 2>/dev/null || true
-  pgrep -f 'wine64-preloader.*7DaysToDie' 2>/dev/null || true
+  # Match real game process only (not this script's shell line containing the
+  # name). One pgrep for both shapes: the poll loop calls this every cycle and
+  # each spawn walks /proc.
+  pgrep -f '[/]7DaysToDie\.exe|wine64-preloader.*7DaysToDie' 2>/dev/null || true
 }
+
+# The client log is append-only for this whole cycle (truncated above, then
+# written by the game), so once a marker has matched it can never un-match.
+# The join poll runs every 2s against a log that grows by megabytes;
+# re-grepping every already-decided marker from byte zero each poll is wasted
+# I/O competing with the loading client. See scripts/log_markers.sh.
+LOG_MARK_FILE="$CLIENT_LOG_SRC"
+source "$ROOT/scripts/log_markers.sh"
 
 kill_clients() {
   local pids
@@ -207,7 +216,7 @@ result="timeout"
 while (( $(mono_sec) < deadline )); do
   if [[ -f "$CLIENT_LOG_SRC" ]]; then
     # Strong success first: in-world entity exists. Later package noise must not demote this.
-    if grep -Eq "$JOINED_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
+    if log_seen "$JOINED_RE"; then
       result="joined"
       # Optional settle for post-join work (control unlock, world settle).
       settle="${SETTLE_SEC:-0}"
@@ -217,36 +226,29 @@ while (( $(mono_sec) < deadline )); do
       fi
       break
     fi
-    if grep -Eq 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed' "$CLIENT_LOG_SRC" 2>/dev/null; then
+    if log_seen 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed'; then
       # Only treat as fail if we never saw a good join signal
-      if ! grep -Eq "$JOIN_SOFT_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if ! log_seen "$JOIN_SOFT_RE"; then
         result="kick_or_disconnect"
         break
       fi
     fi
     # Strong join bar: PlayerId ProcessPackage created local player, no parse/create failures.
-    if grep -Eq 'NET: LiteNetLib: Accepted by server' "$CLIENT_LOG_SRC" 2>/dev/null; then
-      if grep -Eq 'EntityFactory CreateEntity: unknown type|NCSimple_Deserializer|Attempted to read past the end of the stream' "$CLIENT_LOG_SRC" 2>/dev/null; then
-        # Soft: only fail if we never found our player.
-        if ! grep -Eq 'Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
-          result="parse_fail"
-          break
-        fi
-      fi
-      if grep -Eq "$JOINED_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
-        result="joined"
+    if log_seen 'NET: LiteNetLib: Accepted by server'; then
+      if log_seen 'EntityFactory CreateEntity: unknown type|NCSimple_Deserializer|Attempted to read past the end of the stream' \
+        && ! log_seen 'Found own player entity with id'; then
+        result="parse_fail"
         break
       fi
       # PlayerId processed without CreateEntity error is partial success (in-world path)
-      if grep -Eq 'PlayerId\([0-9]+, [0-9]+\)' "$CLIENT_LOG_SRC" 2>/dev/null \
-        && grep -Eq 'Allowed ChunkViewDistance' "$CLIENT_LOG_SRC" 2>/dev/null \
-        && ! grep -Eq 'EntityFactory CreateEntity' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if log_seen 'PlayerId\([0-9]+, [0-9]+\)' && log_seen 'Allowed ChunkViewDistance' \
+        && ! log_seen 'EntityFactory CreateEntity'; then
         sleep 10
-        if grep -Eq 'Found own player entity with id|PlayerSpawnedInWorld' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        if log_seen 'Found own player entity with id|PlayerSpawnedInWorld'; then
           result="joined"
           break
         fi
-        if ! grep -Eq 'EntityFactory CreateEntity|NCSimple_Deserializer|Kicked from server' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        if ! log_seen 'EntityFactory CreateEntity|NCSimple_Deserializer|Kicked from server'; then
           result="joined"
           break
         fi
