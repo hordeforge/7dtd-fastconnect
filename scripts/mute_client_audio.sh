@@ -7,8 +7,8 @@
 # user.reg audio prefs, no -volume or similar argv).
 #
 # WirePlumber may persist per-app stream mute by application.name (still OS
-# audio, not the game). Unmute while running via the desktop mixer, or:
-#   pactl set-sink-input-mute <index> 0
+# audio, not the game). Unmute while running:
+#   ./scripts/unmute_client_audio.sh
 #
 # Env:
 #   CLIENT_MUTE_TIMEOUT  poll seconds for the stream (default 60)
