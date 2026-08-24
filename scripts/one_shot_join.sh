@@ -196,12 +196,15 @@ else
   fi
 fi
 
+# Kill any leftover client BEFORE truncating the log: a dying client holds
+# the log file open at its own write offset, so pre-cycle lines flushed
+# during kill_clients would land in (or past) the freshly truncated file and
+# cached markers could report a join from a previous cycle's bytes.
+kill_clients || true
+
 # Truncate client log so we only see this cycle.
 mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
 : >"$CLIENT_LOG_SRC"
-
-# Kill any leftover client before launch.
-kill_clients || true
 
 log "launching client connect=$(sanitize_log_text "$CONNECT")"
 # Launch in background; capture proton/game children via pgrep after a beat.

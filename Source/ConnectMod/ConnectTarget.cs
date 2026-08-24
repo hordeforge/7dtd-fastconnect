@@ -326,7 +326,7 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
 
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={SanitizeForLog(host)})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level=Navezgane (requested host={SanitizeForLog(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";
