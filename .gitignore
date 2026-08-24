@@ -7,3 +7,5 @@ __pycache__/
 coverage.cobertura.xml
 cov-*.xml
 coverage.svg
+coverage-out/
+.scratch_members.txt
