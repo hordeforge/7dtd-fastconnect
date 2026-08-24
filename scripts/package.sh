@@ -11,6 +11,14 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Feature-test like every other external tool in this repo: fail fast, before
+# the multi-minute build, instead of a bare "zip: command not found" at the
+# final zip step.
+if ! command -v zip >/dev/null 2>&1; then
+	echo "ERROR: zip not found on PATH; install zip to package." >&2
+	exit 1
+fi
+
 make -C "$ROOT" build
 
 VERSION="${VERSION:-$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)}"
