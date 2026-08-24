@@ -199,7 +199,15 @@ CLIENT_MUTE=0 ./scripts/launch_client.sh
 ```
 
 WirePlumber may persist mute by `application.name`. Unmute while the client
-is running (desktop volume UI, or `pactl set-sink-input-mute <index> 0`).
+is running:
+
+```bash
+./scripts/unmute_client_audio.sh
+```
+
+Clearing the mute needs a live stream so WirePlumber writes the unmuted
+state back. With the game closed the script reports whether the saved
+state is still muted.
 
 ## With zdtd
 

@@ -9,7 +9,8 @@ Canonical modding guide: [MODDING_BEST_PRACTICES.md](https://github.com/hordefor
 - `Mods/7dtd-fastconnect` under the **stock client** game dir
 - F1 `connect` / env `7DTD_CONNECT` / `-connect=host:port` auto-join after main menu
 - Intro/news/Discord/EULA skip and spawn-gate heartbeat for automated launch
-- Lifecycle scripts (`launch_client.sh`, `restart_pair.sh`, `one_shot_join.sh`)
+- Lifecycle scripts (`launch_client.sh`, `restart_pair.sh`, `one_shot_join.sh`,
+  `mute_client_audio.sh`, `unmute_client_audio.sh`)
 
 ## Does not own
 
