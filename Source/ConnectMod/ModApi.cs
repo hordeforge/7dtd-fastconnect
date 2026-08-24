@@ -11,7 +11,7 @@ namespace SdtdConnect
     public class ModApi : IModApi
     {
         public const string HarmonyId = "com.7dtd.connect";
-        public const string Version = "0.10.4";
+        public const string Version = "0.10.5";
         public const string PlayerNameEnv = "7DTD_PLAYER_NAME";
         static bool _autoTried;
 
@@ -21,6 +21,19 @@ namespace SdtdConnect
             Log.Out("[7dtd-fastconnect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest) — diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
             Log.Out("[7dtd-fastconnect] automation boot mode " + (AutomationMode.Enabled ? "enabled" : "disabled")
                 + " (auto when 7DTD_CONNECT/-connect is present; override with " + AutomationMode.EnvVar + ")");
+
+            try
+            {
+                // This is a user-facing preference, not automation plumbing.
+                GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
+                if (GameManager.Instance != null)
+                    GameManager.Instance.showOpenerMovieOnLoad = false;
+                GamePrefs.Instance?.Save();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] intro movie disable failed: " + ex.Message);
+            }
 
             if (AutomationMode.Enabled) try
             {
@@ -38,7 +51,6 @@ namespace SdtdConnect
                 ApplyPlayerNameOverride();
                 GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                 GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
-                GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
                 // EULA gate blocks MainMenu (scroll+accept); force accepted for automation.
                 Log.Out("[7dtd-fastconnect] EULA prefs accepted=" + EulaSkip.AcceptLatest());
             }

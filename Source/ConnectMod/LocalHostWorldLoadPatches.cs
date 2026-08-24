@@ -1,0 +1,389 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using HarmonyLib;
+using UnityEngine;
+
+namespace SdtdConnect
+{
+    /// <summary>
+    /// A stock Local-platform host can stop resuming world-loading coroutines under
+    /// Proton once the offline server starts its worker threads. Keep automation on
+    /// its existing path, and scope the workaround to a normal local host.
+    /// </summary>
+    static class LocalHostWorldLoad
+    {
+        const int CreateWorldUnsafeFrameBreaks = 9;
+
+        /// <summary>
+        /// Per-yield trace of the flattened startup. Off by default now that the
+        /// hang is fixed; `diag on` / 7DTD_CONNECT_DEBUG=1 enables it. A full
+        /// startup is ~330 steps, so if it is ever re-enabled unconditionally the
+        /// cap must exceed that or the post-createWorld window is silenced.
+        /// </summary>
+        const int UngatedTraceSteps = 0;
+
+        internal static void WrapStartAsServer(ref IEnumerator result)
+        {
+            if (!IsNormalLocalHost() || result == null) return;
+            result = Flatten(result);
+        }
+
+        internal static void WrapWorldLoad(ref IEnumerator result)
+        {
+            if (!IsNormalLocalHost() || result == null) return;
+            result = DrainWorldLoad(result);
+        }
+
+        internal static void WrapCreateWorld(ref IEnumerator result)
+        {
+            if (!IsNormalLocalHost() || result == null) return;
+            result = PrepareCreateWorld(result);
+        }
+
+        static bool IsNormalLocalHost()
+            => !AutomationMode.Enabled
+                && (SingletonMonoBehaviour<ConnectionManager>.Instance?.IsServer ?? false);
+
+        static IEnumerator Flatten(IEnumerator root)
+        {
+            Log.Out("[7dtd-connect] Local-host world-load workaround active");
+
+            // Stock leaves backgroundLoadingPriority at Low, which caps how much
+            // time Unity gives async loads per frame. Draining World.LoadWorld
+            // synchronously monopolises the main thread on top of that, so the
+            // async waits later in createWorld (Resources.LoadAsync for
+            // WeatherManager, LoadManager.LoadAsset for SkySystem) can crawl or
+            // appear to hang -- the same Proton starvation the automation path
+            // already works around with ApplyFrameUncap. runInBackground matters
+            // too: Unity throttles an unfocused window, and loading a world while
+            // the player alt-tabs is ordinary. Scoped to the load and restored
+            // after, so no user preference is changed.
+            // EntityFactory.CreateEntity loads Prefabs/prefabEntityPlayerLocal with
+            // _loadSync:true, which ends in Addressables.WaitForCompletion() on the
+            // main thread. Under Proton that blocks forever -- the observed hang,
+            // logged as "enter EntityFactory.CreateEntity" with no matching leave.
+            // Forcing sync loading cannot help; LoadManager sends every sync load
+            // down the same WaitForCompletion path. Instead start the same load
+            // asynchronously here and yield until it is done, so the main thread
+            // keeps pumping and Addressables can finish. CreateEntity then finds a
+            // completed handle and returns immediately.
+            LoadManager.AssetRequestTask<GameObject> playerPrefab = null;
+            try
+            {
+                playerPrefab = LoadManager.LoadAsset<GameObject>(
+                    "Prefabs/prefabEntityPlayerLocal", null, null, false, false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] Local-host player prefab prewarm failed: " + ex.Message);
+            }
+            if (playerPrefab != null)
+            {
+                Log.Out("[7dtd-connect] Local-host prewarming local player prefab");
+                while (!playerPrefab.IsDone) yield return null;
+                Log.Out("[7dtd-connect] Local-host local player prefab ready");
+            }
+
+            ThreadPriority previousLoadPriority = Application.backgroundLoadingPriority;
+            bool previousRunInBackground = Application.runInBackground;
+            try
+            {
+                Application.backgroundLoadingPriority = ThreadPriority.High;
+                Application.runInBackground = true;
+                Log.Out("[7dtd-connect] Local-host load priority raised (was "
+                    + previousLoadPriority + ", runInBackground was " + previousRunInBackground + ")");
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] Local-host load priority raise failed: " + ex.Message);
+            }
+
+            try
+            {
+                var stack = new Stack<IEnumerator>();
+                stack.Push(root);
+                int step = 0;
+                while (stack.Count != 0)
+                {
+                    IEnumerator iterator = stack.Peek();
+                    if (!MoveNext("StartAsServer", iterator, out object current))
+                    {
+                        stack.Pop();
+                        Trace(step, "completed depth " + stack.Count + " after step " + step);
+                        continue;
+                    }
+                    if (current is IEnumerator nested)
+                    {
+                        stack.Push(nested);
+                        continue;
+                    }
+                    step++;
+                    // The known stall freezes here with no further output. Logging the
+                    // frame counter on both sides of the yield separates the two
+                    // possible causes: a step that never returns (last "->" has no
+                    // matching "<-") versus Unity silently dropping the coroutine
+                    // (matching "<-", then nothing).
+                    Trace(step, "-> step " + step + " depth " + stack.Count
+                        + " yield " + (current == null ? "null" : current.GetType().Name)
+                        + " frame " + UnityEngine.Time.frameCount);
+                    yield return current;
+                    Trace(step, "<- step " + step + " frame " + UnityEngine.Time.frameCount);
+                }
+            }
+            finally
+            {
+                ReleaseForceLoadSync();
+                try
+                {
+                    Application.backgroundLoadingPriority = previousLoadPriority;
+                    Application.runInBackground = previousRunInBackground;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[7dtd-connect] Local-host load priority restore failed: " + ex.Message);
+                }
+            }
+            Log.Out("[7dtd-connect] Local-host startup completed");
+            ThreadManager.StartCoroutine(HitchMonitor());
+        }
+
+        /// <summary>
+        /// In-world frame-hitch attribution for the Local host. Logs every frame
+        /// longer than 200 ms with the GC generation deltas, LoadManager backlog
+        /// and heap, plus the live frame cap / vsync so the "GPU always busy"
+        /// report can be checked against what the renderer is actually told.
+        /// Bounded to 300 lines; diag lifts that.
+        /// </summary>
+        static IEnumerator HitchMonitor()
+        {
+            int gc0 = GC.CollectionCount(0), gc1 = GC.CollectionCount(1), gc2 = GC.CollectionCount(2);
+            float last = Time.realtimeSinceStartup;
+            int logged = 0;
+            Log.Out("[7dtd-connect] hitch monitor: targetFrameRate " + Application.targetFrameRate
+                + " vSyncCount " + QualitySettings.vSyncCount
+                + " loadPriority " + Application.backgroundLoadingPriority
+                + " limitFpsPref " + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxLimitFpsInGame)
+                + " vsyncPref " + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxVsync));
+            while (true)
+            {
+                yield return null;
+                float now = Time.realtimeSinceStartup;
+                float dt = now - last;
+                last = now;
+                if (dt < 0.2f) continue;
+                int n0 = GC.CollectionCount(0), n1 = GC.CollectionCount(1), n2 = GC.CollectionCount(2);
+                if (logged < 300 || DiagToggle.Enabled)
+                {
+                    logged++;
+                    Log.Out("[7dtd-connect] hitch " + (int)(dt * 1000) + "ms frame " + Time.frameCount
+                        + " gc +" + (n0 - gc0) + "/+" + (n1 - gc1) + "/+" + (n2 - gc2)
+                        + " pendingLoads " + PendingLoadCount()
+                        + " heap " + (GC.GetTotalMemory(false) >> 20) + "MB"
+                        + " targetFps " + Application.targetFrameRate
+                        + " vsync " + QualitySettings.vSyncCount);
+                }
+                gc0 = n0; gc1 = n1; gc2 = n2;
+            }
+        }
+
+        /// <summary>Bounded during world load; unbounded with 7DTD_CONNECT_DEBUG=1 or `diag on`.</summary>
+        static void Trace(int step, string message)
+        {
+            if (DiagToggle.Enabled || step <= UngatedTraceSteps)
+                Log.Out("[7dtd-connect] StartAsServer trace: " + message);
+        }
+
+        static IEnumerator DrainWorldLoad(IEnumerator root)
+        {
+            FieldInfo forceSync = typeof(LoadManager).GetField("forceLoadSync",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            bool canRestore = forceSync != null && forceSync.FieldType == typeof(bool);
+            bool previousForceSync = canRestore && (bool)forceSync.GetValue(null);
+            if (canRestore) forceSync.SetValue(null, true);
+
+            try
+            {
+                var stack = new Stack<IEnumerator>();
+                stack.Push(root);
+                while (stack.Count != 0)
+                {
+                    IEnumerator iterator = stack.Peek();
+                    if (!MoveNext("World.LoadWorld", iterator, out object current))
+                    {
+                        stack.Pop();
+                        continue;
+                    }
+                    if (current is IEnumerator nested)
+                        stack.Push(nested);
+                    // Leaf yields in World.LoadWorld are frame-budget breaks or
+                    // cleanup operations. Returning one triggers the Local-host stall.
+                }
+            }
+            finally
+            {
+                if (canRestore) forceSync.SetValue(null, previousForceSync);
+            }
+            yield break;
+        }
+
+        static IEnumerator PrepareCreateWorld(IEnumerator root)
+        {
+            int skippedFrameBreaks = 0;
+            int step = 0;
+            // The observed freeze at "AstarManager Init" sits inside the suppressed
+            // window, whose yields never reach Flatten. Trace here as well, or the
+            // instrument misses the failure it exists to catch.
+            while (MoveNext("createWorld", root, out object current))
+            {
+                Trace(++step, "createWorld step " + step
+                    + " skipped " + skippedFrameBreaks
+                    + " yield " + (current == null ? "null" : current.GetType().Name)
+                    + " frame " + UnityEngine.Time.frameCount);
+                if (current is IEnumerator nested)
+                {
+                    if (skippedFrameBreaks >= CreateWorldUnsafeFrameBreaks)
+                    {
+                        yield return nested;
+                        continue;
+                    }
+
+                    // The only child before the safe boundary is World.LoadWorld,
+                    // whose wrapper drains it without exposing leaf yields.
+                    while (MoveNext("createWorld child", nested, out object childCurrent))
+                    {
+                        if (childCurrent != null)
+                            yield return childCurrent;
+                    }
+                    continue;
+                }
+
+                if (current == null && skippedFrameBreaks < CreateWorldUnsafeFrameBreaks)
+                {
+                    skippedFrameBreaks++;
+                    continue;
+                }
+                yield return current;
+            }
+
+            // StartAsServer next calls EntityFactory.CreateEntity for the local
+            // player, and SDCSUtils assembles the body with ~20 synchronous
+            // addressable loads, each ending in Addressables.WaitForCompletion().
+            // That call deadlocks when any async addressable operation is still
+            // in flight -- the hang, traced to EntityAlive.switchModelView with no
+            // return. Automation never hits it because it forces every load sync
+            // from boot. Let the pending async queue drain first; these nulls
+            // reach Unity so LoadManager.Update keeps pumping.
+            float deadline = Time.realtimeSinceStartup + 60f;
+            int pending = PendingLoadCount();
+            if (pending > 0) Log.Out("[7dtd-connect] Local-host draining " + pending + " pending async loads before player creation");
+            while (pending > 0 && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+                pending = PendingLoadCount();
+            }
+            // The queue is empty *now*; anything that starts async after this
+            // point would reopen the WaitForCompletion deadlock window. Force
+            // sync loading for the rest of startup (restored in Flatten's finally)
+            // so no new async addressable op can be in flight when SDCSUtils runs.
+            HoldForceLoadSync();
+            // A couple of extra frames so just-completed requests finish their callbacks.
+            yield return null;
+            yield return null;
+            Log.Out(pending > 0
+                ? "[7dtd-connect] Local-host async drain timed out with " + pending + " pending"
+                : "[7dtd-connect] Local-host async loads drained, sync loading held until startup completes");
+        }
+
+        static FieldInfo _forceSyncField;
+        static bool _forceSyncHeld, _forceSyncPrevious;
+
+        static void HoldForceLoadSync()
+        {
+            try
+            {
+                _forceSyncField ??= typeof(LoadManager).GetField("forceLoadSync",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                if (_forceSyncField == null || _forceSyncField.FieldType != typeof(bool) || _forceSyncHeld) return;
+                _forceSyncPrevious = (bool)_forceSyncField.GetValue(null);
+                _forceSyncField.SetValue(null, true);
+                _forceSyncHeld = true;
+            }
+            catch (Exception ex) { Log.Warning("[7dtd-connect] force-sync hold failed: " + ex.Message); }
+        }
+
+        static void ReleaseForceLoadSync()
+        {
+            if (!_forceSyncHeld) return;
+            try { _forceSyncField.SetValue(null, _forceSyncPrevious); }
+            catch (Exception ex) { Log.Warning("[7dtd-connect] force-sync release failed: " + ex.Message); }
+            _forceSyncHeld = false;
+        }
+
+        static FieldInfo _loadRequests, _deferredLoadRequests;
+        static MethodInfo _workBatchCount;
+
+        static int PendingLoadCount()
+        {
+            try
+            {
+                if (_loadRequests == null)
+                {
+                    const BindingFlags flags = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+                    _loadRequests = typeof(LoadManager).GetField("loadRequests", flags);
+                    _deferredLoadRequests = typeof(LoadManager).GetField("deferedLoadRequests", flags);
+                    _workBatchCount = _loadRequests?.FieldType.GetMethod("Count", Type.EmptyTypes);
+                }
+                int count = 0;
+                object batch = _loadRequests?.GetValue(null);
+                if (batch != null && _workBatchCount != null) count += (int)_workBatchCount.Invoke(batch, null);
+                if (_deferredLoadRequests?.GetValue(null) is ICollection deferred) count += deferred.Count;
+                return count;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-connect] pending load count failed: " + ex.Message);
+                return 0;
+            }
+        }
+
+        static bool MoveNext(string stage, IEnumerator iterator, out object current)
+        {
+            try
+            {
+                if (!iterator.MoveNext())
+                {
+                    current = null;
+                    return false;
+                }
+                current = iterator.Current;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error("[7dtd-connect] Local-host load failed in " + stage + ": " + ex);
+                throw;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(World), nameof(World.LoadWorld))]
+    static class Patch_LocalHost_WorldLoad
+    {
+        static void Postfix(ref IEnumerator __result) => LocalHostWorldLoad.WrapWorldLoad(ref __result);
+    }
+
+    [HarmonyPatch(typeof(GameManager), "createWorld")]
+    static class Patch_LocalHost_CreateWorld
+    {
+        static void Postfix(ref IEnumerator __result) => LocalHostWorldLoad.WrapCreateWorld(ref __result);
+    }
+
+    [HarmonyPatch(typeof(GameManager), nameof(GameManager.StartAsServer))]
+    static class Patch_LocalHost_StartAsServer
+    {
+        static void Postfix(ref IEnumerator __result) => LocalHostWorldLoad.WrapStartAsServer(ref __result);
+    }
+
+}

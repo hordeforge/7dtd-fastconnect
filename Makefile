@@ -30,6 +30,7 @@ test:
 	$(ROOT)/scripts/test_player_name_override.sh
 	$(ROOT)/scripts/test_force_load_sync_override.sh
 	$(ROOT)/scripts/test_automation_mode.sh
+	$(ROOT)/scripts/test_local_host_world_load.sh
 	$(ROOT)/scripts/test_mute_client_audio.sh
 	$(ROOT)/scripts/test_monotonic_deadlines.sh
 	$(ROOT)/scripts/test_log_marker_cache.sh
