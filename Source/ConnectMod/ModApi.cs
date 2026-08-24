@@ -32,7 +32,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-connect] intro movie disable failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] intro movie disable failed: " + ex.Message);
             }
 
             if (AutomationMode.Enabled) try
