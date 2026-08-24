@@ -46,35 +46,48 @@ namespace SdtdConnect
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
+        // Shared normalization for every target grammar (F1 merge, env, argv),
+        // so the entry paths cannot drift: a pasted steam://connect/ prefix is
+        // stripped (its colons must not mask an explicit port), and a dangling
+        // separator colon ("host:", "[v6]:") carries an empty port by
+        // TryParse's rule, so it is dropped instead of leaving an unparsable
+        // host behind.
+        static string StripSchemeAndEmptyPort(string raw)
+        {
+            if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
+                raw = raw.Substring("steam://connect/".Length);
+            if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
+            return raw;
+        }
+
+        // Port-suffix rule shared by both grammar branches: integer 1..65535.
+        static bool TryParsePort(string text, out int port)
+        {
+            return int.TryParse(text, out port) && port >= 1 && port <= 65535;
+        }
+
         /// <summary>
-        /// Merges an optional explicit port argument into a raw host string:
-        /// strips a pasted steam://connect/ prefix (its colons must not mask
-        /// an explicit port) and applies TryParse's port rule so the second
-        /// token is only appended to a host that does not already carry a
-        /// port. A dangling separator colon ("host:", "[v6]:") is an empty
-        /// port by that same rule, so it is dropped first: appending would
-        /// otherwise double the colon, and passing through would leave an
-        /// unparsable host behind. A bare IPv6 address gets the port appended
-        /// in bracketed form: TryParse reads any ":port" suffix off a bare
-        /// IPv6 as part of the address, so the merged string must come back
-        /// as [addr]:port to round-trip. portArg=null keeps just the strips.
+        /// Merges an optional explicit port argument into a raw host string
+        /// (normalized by StripSchemeAndEmptyPort first): the second token is
+        /// only appended to a host that does not already carry a port. A bare
+        /// IPv6 address gets the port appended in bracketed form: TryParse
+        /// reads any ":port" suffix off a bare IPv6 as part of the address,
+        /// so the merged string must come back as [addr]:port to round-trip.
+        /// portArg=null keeps just the strips.
         /// </summary>
         public static string MergePortArg(string raw, string portArg)
         {
             if (raw == null) return null;
-            if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
-                raw = raw.Substring("steam://connect/".Length);
+            raw = StripSchemeAndEmptyPort(raw);
             bool hasPort;
             bool bracketed = raw.StartsWith("[");
             if (bracketed)
             {
-                if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
                 int close = raw.IndexOf(']');
                 hasPort = close >= 0 && close < raw.Length - 1 && raw[close + 1] == ':';
             }
             else
             {
-                if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
                 int firstColon = raw.IndexOf(':');
                 hasPort = firstColon >= 0 && firstColon == raw.LastIndexOf(':');
             }
@@ -97,15 +110,8 @@ namespace SdtdConnect
                 return false;
             }
 
-            raw = raw.Trim();
-            // Accept host, host:port, or a pasted steam://connect/ URL (scheme stripped).
-            if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
-                raw = raw.Substring("steam://connect/".Length);
-            // Same dangling-separator rule MergePortArg applies: "host:" /
-            // "[v6]:" carry an empty port, so drop the colon instead of
-            // leaving an unparsable host behind (env/argv reach TryParse
-            // directly and would otherwise diverge from the F1 command).
-            if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
+            // Accept host, host:port, or a pasted steam://connect/ URL.
+            raw = StripSchemeAndEmptyPort(raw.Trim());
 
             string hostPart = raw;
             int portPart = DefaultPort;
@@ -122,7 +128,7 @@ namespace SdtdConnect
                 hostPart = raw.Substring(1, close - 1);
                 if (close + 1 < raw.Length && raw[close + 1] == ':')
                 {
-                    if (!int.TryParse(raw.Substring(close + 2), out portPart) || portPart < 1 || portPart > 65535)
+                    if (!TryParsePort(raw.Substring(close + 2), out portPart))
                     {
                         error = "bad port";
                         return false;
@@ -136,12 +142,12 @@ namespace SdtdConnect
                 if (colon > 0 && colon < raw.Length - 1
                     && raw.IndexOf(':') == colon) // single colon → not bare IPv6
                 {
-                    hostPart = raw.Substring(0, colon);
-                    if (!int.TryParse(raw.Substring(colon + 1), out portPart) || portPart < 1 || portPart > 65535)
+                    if (!TryParsePort(raw.Substring(colon + 1), out portPart))
                     {
                         error = "bad port";
                         return false;
                     }
+                    hostPart = raw.Substring(0, colon);
                 }
                 else
                     hostPart = raw;
@@ -215,6 +221,57 @@ namespace SdtdConnect
             return false;
         }
 
+        // Resolves a hostname to an address, preferring IPv4 when DNS returns
+        // mixed families (matches stock direct-connect UI). Literal IPs pass
+        // through untouched.
+        static bool ResolveHostIPv4(string host, out string ip, out string message)
+        {
+            ip = host;
+            message = null;
+            if (IPAddress.TryParse(host, out _)) return true;
+            try
+            {
+                // GetHostEntry has no timeout; a wedged resolver would
+                // freeze the menu thread for the OS retry window. Bound
+                // the wait and report instead.
+                const int dnsTimeoutMs = 5000;
+                var pending = Dns.BeginGetHostEntry(host, null, null);
+                try
+                {
+                    if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
+                    {
+                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
+                        return false;
+                    }
+                    var entry = Dns.EndGetHostEntry(pending);
+                    if (entry.AddressList == null || entry.AddressList.Length == 0)
+                    {
+                        message = "no IP for hostname " + SanitizeForLog(host);
+                        return false;
+                    }
+                    ip = entry.AddressList[0].ToString();
+                    for (int i = 0; i < entry.AddressList.Length; i++)
+                    {
+                        if (entry.AddressList[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        {
+                            ip = entry.AddressList[i].ToString();
+                            break;
+                        }
+                    }
+                }
+                finally
+                {
+                    try { pending.AsyncWaitHandle.Close(); } catch { }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                message = "DNS failed for " + SanitizeForLog(host) + ": " + ex.Message;
+                return false;
+            }
+        }
+
         /// <summary>Same path as stock "Connect by IP" UI (GameServerInfo IP + Port → ConnectionManager.Connect).</summary>
         public static bool TryConnect(string host, int port, out string message)
         {
@@ -234,51 +291,8 @@ namespace SdtdConnect
                     return false;
                 }
 
-                // Prefer IPv4 when DNS returns mixed (matches stock direct-connect UI).
-                string ip = host;
-                if (!IPAddress.TryParse(host, out _))
-                {
-                    try
-                     {
-                        // GetHostEntry has no timeout; a wedged resolver would
-                        // freeze the menu thread for the OS retry window. Bound
-                        // the wait and report instead.
-                        const int dnsTimeoutMs = 5000;
-                        var pending = Dns.BeginGetHostEntry(host, null, null);
-                        try
-                        {
-                            if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
-                            {
-                                message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
-                                return false;
-                            }
-                            var entry = Dns.EndGetHostEntry(pending);
-                            if (entry.AddressList == null || entry.AddressList.Length == 0)
-                            {
-                                message = "no IP for hostname " + SanitizeForLog(host);
-                                return false;
-                            }
-                            ip = entry.AddressList[0].ToString();
-                            for (int i = 0; i < entry.AddressList.Length; i++)
-                            {
-                                if (entry.AddressList[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                                {
-                                    ip = entry.AddressList[i].ToString();
-                                    break;
-                                }
-                            }
-                        }
-                        finally
-                        {
-                            try { pending.AsyncWaitHandle.Close(); } catch { }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        message = "DNS failed for " + SanitizeForLog(host) + ": " + ex.Message;
-                        return false;
-                    }
-                }
+                if (!ResolveHostIPv4(host, out string ip, out message))
+                    return false;
 
                 var gsi = new GameServerInfo();
                 gsi.SetValue(GameInfoString.IP, ip);

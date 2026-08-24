@@ -117,172 +117,17 @@ namespace SdtdConnect
                 // Per-instance time check, keyed weakly so it cannot outlive the window.
                 if (!ShouldRun(__instance)) return;
 
-                var ppl = GameManager.Instance.persistentPlayers;
-                var world = GameManager.Instance.World;
-
-                // Collect bot entities in world: EntityAlive zombie with [Bot] prefix
-                var bots = new List<EntityAlive>();
-                try
-                {
-                    // World.EntityAlives contains all alive; filter to bots
-                    var alives = world.EntityAlives;
-                    if (alives != null)
-                    {
-                        foreach (var ea in alives)
-                        {
-                            if (ea == null || ea.IsDead()) continue;
-                            // Identify by [Bot] prefix (server sets EntityName = [Bot] Foo_NN)
-                            string nm = null;
-                            try { nm = ea.EntityName; } catch { }
-                            if (!string.IsNullOrEmpty(nm) && nm.StartsWith("[Bot]", StringComparison.Ordinal))
-                                bots.Add(ea);
-                            else
-                            {
-                                // Fallback: buff marker set by BotMod
-                                try
-                                {
-                                    if (ea.Buffs != null && ea.Buffs.HasCustomVar("botmod_isBot") && ea.Buffs.GetCustomVar("botmod_isBot") > 0.5f)
-                                        bots.Add(ea);
-                                }
-                                catch { }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // A scan that always fails means zero bots are ever found;
-                    // that must not be silent.
-                    WarnOnce("bot scan", ex);
-                }
-
+                var bots = CollectBots(GameManager.Instance.World);
                 if (bots.Count == 0) return;
 
-                // Expand the backing sorted list via cached reflection handles.
                 var sorted = SortedListField?.GetValue(__instance) as List<PersistentPlayerData>;
                 if (sorted == null) return;
 
-                int added = 0;
-                foreach (var bot in bots)
-                {
-                    // Avoid duplicate if already represented (some server configs may map bots to PPL already)
-                    bool already = false;
-                    foreach (var ppd in sorted)
-                    {
-                        try { if (ppd != null && ppd.EntityId == bot.entityId) { already = true; break; } } catch { }
-                    }
-                    if (already) continue;
+                if (AppendMissingBots(sorted, bots) == 0) return;
 
-                    var ppdBot = MakeBotPersistentPlayerData(bot);
-                    if (ppdBot == null) continue;
-                    sorted.Add(ppdBot);
-                    added++;
-                }
-
-                if (added == 0) return;
-
-                // Re-sort to keep deterministic order (bots after players, alphabetical)
-                try
-                {
-                    var comp = PlayerComparator();
-                    if (comp != null)
-                        sorted.Sort(comp);
-                    else
-                        sorted.Sort((a, b) => string.Compare(a?.PlayerName?.DisplayName, b?.PlayerName?.DisplayName, StringComparison.OrdinalIgnoreCase));
-                }
-                catch (Exception ex)
-                {
-                    WarnOnce("sort", ex);
-                }
-
-                // Update the count label and paging to reflect new size
-                try
-                {
-                    var lbl = NumPlayersField?.GetValue(__instance) as XUiV_Label;
-                    if (lbl != null) lbl.Text = sorted.Count.ToString();
-                    var pg = PagerField?.GetValue(__instance) as XUiC_Paging;
-                    var gv = GridField?.GetValue(__instance) as XUiV_Grid;
-                    if (pg != null && gv != null) pg.SetLastPageByElementsAndPageLength(sorted.Count, gv.Rows);
-                }
-                catch (Exception ex)
-                {
-                    WarnOnce("pager", ex);
-                }
-
-                // Vanilla's binding pass already ran; fill the tail rows the appended bots landed in.
-                try
-                {
-                    var entries = EntriesField?.GetValue(__instance) as XUiC_PlayersListEntry[];
-                    if (entries == null) return;
-                    var pager = PagerField?.GetValue(__instance) as XUiC_Paging;
-                    int rows;
-                    try
-                    {
-                        var gv2 = GridField?.GetValue(__instance) as XUiV_Grid;
-                        rows = gv2 != null ? gv2.Rows : entries.Length;
-                    }
-                    catch { rows = entries.Length; }
-                    int page = pager != null ? pager.GetPage() : 0;
-                    int start = page * rows;
-                    // Find first empty slot and fill sequentially with overflow bots that didn't fit in first page due to prior binding.
-                    // Vanilla's first pass bound 0..min(sorted.Count, rows+page*rows). Bots appended extend sorted beyond what was bound, so tail rows are empty.
-                    for (int i = 0; i < entries.Length; i++)
-                    {
-                        var entry = entries[i];
-                        if (entry == null) continue;
-                        int idx = start + i;
-                        if (idx >= sorted.Count) break;
-                        var ppd = sorted[idx];
-                        // If this row already shows correct entity (via EntityId), skip
-                        try
-                        {
-                            var curId = EntryEntityIdField != null ? (int)EntryEntityIdField.GetValue(entry) : -1;
-                            if (curId == ppd.EntityId && curId != -1) continue;
-                            // Check if row is empty (EntityId == -1 and PlayerData == null before our injection) or mismatched bot
-                            var worldEnt = world.GetEntity(ppd.EntityId) as EntityAlive;
-                            if (worldEnt == null || worldEnt.EntityName == null
-                                || !worldEnt.EntityName.StartsWith("[Bot]", StringComparison.Ordinal))
-                                continue;
-
-                            // Bind this row to bot ppd: mimic vanilla online path but for zombie bots
-                            EntryEntityIdField?.SetValue(entry, ppd.EntityId);
-                            EntryPlayerDataField?.SetValue(entry, ppd);
-                            entry.ViewComponent.IsVisible = true;
-                            var pn = EntryPlayerNameField?.GetValue(entry) as XUiC_PlayerName;
-                            if (pn != null) pn.UpdatePlayerData(ppd.PlayerData, false, ppd.PlayerName.DisplayName);
-                            EntryIsOfflineField?.SetValue(entry, false);
-                            EntryIsLocalPlayerProp?.SetValue(entry, false, null);
-                            // Stats: show bot's alive stats (health/level trivially)
-                            SetLabel(EntryZombieKillsField, entry, worldEnt.KilledZombies.ToString());
-                            SetLabel(EntryPlayerKillsField, entry, worldEnt.KilledPlayers.ToString());
-                            SetLabel(EntryDeathsField, entry, worldEnt.Died.ToString());
-                            SetLabel(EntryLevelField, entry,
-                                (worldEnt.Progression != null ? worldEnt.Progression.GetLevel() : 1).ToString());
-                            SetLabel(EntryGamestageField, entry,
-                                (worldEnt is EntityPlayer ep ? ep.gameStage : 0).ToString());
-                            SetLabel(EntryPingField, entry, "--"); // bots have no ping
-                            // Hide moderation/party UI for bots
-                            var admin = EntryAdminSpriteField?.GetValue(entry) as XUiV_Sprite;
-                            if (admin != null) admin.IsVisible = false;
-                            var voice = EntryVoiceField?.GetValue(entry) as XUiV_Button;
-                            if (voice != null) voice.IsVisible = false;
-                            var chat = EntryChatField?.GetValue(entry) as XUiV_Button;
-                            if (chat != null) chat.IsVisible = false;
-                            entry.RefreshBindings();
-                        }
-                        catch (Exception ex)
-                        {
-                            // Per-row tolerance stays, but the first failure is
-                            // announced: if every row fails the same way this is
-                            // a broken patch, not a bad row.
-                            WarnOnce("row bind", ex);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    WarnOnce("row bind", ex);
-                }
+                SortInjectedBots(sorted);
+                UpdateCountAndPager(__instance, sorted.Count);
+                BindTailRows(__instance, sorted);
             }
             catch (Exception ex)
             {
@@ -291,6 +136,193 @@ namespace SdtdConnect
                 // an empty player list working fine. Announce once.
                 WarnOnce("list inject", ex);
             }
+        }
+
+        // Collect alive bot entities in the world: [Bot]-prefixed names, or
+        // BotMod's buff marker when the name check does not decide.
+        static List<EntityAlive> CollectBots(World world)
+        {
+            var bots = new List<EntityAlive>();
+            try
+            {
+                var alives = world.EntityAlives;
+                if (alives == null) return bots;
+                foreach (var ea in alives)
+                {
+                    if (ea == null || ea.IsDead()) continue;
+                    if (IsBot(ea)) bots.Add(ea);
+                }
+            }
+            catch (Exception ex)
+            {
+                // A scan that always fails means zero bots are ever found;
+                // that must not be silent.
+                WarnOnce("bot scan", ex);
+            }
+            return bots;
+        }
+
+        static bool IsBot(EntityAlive ea)
+        {
+            // Identify by [Bot] prefix (server sets EntityName = [Bot] Foo_NN)
+            string nm = null;
+            try { nm = ea.EntityName; } catch { }
+            if (!string.IsNullOrEmpty(nm) && nm.StartsWith("[Bot]", StringComparison.Ordinal))
+                return true;
+            // Fallback: buff marker set by BotMod (also tried when the name
+            // is present but unprefixed).
+            try
+            {
+                return ea.Buffs != null && ea.Buffs.HasCustomVar("botmod_isBot")
+                    && ea.Buffs.GetCustomVar("botmod_isBot") > 0.5f;
+            }
+            catch { return false; }
+        }
+
+        static bool SortedContainsEntity(List<PersistentPlayerData> sorted, int entityId)
+        {
+            foreach (var ppd in sorted)
+            {
+                try { if (ppd != null && ppd.EntityId == entityId) return true; } catch { }
+            }
+            return false;
+        }
+
+        // Appends a synthetic PPD for every bot not already represented
+        // (some server configs may map bots to PPL already); returns how many
+        // were added.
+        static int AppendMissingBots(List<PersistentPlayerData> sorted, List<EntityAlive> bots)
+        {
+            int added = 0;
+            foreach (var bot in bots)
+            {
+                if (SortedContainsEntity(sorted, bot.entityId)) continue;
+                var ppdBot = MakeBotPersistentPlayerData(bot);
+                if (ppdBot == null) continue;
+                sorted.Add(ppdBot);
+                added++;
+            }
+            return added;
+        }
+
+        // Re-sort to keep deterministic order (bots after players, alphabetical).
+        static void SortInjectedBots(List<PersistentPlayerData> sorted)
+        {
+            try
+            {
+                var comp = PlayerComparator();
+                if (comp != null)
+                    sorted.Sort(comp);
+                else
+                    sorted.Sort((a, b) => string.Compare(a?.PlayerName?.DisplayName, b?.PlayerName?.DisplayName, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception ex)
+            {
+                WarnOnce("sort", ex);
+            }
+        }
+
+        // Update the count label and paging to reflect the new size.
+        static void UpdateCountAndPager(XUiC_PlayersList __instance, int totalCount)
+        {
+            try
+            {
+                var lbl = NumPlayersField?.GetValue(__instance) as XUiV_Label;
+                if (lbl != null) lbl.Text = totalCount.ToString();
+                var pg = PagerField?.GetValue(__instance) as XUiC_Paging;
+                var gv = GridField?.GetValue(__instance) as XUiV_Grid;
+                if (pg != null && gv != null) pg.SetLastPageByElementsAndPageLength(totalCount, gv.Rows);
+            }
+            catch (Exception ex)
+            {
+                WarnOnce("pager", ex);
+            }
+        }
+
+        // Vanilla's binding pass already ran; fill the tail rows the appended
+        // bots landed in. Vanilla's first pass bound 0..min(sorted.Count,
+        // rows+page*rows). Bots appended extend sorted beyond what was bound,
+        // so tail rows are empty.
+        static void BindTailRows(XUiC_PlayersList __instance, List<PersistentPlayerData> sorted)
+        {
+            XUiC_PlayersListEntry[] entries;
+            int start;
+            try
+            {
+                entries = EntriesField?.GetValue(__instance) as XUiC_PlayersListEntry[];
+                if (entries == null) return;
+                var pager = PagerField?.GetValue(__instance) as XUiC_Paging;
+                int rows;
+                try
+                {
+                    var gv = GridField?.GetValue(__instance) as XUiV_Grid;
+                    rows = gv != null ? gv.Rows : entries.Length;
+                }
+                catch { rows = entries.Length; }
+                int page = pager != null ? pager.GetPage() : 0;
+                start = page * rows;
+            }
+            catch (Exception ex)
+            {
+                WarnOnce("row bind", ex);
+                return;
+            }
+
+            for (int i = 0; i < entries.Length; i++)
+            {
+                var entry = entries[i];
+                if (entry == null) continue;
+                int idx = start + i;
+                if (idx >= sorted.Count) break;
+                var ppd = sorted[idx];
+                // If this row already shows correct entity (via EntityId), skip
+                try
+                {
+                    var curId = EntryEntityIdField != null ? (int)EntryEntityIdField.GetValue(entry) : -1;
+                    if (curId == ppd.EntityId && curId != -1) continue;
+                    var worldEnt = GameManager.Instance.World.GetEntity(ppd.EntityId) as EntityAlive;
+                    if (worldEnt == null || worldEnt.EntityName == null
+                        || !worldEnt.EntityName.StartsWith("[Bot]", StringComparison.Ordinal))
+                        continue;
+                    BindBotRow(entry, ppd, worldEnt);
+                }
+                catch (Exception ex)
+                {
+                    // Per-row tolerance stays, but the first failure is
+                    // announced: if every row fails the same way this is
+                    // a broken patch, not a bad row.
+                    WarnOnce("row bind", ex);
+                }
+            }
+        }
+
+        // Bind one row to a bot PPD: mimic vanilla online path but for zombie bots.
+        static void BindBotRow(XUiC_PlayersListEntry entry, PersistentPlayerData ppd, EntityAlive worldEnt)
+        {
+            EntryEntityIdField?.SetValue(entry, ppd.EntityId);
+            EntryPlayerDataField?.SetValue(entry, ppd);
+            entry.ViewComponent.IsVisible = true;
+            var pn = EntryPlayerNameField?.GetValue(entry) as XUiC_PlayerName;
+            if (pn != null) pn.UpdatePlayerData(ppd.PlayerData, false, ppd.PlayerName.DisplayName);
+            EntryIsOfflineField?.SetValue(entry, false);
+            EntryIsLocalPlayerProp?.SetValue(entry, false, null);
+            // Stats: show bot's alive stats (health/level trivially)
+            SetLabel(EntryZombieKillsField, entry, worldEnt.KilledZombies.ToString());
+            SetLabel(EntryPlayerKillsField, entry, worldEnt.KilledPlayers.ToString());
+            SetLabel(EntryDeathsField, entry, worldEnt.Died.ToString());
+            SetLabel(EntryLevelField, entry,
+                (worldEnt.Progression != null ? worldEnt.Progression.GetLevel() : 1).ToString());
+            SetLabel(EntryGamestageField, entry,
+                (worldEnt is EntityPlayer ep ? ep.gameStage : 0).ToString());
+            SetLabel(EntryPingField, entry, "--"); // bots have no ping
+            // Hide moderation/party UI for bots
+            var admin = EntryAdminSpriteField?.GetValue(entry) as XUiV_Sprite;
+            if (admin != null) admin.IsVisible = false;
+            var voice = EntryVoiceField?.GetValue(entry) as XUiV_Button;
+            if (voice != null) voice.IsVisible = false;
+            var chat = EntryChatField?.GetValue(entry) as XUiV_Button;
+            if (chat != null) chat.IsVisible = false;
+            entry.RefreshBindings();
         }
 
         // Per-instance throttle state. ConditionalWeakTable so entries die

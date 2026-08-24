@@ -26,17 +26,10 @@ if ! command -v pactl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
 	exit 0
 fi
 
-# Monotonic seconds since boot (/proc/uptime, CLOCK_BOOTTIME). Bash's SECONDS
-# is wall-clock derived: an NTP step or manual correction mid-wait would extend
-# or truncate this bounded poll. Fallback keeps the old behaviour off-Linux.
-mono_sec() {
-	local up
-	if read -r up _ < /proc/uptime 2>/dev/null && [[ "$up" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-		printf '%s\n' "${up%%.*}"
-	else
-		printf '%s\n' "$SECONDS"
-	fi
-}
+# Monotonic deadline source shared with one_shot_join.sh: see
+# scripts/monotonic_clock.sh for why $SECONDS must not bound this poll.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/monotonic_clock.sh"
 
 deadline=$(( $(mono_sec) + WAIT_SECONDS ))
 while (( $(mono_sec) < deadline )); do

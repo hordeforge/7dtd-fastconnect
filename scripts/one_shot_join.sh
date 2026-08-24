@@ -70,18 +70,9 @@ launch_pid=""
 
 log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
 
-# Monotonic seconds since boot (/proc/uptime, CLOCK_BOOTTIME). Bash's SECONDS
-# is wall-clock derived: an NTP step or manual correction mid-wait would extend
-# or truncate the join timeout (killing a client that was about to spawn).
-# Fallback keeps the old behaviour off-Linux.
-mono_sec() {
-  local up
-  if read -r up _ < /proc/uptime 2>/dev/null && [[ "$up" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-    printf '%s\n' "${up%%.*}"
-  else
-    printf '%s\n' "$SECONDS"
-  fi
-}
+# Monotonic deadline source shared with mute_client_audio.sh: see
+# scripts/monotonic_clock.sh for why $SECONDS must not bound these waits.
+source "$ROOT/scripts/monotonic_clock.sh"
 
 # Join success signal; some checks accept extra partial-progress markers too.
 JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'

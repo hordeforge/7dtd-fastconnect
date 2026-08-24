@@ -222,9 +222,10 @@ namespace SdtdConnect
             // terrain tint plus biome fog are driven by the chunk's biome id,
             // so log what the client actually received.
             var pch = world.GetChunkFromWorldPos(b) as Chunk;
+            var biome = world.GetBiome(b.x, b.z);
             Log.Out("[7dtd-fastconnect] biome hb chunkBiome="
                 + (pch != null ? pch.GetBiomeId(b.x & 15, b.z & 15).ToString() : "null")
-                + " worldBiome=" + (world.GetBiome(b.x, b.z) != null ? world.GetBiome(b.x, b.z).m_sBiomeName : "null")
+                + " worldBiome=" + (biome != null ? biome.m_sBiomeName : "null")
                 + " dayPercent=" + SkyManager.dayPercent
                 + " indoorFog=" + SkyManager.indoorFogOn);
 
