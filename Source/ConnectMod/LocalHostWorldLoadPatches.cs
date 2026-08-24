@@ -160,6 +160,20 @@ namespace SdtdConnect
                 }
             }
             Log.Out("[7dtd-fastconnect] Local-host startup completed");
+            StartHitchMonitor();
+        }
+
+        // Flatten completes once per local-host StartAsServer, so an
+        // unconditional start would stack one more eternal coroutine on every
+        // host session for the rest of the process. The monitor is meant to
+        // run for the whole lifetime ("diag on" mid-session must still see
+        // hitches), so keep exactly one instead of adding a stop path.
+        static bool _hitchMonitorStarted;
+
+        static void StartHitchMonitor()
+        {
+            if (_hitchMonitorStarted) return;
+            _hitchMonitorStarted = true;
             ThreadManager.StartCoroutine(HitchMonitor());
         }
 

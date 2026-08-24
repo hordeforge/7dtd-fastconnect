@@ -181,10 +181,12 @@ if [[ "$START_SERVER" == "1" ]]; then
     >"$SERVER_LOG_OUT" 2>&1 &
   server_pid=$!
   log "server_pid=$server_pid"
-  # Wait for TCP GSI port
-  for i in $(seq 1 40); do
+  # Wait for TCP GSI port; polls are 0.5s apart, so measure elapsed time on
+  # the monotonic clock instead of reporting the poll count as seconds.
+  listen_start=$(mono_sec)
+  for _ in $(seq 1 40); do
     if ss -tln | grep -Eq ":${PORT}\\b"; then
-      log "server listening on $PORT after ${i}s"
+      log "server listening on $PORT after $(( $(mono_sec) - listen_start ))s"
       break
     fi
     sleep 0.5

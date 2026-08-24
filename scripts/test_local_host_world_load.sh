@@ -36,6 +36,9 @@ assert "never touches PlayerMoveController" lacks 'PlayerMoveController'
 # Traces and the hitch monitor are opt-in; the fix itself is the async drain.
 assert "gates the startup trace behind diag" grep -q 'if (DiagToggle.Enabled)' "$PATCHES"
 assert "gates hitch logging behind diag" grep -q '!DiagToggle.Enabled) continue' "$PATCHES"
+# Flatten completes once per local-host session; the eternal hitch monitor
+# must therefore be started once per process, not once per session.
+assert "starts only one eternal hitch monitor" grep -q 'if (_hitchMonitorStarted) return' "$PATCHES"
 assert "documents the fix" \
 	grep -q 'offline Local-platform world initialization' "$ROOT/README.md"
 assert "documents that ordinary play needs no sync-load opt-out" \
