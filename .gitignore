@@ -4,3 +4,6 @@ Source/ConnectMod/obj/
 __pycache__/
 .venv/
 *.lock
+coverage.cobertura.xml
+cov-*.xml
+coverage.svg
