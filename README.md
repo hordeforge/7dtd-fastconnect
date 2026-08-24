@@ -199,6 +199,20 @@ registry). Independent of master volume. Requires `pactl` and `jq`.
 CLIENT_MUTE=0 ./scripts/launch_client.sh
 ```
 
+Run the client on another graphics API:
+
+```bash
+GFX_API=vulkan ./scripts/launch_client.sh
+```
+
+`d3d11` stays the default because that is what the game ships with on Windows
+and through Proton, so every existing run keeps measuring what it measured
+before. It is a variable rather than a constant because **Unity takes the first
+`-force-*` argument it is given**, so a hardcoded one cannot be overridden by
+appending another — which left this launcher unable to drive a client on
+OpenGL or Vulkan at all. Anything checking that a shader renders on more than
+one graphics API needs exactly that.
+
 WirePlumber may persist mute by `application.name`. Unmute while the client
 is running:
 

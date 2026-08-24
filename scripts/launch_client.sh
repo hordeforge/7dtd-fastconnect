@@ -48,6 +48,27 @@ fi
 CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
 # Always skip TFP intro splash (before mods load) and stock news launch pref.
 EXTRA_ARGS=(-skipintro -SkipNewsScreen=true)
+
+# Which graphics API the client forces. d3d11 stays the default because that is
+# what this game ships with on Windows and through Proton, and changing it would
+# change what every existing run measures.
+#
+# It is a variable rather than a constant because a hardcoded -force-d3d11
+# cannot be overridden by a caller: Unity takes the *first* -force-* argument it
+# is given, so appending another does nothing. That made this launcher unable to
+# drive a client on OpenGL or Vulkan at all, which is exactly what an asset
+# pipeline needs in order to check that a shader renders on more than one
+# graphics API. Set GFX_API=vulkan, glcore, d3d11 or d3d12 - or none, to let the
+# game choose.
+GFX_API="${GFX_API:-d3d11}"
+case "$GFX_API" in
+  d3d11|d3d12|vulkan|glcore) GFX_ARGS=(-force-"$GFX_API") ;;
+  none) GFX_ARGS=() ;;
+  *)
+    echo "launch_client.sh: GFX_API must be d3d11, d3d12, vulkan, glcore or none (got '$GFX_API')" >&2
+    exit 2
+    ;;
+esac
 if [[ -n "$CONNECT" ]]; then
   EXTRA_ARGS+=(-connect="$CONNECT")
 fi
@@ -183,7 +204,7 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   echo "Log: $LOGFILE"
   cd "$GAME"
   # Cannot mute after exec — run proton, mute in parallel, wait for the game.
-  env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "$WIN_LOGFILE" "${EXTRA_ARGS[@]}" "$@" &
+  env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe "${GFX_ARGS[@]}" -nogs -noeac -logfile "$WIN_LOGFILE" "${EXTRA_ARGS[@]}" "$@" &
   game_pid=$!
   GAME_PID="$game_pid"
   start_mute_poll
