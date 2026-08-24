@@ -18,3 +18,14 @@ resolve_compat() {
   fi
   printf '%s\n' "${compat:-$root/steamapps/compatdata/$appid}"
 }
+
+# Kill the leftover Proton/wine stack after the game exe itself is gone:
+# orphaned wineservers and pressure-vessel containers leak threads/NPROC
+# across cycles until the client wedges at "Initializing Steam", so every
+# lifecycle script must sweep the same set instead of keeping its own copy of
+# this hard-won list. Best-effort; safe when nothing is running.
+kill_wine_stack() {
+  pkill -9 -f 'wineserver' 2>/dev/null || true
+  pkill -9 -f 'pressure-vessel|pv-adverb|pv-bwrap' 2>/dev/null || true
+  pkill -9 -f 'proton.*7DaysToDie|SteamLaunch.*251570' 2>/dev/null || true
+}

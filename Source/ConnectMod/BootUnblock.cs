@@ -26,7 +26,10 @@ namespace SdtdConnect
             string value = null;
             try { value = Environment.GetEnvironmentVariable(ForceLoadSyncEnv); }
             catch { }
-            _forceSyncEnabled = string.IsNullOrWhiteSpace(value) || EnvFlags.IsSetOn(value);
+            // Opt-out flag shape: unset/blank keeps the automation default
+            // (enabled); only an explicit 0/false/no/off opts out. IsOptOut
+            // treats unreadable env (null) the same as unset.
+            _forceSyncEnabled = !EnvFlags.IsOptOut(value);
             return _forceSyncEnabled.Value;
         }
 

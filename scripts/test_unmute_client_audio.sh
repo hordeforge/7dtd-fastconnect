@@ -18,14 +18,7 @@ assert "mute helper still exists (pair)" test -x "$ROOT/scripts/mute_client_audi
 BEHAV=""
 if command -v jq >/dev/null 2>&1; then
 	BEHAV="$(mktemp -d "${TMPDIR:-/tmp}/unmute-helper.XXXXXX")"
-	cat > "$BEHAV/pactl" <<'STUB'
-#!/usr/bin/env bash
-case "$1" in
-	-f) cat "${PACTL_JSON:?}" ;;
-	set-sink-input-mute) printf '%s\n' "$*" >>"${PACTL_LOG:?}" ;;
-	*) echo "unexpected pactl call: $*" >&2; exit 1 ;;
-esac
-STUB
+	cp "$ROOT/scripts/testdata/pactl_stub.sh" "$BEHAV/pactl"
 	chmod +x "$BEHAV/pactl"
 
 	printf '%s\n' '[

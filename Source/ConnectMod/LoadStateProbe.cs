@@ -10,7 +10,6 @@ namespace SdtdConnect
     {
         static float _next;
         static int _calls;
-        static bool _failLogged;
 
         static void Prefix(XUiC_SpawnSelectionWindow __instance)
         {
@@ -43,14 +42,10 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                // Same as the spawn heartbeat: announce the first failure once,
-                // otherwise a broken probe looks like a healthy quiet join.
-                if (!_failLogged)
-                {
-                    _failLogged = true;
-                    try { Log.Warning("[7dtd-fastconnect] load hb failed (further failures muted):\n" + ex); }
-                    catch { }
-                }
+                // Same contract as the other heartbeats: announce the first
+                // failure once, otherwise a broken probe looks like a healthy
+                // quiet join.
+                ProbeFailure.Once("load hb", ex);
             }
         }
     }

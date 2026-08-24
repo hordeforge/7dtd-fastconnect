@@ -28,32 +28,16 @@ fi
 
 # Monotonic deadline source shared with one_shot_join.sh: see
 # scripts/monotonic_clock.sh for why $SECONDS must not bound this poll.
+# Stream matching comes from audio_streams.sh, shared with unmute_client_audio.sh.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/monotonic_clock.sh"
+source "$SCRIPT_DIR/audio_streams.sh"
 
 deadline=$(( $(mono_sec) + WAIT_SECONDS ))
 while (( $(mono_sec) < deadline )); do
-	indexes="$(pactl -f json list sink-inputs 2>/dev/null | jq -r '
-		.[]
-		| select(
-			((.properties["application.name"] // "")
-				+ " "
-				+ (.properties["application.process.binary"] // ""))
-			| test("7DaysToDie"; "i")
-		)
-		| .index
-	' 2>/dev/null || true)"
+	indexes="$(game_sink_indexes)"
 	if [[ -n "$indexes" ]]; then
-		while read -r index; do
-			[[ -z "$index" ]] && continue
-			# The stream can vanish between listing and muting; one failure
-			# must not abort the rest of the list (best-effort helper).
-			if pactl set-sink-input-mute "$index" 1 2>/dev/null; then
-				echo "Muted 7 Days To Die audio stream (sink input $index)."
-			else
-				echo "WARN: could not mute sink input $index (stream may have closed)." >&2
-			fi
-		done <<< "$indexes"
+		apply_game_stream_mute 1 Muted <<<"$indexes"
 		exit 0
 	fi
 	sleep 1

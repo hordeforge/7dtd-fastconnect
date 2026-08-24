@@ -40,7 +40,6 @@ namespace SdtdConnect
     {
         static float _nextLog;
         static int _ticks;
-        static bool _failLogged;
 
         static void Prefix(MainMenuMono __instance)
         {
@@ -65,15 +64,10 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                // Same contract as the spawn/load heartbeats: a probe that
-                // always throws must not be silent, or it looks like a healthy
-                // quiet boot. Announce the first failure once, then mute.
-                if (!_failLogged)
-                {
-                    _failLogged = true;
-                    try { Log.Warning("[7dtd-fastconnect] boot hb failed (further failures muted):\n" + ex); }
-                    catch { }
-                }
+                // Same contract as the other heartbeats: a probe that always
+                // throws must not be silent, or it looks like a healthy quiet
+                // boot. ProbeFailure announces the first failure once.
+                ProbeFailure.Once("boot hb", ex);
             }
         }
     }

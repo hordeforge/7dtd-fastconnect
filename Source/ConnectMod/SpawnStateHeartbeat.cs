@@ -16,7 +16,6 @@ namespace SdtdConnect
     {
         static float _nextLog;
         static int _shots;
-        static bool _failLogged;
         static void Postfix()
         {
             if (!DiagToggle.Enabled) return;
@@ -53,15 +52,9 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                // Silence here is indistinguishable from a healthy quiet join;
-                // announce the first failure so the diagnostic cannot defeat
-                // itself, then stop spamming.
-                if (!_failLogged)
-                {
-                    _failLogged = true;
-                    try { Log.Warning("[7dtd-fastconnect] spawn hb failed (further failures muted):\n" + ex); }
-                    catch { }
-                }
+                // A probe that always throws must not be silent, but it also
+                // must not flood the log; ProbeFailure announces once.
+                ProbeFailure.Once("spawn hb", ex);
             }
         }
 

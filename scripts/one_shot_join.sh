@@ -123,9 +123,7 @@ kill_clients() {
   # Proton/wine stack outlives the exe: leftover wineservers and
   # pressure-vessel containers leak threads/NPROC across cycles until the
   # client wedges at "Initializing Steam". Sweep them after the exe is gone.
-  pkill -9 -f 'wineserver' 2>/dev/null || true
-  pkill -9 -f 'pressure-vessel|pv-adverb|pv-bwrap' 2>/dev/null || true
-  pkill -9 -f 'proton.*7DaysToDie|SteamLaunch.*251570' 2>/dev/null || true
+  kill_wine_stack
   return 0
 }
 

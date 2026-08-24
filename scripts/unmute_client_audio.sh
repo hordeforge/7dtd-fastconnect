@@ -18,26 +18,15 @@ if ! command -v pactl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
 	exit 1
 fi
 
-indexes="$(pactl -f json list sink-inputs 2>/dev/null | jq -r '
-	.[]
-	| select(
-		((.properties["application.name"] // "")
-			+ " "
-			+ (.properties["application.process.binary"] // ""))
-		| test("7DaysToDie"; "i")
-	)
-	| .index
-' 2>/dev/null || true)"
+# Stream matching shared with mute_client_audio.sh (same rule, or unmute
+# would look at different streams than mute touched).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/audio_streams.sh"
+
+indexes="$(game_sink_indexes)"
 
 if [[ -n "$indexes" ]]; then
-	while read -r index; do
-		[[ -z "$index" ]] && continue
-		if pactl set-sink-input-mute "$index" 0 2>/dev/null; then
-			echo "Unmuted 7 Days To Die audio stream (sink input $index)."
-		else
-			echo "WARN: could not unmute sink input $index (stream may have closed)." >&2
-		fi
-	done <<< "$indexes"
+	apply_game_stream_mute 0 Unmuted <<<"$indexes"
 	exit 0
 fi
 

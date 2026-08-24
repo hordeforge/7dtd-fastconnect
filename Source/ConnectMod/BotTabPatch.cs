@@ -63,19 +63,16 @@ namespace SdtdConnect
 
         static Comparison<PersistentPlayerData> _comparator;
         static bool _comparatorResolved;
-        static bool _failLogged;
 
         // Announce-once channel shared by every guarded section below. The
-        // inner per-section catches must route through this too: they swallow
-        // locally by design (one bad row must not kill the rest), but without
-        // this hook a persistently dead patch (reflection drift after a game
-        // update) would look like an empty player list working fine.
+        // inner per-section catches swallow locally by design (one bad row
+        // must not kill the rest), but without this hook a persistently dead
+        // patch (reflection drift after a game update) would look like an
+        // empty player list working fine; ProbeFailure announces the first
+        // failure once, then mutes.
         static void WarnOnce(string where, Exception ex)
         {
-            if (_failLogged) return;
-            _failLogged = true;
-            try { Log.Warning("[7dtd-fastconnect] BotTabPatch " + where + " failed (further failures muted): " + ex); }
-            catch { }
+            ProbeFailure.Once("BotTabPatch " + where, ex);
         }
 
         static FieldInfo InstanceField(Type t, string name)

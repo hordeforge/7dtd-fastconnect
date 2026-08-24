@@ -14,6 +14,8 @@ fi
 GAME_SRV="${GAME_SRV:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 LOGDIR="${LOGDIR:-$HOME/.cache/zdtd-scratch}"
 SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
+# Shared Proton knowledge: prefix derivation and the wine-stack sweep.
+source "$SCRIPTDIR/proton_paths.sh"
 # Default root of the sibling zdtd checkout (same convention as
 # one_shot_join.sh / zero_nre_join_loop.sh); empty when it is not checked out
 # next to this repo. Override with ZDTD= when it lives elsewhere; the -x check
@@ -27,9 +29,7 @@ pkill -f 'zig-out/bin/zdtd' 2>/dev/null || true
 # eventually hit RLIMIT_NPROC -> mono "Couldn't create thread" -> the client
 # wedges at "Initializing Steam". Sweep them all every restart.
 pkill -9 -f '7DaysToDie' 2>/dev/null || true
-pkill -9 -f 'wineserver' 2>/dev/null || true
-pkill -9 -f 'pressure-vessel|pv-adverb|pv-bwrap' 2>/dev/null || true
-pkill -9 -f 'proton.*7DaysToDie|SteamLaunch.*251570' 2>/dev/null || true
+kill_wine_stack
 sleep 3
 
 if [[ ! -x "$ZDTD" ]]; then

@@ -61,12 +61,8 @@ STREAMS_JSON = (
     ' {"index": 9, "properties": {"application.name": "spotify"}}]\n'
 )
 
-PACTL_STUB = """case "$1" in
-\t-f) cat "${PACTL_JSON:?}" ;;
-\tset-sink-input-mute) printf '%s\\n' "$*" >>"${PACTL_LOG:?}" ;;
-\t*) echo "unexpected pactl call: $*" >&2; exit 1 ;;
-esac
-"""
+# Shared pactl test double (same file the bash mute/unmute gates copy).
+PACTL_STUB = ROOT / "scripts" / "testdata" / "pactl_stub.sh"
 
 STEAM_STUB = """printf '%s\\n' "$@" > "$STEAM_ARGV"
 printenv 7DTD_CONNECT > "$STEAM_ENV_CONNECT"
@@ -465,7 +461,8 @@ def test_default_mute_mutes_game_stream_via_launch(tmp_path: Path) -> None:
     streams.write_text(STREAMS_JSON, encoding="utf-8")
     mute_log = tmp_path / "mute.log"
     mute_log.touch()
-    _write_executable(bin_dir / "pactl", PACTL_STUB)
+    shutil.copyfile(PACTL_STUB, bin_dir / "pactl")
+    (bin_dir / "pactl").chmod((bin_dir / "pactl").stat().st_mode | stat.S_IEXEC)
     r = _launch(
         tmp_path,
         mute=True,
