@@ -34,6 +34,10 @@ if [[ -z "${CLIENT_LOG_SRC:-}" ]]; then
   COMPAT="$(resolve_compat "$CLIENT_GAME" "$STEAM_APPID" "$STEAM_ROOT" "${COMPAT:-}")"
   CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
 fi
+# Same guard as one_shot_join.sh: on a fresh prefix (first run, custom COMPAT,
+# second-disk library) the guest logs dir does not exist yet, and the per-cycle
+# truncation below would abort under set -e before any attempt starts.
+mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
 
 log() { printf '[zero_nre] %s\n' "$*" | tee -a "$SCRATCH/zero_nre_loop.log"; }
 

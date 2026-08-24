@@ -46,6 +46,7 @@ test:
 	$(ROOT)/scripts/test_log_sanitize.sh
 	$(ROOT)/scripts/test_version_sync.sh
 	$(ROOT)/scripts/test_cycle_filename_guard.sh
+	$(ROOT)/scripts/test_zero_nre_log_dir_guard.sh
 	@if command -v shellcheck >/dev/null; then \
 	  echo "shellcheck:"; \
 	  shellcheck -S warning $(ROOT)/scripts/*.sh; \
