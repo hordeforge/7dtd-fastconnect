@@ -168,6 +168,23 @@ namespace SdtdConnect
             }
 
             Log.Out("[7dtd-fastconnect] auto-join from " + source);
+            // DoSpawn opens XUiC_SpawnSelectionWindow unless SkipSpawnButton is
+            // true; auto-connect needs the direct RequestToSpawn path (no UI
+            // click). Set here rather than inside ConnectTarget.TryConnect so
+            // the connect plumbing stays independent of AutomationMode, and F1
+            // joins keep stock behaviour: the pref persists, so setting it
+            // outside automation would suppress the spawn window in ordinary
+            // play too.
+            try
+            {
+                if (AutomationMode.Enabled)
+                    GamePrefs.Set(EnumGamePrefs.SkipSpawnButton, true);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-fastconnect] SkipSpawnButton set failed: " + ex.Message);
+            }
+
             try
             {
                 ThreadManager.StartCoroutine(DelayedConnect(host, port));

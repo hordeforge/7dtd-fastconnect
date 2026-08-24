@@ -33,11 +33,6 @@ namespace SdtdConnect
         public static T Instance;
     }
 
-    public static class AutomationMode
-    {
-        public static bool Enabled;
-    }
-
     public enum GameInfoString { IP, GameType, GameName, GameHost, LevelName, GameMode, ServerVersion }
     public enum GameInfoInt { Port, WorldSize, CurrentPlayers, MaxPlayers, FreePlayerSlots }
     public enum GameInfoBool { IsDedicated, EACEnabled, IsPasswordProtected }
