@@ -224,14 +224,9 @@ namespace SdtdConnect
             float waitStart = UnityEngine.Time.unscaledTime;
             float nextLog = 0f;
             int polls = 0;
-            while (UnityEngine.Time.unscaledTime - waitStart < maxWaitSec)
+            bool ready = ConnectReady.IsReady(out string whyNot);
+            while (!ready && UnityEngine.Time.unscaledTime - waitStart < maxWaitSec)
             {
-                if (ConnectReady.IsReady(out string whyNot))
-                {
-                    if (polls > 0)
-                        Log.Out("[7dtd-fastconnect] connect-ready after polls=" + polls);
-                    break;
-                }
                 if (polls == 0 || UnityEngine.Time.unscaledTime >= nextLog)
                 {
                     nextLog = UnityEngine.Time.unscaledTime + 5f;
@@ -242,12 +237,13 @@ namespace SdtdConnect
                 // vary across Unity versions, and a fresh instance degrades to a
                 // plain per-frame yield if Reset is not invoked.
                 yield return new UnityEngine.WaitForSecondsRealtime(pollIntervalSec);
+                ready = ConnectReady.IsReady(out whyNot);
             }
 
-            if (!ConnectReady.IsReady(out string still))
-            {
-                Log.Warning("[7dtd-fastconnect] connect gate timeout polls=" + polls + " " + still + "; trying anyway");
-            }
+            if (!ready)
+                Log.Warning("[7dtd-fastconnect] connect gate timeout polls=" + polls + " " + whyNot + "; trying anyway");
+            else if (polls > 0)
+                Log.Out("[7dtd-fastconnect] connect-ready after polls=" + polls);
 
             ConnectAndLog(host, port);
         }

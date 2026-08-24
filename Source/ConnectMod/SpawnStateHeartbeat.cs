@@ -317,12 +317,10 @@ namespace SdtdConnect
         {
             if (!player.IsSpawned() || _shots >= 16) return;
             _shots++;
-            // Same profile derivation as BlockIdDump: resolves to the Proton
-            // user dir under wine and stays valid on a native client.
-            string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (string.IsNullOrEmpty(profile)) profile = ".";
+            // Same profile derivation as BlockIdDump (UserDirs): resolves to
+            // the Proton user dir under wine and stays valid on a native client.
             string p = Path.Combine(
-                profile, "AppData", "Roaming", "7DaysToDie",
+                UserDirs.ProfileDir(), "AppData", "Roaming", "7DaysToDie",
                 "zdtd_shot_" + _shots + ".png");
             ScreenCapture.CaptureScreenshot(p);
             Log.Out("[7dtd-fastconnect] shot " + _shots + " -> " + p);

@@ -30,7 +30,6 @@ BEHAV=""
 # or (case-insensitive) process binary matches 7DaysToDie, and nothing else.
 if command -v jq >/dev/null 2>&1; then
 	BEHAV="$(mktemp -d "${TMPDIR:-/tmp}/mute-helper.XXXXXX")"
-	trap 'rm -rf "$BEHAV"' EXIT
 	cp "$ROOT/scripts/testdata/pactl_stub.sh" "$BEHAV/pactl"
 	chmod +x "$BEHAV/pactl"
 

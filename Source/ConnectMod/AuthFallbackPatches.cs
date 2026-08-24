@@ -128,15 +128,10 @@ namespace SdtdConnect
         static void Postfix(ClientInfo __instance, ref string __result)
         {
             if (!string.IsNullOrWhiteSpace(__result)) return;
-            try
-            {
-                // Prefer GamePrefs name, then synthetic fallback.
-                string pref = null;
-                try { pref = GamePrefs.GetString(EnumGamePrefs.PlayerName); } catch { }
-                if (!string.IsNullOrWhiteSpace(pref)) { __result = pref.Trim(); return; }
-            }
-            catch { }
-            __result = PlayerNames.Resolve();
+            // Prefer GamePrefs name, then synthetic fallback.
+            string pref = null;
+            try { pref = GamePrefs.GetString(EnumGamePrefs.PlayerName); } catch { }
+            __result = !string.IsNullOrWhiteSpace(pref) ? pref.Trim() : PlayerNames.Resolve();
         }
     }
 

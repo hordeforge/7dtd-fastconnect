@@ -81,11 +81,7 @@ namespace SdtdConnect
         {
             string outPath = Environment.GetEnvironmentVariable("7DTD_DUMP_BLOCK_IDS_PATH");
             if (string.IsNullOrEmpty(outPath))
-            {
-                outPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    "zdtd_assignids_dump.txt");
-            }
+                outPath = Path.Combine(UserDirs.ProfileDir(), "zdtd_assignids_dump.txt");
 
             var rows = new SortedDictionary<int, string>();
             try

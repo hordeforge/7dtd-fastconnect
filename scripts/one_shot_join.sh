@@ -42,6 +42,13 @@ if ! [[ "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
   echo "WARN: TIMEOUT_SEC invalid ('$TIMEOUT_SEC'); using 240." >&2
   TIMEOUT_SEC=240
 fi
+# Post-join settle window; same numeric guard as TIMEOUT_SEC so a typo cannot
+# silently skip the settle (or sleep on garbage).
+SETTLE_SEC="${SETTLE_SEC:-0}"
+if ! [[ "$SETTLE_SEC" =~ ^[0-9]+$ ]]; then
+  echo "WARN: SETTLE_SEC invalid ('$SETTLE_SEC'); using 0." >&2
+  SETTLE_SEC=0
+fi
 CYCLE="${CYCLE:-1}"
 # CYCLE is interpolated into output filenames (stock-join-${CYCLE}.log,
 # client-lifecycle-${CYCLE}.txt) and is attacker-shapable like 7DTD_CONNECT:
@@ -232,10 +239,9 @@ while (( $(mono_sec) < deadline )); do
     if log_seen "$JOINED_RE"; then
       result="joined"
       # Optional settle for post-join work (control unlock, world settle).
-      settle="${SETTLE_SEC:-0}"
-      if [[ "$settle" =~ ^[0-9]+$ ]] && (( settle > 0 )); then
-        log "joined; settling ${settle}s for post-join (chunks/controls)"
-        sleep "$settle"
+      if (( SETTLE_SEC > 0 )); then
+        log "joined; settling ${SETTLE_SEC}s for post-join (chunks/controls)"
+        sleep "$SETTLE_SEC"
       fi
       break
     fi
@@ -268,13 +274,11 @@ while (( $(mono_sec) < deadline )); do
       fi
     fi
   fi
-  # Client died early
+  # Client died early: the launcher exited and no game process is left, so
+  # the cycle cannot progress any further.
   if ! kill -0 "$launch_pid" 2>/dev/null; then
     if [[ -z "$(list_client_pids)" ]]; then
-      # proton launcher exited; check if log has result
-      if [[ "$result" == "timeout" ]]; then
-        result="client_exit"
-      fi
+      result="client_exit"
       break
     fi
   fi

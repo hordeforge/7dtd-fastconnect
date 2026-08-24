@@ -95,12 +95,6 @@ namespace SdtdConnect
     // reflection, and the forcesync tests assert on the flip.
     public static class LoadManager { public static bool forceLoadSync; }
 
-    public enum EnumGamePrefs { SkipSpawnButton }
-    public static class GamePrefs
-    {
-        public static void Set(EnumGamePrefs k, object v) { throw new NotImplementedException(); }
-    }
-
     namespace Platform
     {
         public abstract class IUser { public object PlatformUserId; }

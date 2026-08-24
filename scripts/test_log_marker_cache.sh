@@ -57,9 +57,9 @@ partial_line_does_not_match_until_complete() {
 }
 
 # The offset resume: after scanning a file larger than the overlap window,
-# LOG_MARK_OFFSET must sit at EOF, and a marker completed across the next
-# poll boundary (its first half already inside the overlap window, not
-# before it) must still be found.
+# the pattern's MARK_OFFSET entry must sit at EOF, and a marker completed
+# across the next poll boundary (its first half already inside the overlap
+# window, not before it) must still be found.
 offset_advances_and_boundary_match_is_found() {
 	local old_overlap="$LOG_MARK_OVERLAP"
 	LOG_MARK_OVERLAP=1024
@@ -71,7 +71,8 @@ offset_advances_and_boundary_match_is_found() {
 		LOG_MARK_OVERLAP="$old_overlap"
 		return 1
 	fi
-	((LOG_MARK_OFFSET == $(wc -c <"$LOG_MARK_FILE"))) || {
+	local off="${MARK_OFFSET['Found own player entity with id']}"
+	((off == $(wc -c <"$LOG_MARK_FILE"))) || {
 		LOG_MARK_OVERLAP="$old_overlap"
 		return 1
 	}
@@ -89,10 +90,35 @@ truncated_log_resets_offset() {
 	: >"$LOG_MARK_FILE"
 	head -c 4096 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
 	log_seen 'never written anywhere' || true
-	((LOG_MARK_OFFSET > 0)) || return 1
+	((MARK_OFFSET['never written anywhere'] > 0)) || return 1
 	: >"$LOG_MARK_FILE"
 	printf 'NET: PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
 	log_seen 'PlayerSpawnedInWorld'
+}
+
+# A pattern queried conditionally (only after another marker matched) must not
+# skip bytes just because other patterns' scans advanced past them in between:
+# each pattern resumes from its own offset, so growth carrying a match between
+# two scans of the same pattern is always covered.
+conditionally_queried_pattern_misses_nothing() {
+	local old_overlap="$LOG_MARK_OVERLAP"
+	LOG_MARK_OVERLAP=1024
+	log_marks_reset
+	: >"$LOG_MARK_FILE"
+	head -c 4096 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
+	log_seen 'alpha never written' || true
+	log_seen 'NET: beta marker' || true
+	# Growth larger than the overlap window carries beta's match; an unrelated
+	# pattern is scanned afterwards (advancing its own resume point) before
+	# beta is re-queried.
+	head -c 2048 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
+	printf 'NET: beta marker\n' >>"$LOG_MARK_FILE"
+	head -c 2000 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
+	log_seen 'alpha never written' || true
+	local rc=0
+	log_seen 'NET: beta marker' || rc=1
+	LOG_MARK_OVERLAP="$old_overlap"
+	return "$rc"
 }
 
 assert "missing log is not seen" missing_log_is_not_seen
@@ -102,5 +128,6 @@ assert "distinct patterns do not collide" distinct_patterns_do_not_collide
 assert "partial line matches only once complete" partial_line_does_not_match_until_complete
 assert "scan offset advances and boundary match is found" offset_advances_and_boundary_match_is_found
 assert "truncated log falls back to full scan" truncated_log_resets_offset
+assert "conditionally queried pattern skips no bytes" conditionally_queried_pattern_misses_nothing
 
 finish

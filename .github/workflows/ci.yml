@@ -24,7 +24,6 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - run: dotnet tool install -g dotnet-coverage --version 17.14.1
       - run: make coverage
-      - run: uv run --frozen --group dev python scripts/coverage_badge.py "$RUNNER_TEMP/coverage.svg" "/Source/" coverage.cobertura.xml
       - name: Publish the badge to the badges branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,7 +35,9 @@ jobs:
           else
             git init -q -b badges badge-repo
           fi
-          cp "$RUNNER_TEMP/coverage.svg" badge-repo/
+          # make coverage already rendered the badge at the repo root from the
+          # same Cobertura XML and filter; publish that copy directly.
+          cp coverage.svg badge-repo/
           cd badge-repo
           git remote remove origin 2>/dev/null || true
           git remote add origin "$url"

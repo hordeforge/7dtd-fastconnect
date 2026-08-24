@@ -296,7 +296,10 @@ namespace SdtdConnect
             // queue drain first; these nulls reach Unity, so LoadManager.Update
             // keeps pumping and the sync player-part loads then run against an
             // idle addressables system.
-            float deadline = Time.realtimeSinceStartup + 60f;
+            // Same budget shape as Flatten's prewarm wait: a wedged LoadManager
+            // must not hang startup silently past its cap.
+            const float asyncDrainMaxSec = 60f;
+            float deadline = Time.realtimeSinceStartup + asyncDrainMaxSec;
             int pending = PendingLoadCount();
             if (pending > 0) Log.Out("[7dtd-fastconnect] Local-host draining " + pending + " pending async loads before player creation");
             while (pending > 0 && Time.realtimeSinceStartup < deadline)
