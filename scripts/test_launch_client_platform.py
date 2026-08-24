@@ -25,10 +25,13 @@ so tests assert what actually reaches the game process.
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import shutil
+import signal
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -37,6 +40,9 @@ ROOT = Path(__file__).resolve().parents[1]
 LAUNCH = ROOT / "scripts" / "launch_client.sh"
 STEAM_CFG = "platform=Steam\ncrossplatform=EOS\nserverplatforms=Steam,XBL,PSN,LAN,\n"
 LOCAL_CFG = "platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n"
+# The launcher forwards SIGTERM to `exit 143`, so the trap-driven cleanup path
+# is observable as exactly this status.
+TERM_EXIT_STATUS = 128 + int(signal.SIGTERM)
 
 # Vars launch_client.sh reads; scrub them so a developer shell that happens to
 # carry 7DTD_CONNECT / CLIENT_* cannot change what these tests exercise.
@@ -70,8 +76,9 @@ printenv 7DTD_CONNECT > "$STEAM_ENV_CONNECT"
 # bootstrap a full Steam client into the fake HOME (gigabytes, minutes) before
 # this suite could notice. The guard fails fast instead; tests that exercise
 # the fallback put their own recording stub earlier on PATH.
-STEAM_GUARD_STUB = """echo \"guard: unexpected host steam launch: $*\" >&2
-exit 99
+STEAM_GUARD_EXIT_STATUS = 99
+STEAM_GUARD_STUB = f"""echo \"guard: unexpected host steam launch: $*\" >&2
+exit {STEAM_GUARD_EXIT_STATUS}
 """
 
 
@@ -102,17 +109,15 @@ def _setup(
     return game
 
 
-def _launch(
+def _launch_env(
     tmp_path: Path,
     *,
     local_platform: bool = True,
     connect: str | None = None,
     mute: bool = False,
     extra_env: dict[str, str | None] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    """Run the launcher sandboxed; a None extra_env value omits the variable
-    entirely (e.g. PROTON unset selects the steam -applaunch fallback or
-    COMPAT derivation from GAME's library)."""
+) -> dict[str, str]:
+    """Build the sandboxed env for a launcher run; see _launch."""
     env = {
         **BASE_ENV,
         "GAME": str(tmp_path / "game"),
@@ -150,8 +155,30 @@ def _launch(
     stub_dirs = (extra_env or {}).get("PATH") or ""
     parts = [stub_dirs, str(guard_bin), BASE_ENV.get("PATH", "")]
     env["PATH"] = os.pathsep.join(p for p in parts if p)
+    return env
+
+
+def _launch(
+    tmp_path: Path,
+    *,
+    local_platform: bool = True,
+    connect: str | None = None,
+    mute: bool = False,
+    extra_env: dict[str, str | None] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run the launcher sandboxed; a None extra_env value omits the variable
+    entirely (e.g. PROTON unset selects the steam -applaunch fallback or
+    COMPAT derivation from GAME's library)."""
     return subprocess.run(
-        ["bash", str(LAUNCH)], env=env, capture_output=True, text=True,
+        ["bash", str(LAUNCH)],
+        env=_launch_env(
+            tmp_path,
+            local_platform=local_platform,
+            connect=connect,
+            mute=mute,
+            extra_env=extra_env,
+        ),
+        capture_output=True, text=True,
         timeout=60, check=False,
     )
 
@@ -203,6 +230,132 @@ def test_leftover_backup_is_restored_then_reswapped(tmp_path: Path) -> None:
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
+@pytest.mark.skipif(os.getuid() == 0, reason="root ignores dir permissions")
+def test_failed_setup_restores_swapped_platform(tmp_path: Path) -> None:
+    """A failure AFTER the Local-platform swap must still reach the exit traps.
+    The traps used to be installed after swap_local_platform, so a set -e abort
+    in between (here: mkdir -p of LOGDIR under a read-only COMPAT) left the
+    game install swapped to the Local platform with no restore until the next
+    launch self-healed it."""
+    game = _setup(tmp_path)
+    compat = tmp_path / "compat-ro"
+    compat.mkdir()
+    compat.chmod(0o500)  # -d passes; mkdir beneath fails for non-root
+    try:
+        r = _launch(tmp_path, extra_env={"COMPAT": str(compat)})
+    finally:
+        compat.chmod(0o700)
+    assert r.returncode != 0, r.stdout + r.stderr
+    assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+    assert not (game / "platform.cfg.re-localbak").exists()
+
+
+def _pgrep_pids(pattern: str) -> list[str]:
+    out = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True, text=True, check=False,
+    )
+    return out.stdout.split()
+
+
+def _game_exe_pids(game_dir: Path) -> list[str]:
+    """PIDs of THIS test's running stub game exe. Scoped to the sandboxed game
+    dir: a bare exe-name match would see a real 7 Days To Die client running
+    elsewhere on the host and either fail the survival wait spuriously or,
+    worse, kill-sweep decisions on foreign pids."""
+    return _pgrep_pids(rf"{re.escape(str(game_dir))}/7DaysToDie\.exe")
+
+
+def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
+    """TERM must not kill the launcher dead where it stands: one_shot_join.sh
+    stops launchers with TERM, so the exit traps have to run (restore
+    platform.cfg) and the exit status must propagate as 143. The TERM is also
+    forwarded to the waited game child: a launcher that exited while Proton
+    kept running would orphan the wine stack."""
+    game = _setup(tmp_path, game_run_seconds=30)
+    env = _launch_env(tmp_path)
+    # Pipes would be held open by the stub game if it outlived the launcher,
+    # deadlocking communicate/wait; devnull avoids that. A new session keeps
+    # the game subtree killable as a unit.
+    proc = subprocess.Popen(
+        ["bash", str(LAUNCH)], env=env,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, start_new_session=True,
+    )
+    try:
+        time.sleep(1.5)
+        proc.terminate()
+        proc.wait(timeout=15)
+        assert proc.returncode == TERM_EXIT_STATUS, proc.returncode
+        # The EXIT trap restored the original config.
+        assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+        assert not (game / "platform.cfg.re-localbak").exists()
+        # The forwarded TERM took the stub game down with the launcher.
+        deadline = time.monotonic() + 10
+        while _game_exe_pids(game):
+            assert time.monotonic() < deadline, "stub game survived launcher TERM"
+            time.sleep(0.1)
+    finally:
+        # Belt and braces: reap anything left in the session (e.g. an orphaned
+        # sleep grandchild of the stub) so nothing outlives the test.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def _mute_poller_pids(timeout_arg: str) -> list[str]:
+    """PIDs of running mute_client_audio.sh pollers started with timeout_arg.
+    Anchored to this repo's scripts dir so a poller from another checkout (or
+    another developer's parallel run) cannot satisfy or poison the wait."""
+    return _pgrep_pids(
+        rf"{re.escape(str(ROOT / 'scripts'))}/mute_client_audio\.sh {re.escape(timeout_arg)}"
+    )
+
+
+def test_sigterm_does_not_orphan_mute_poller(tmp_path: Path) -> None:
+    """The default launch (no platform swap) previously had no traps at all,
+    so TERM killed the launcher outright and left the mute poller running its
+    full window. TERM must now reap the poller via the shared exit path."""
+    _setup(tmp_path, game_run_seconds=30)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    # pactl lists no streams, jq prints nothing: the helper keeps polling
+    # until its deadline, which is what the launcher must cut short.
+    _write_executable(bin_dir / "pactl", "echo '[]'\n")
+    _write_executable(bin_dir / "jq", "exit 0\n")
+    env = _launch_env(
+        tmp_path,
+        local_platform=False, mute=True,
+        extra_env={"PATH": str(bin_dir), "CLIENT_MUTE_TIMEOUT": "300"},
+    )
+    proc = subprocess.Popen(
+        ["bash", str(LAUNCH)], env=env,
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, start_new_session=True,
+    )
+    try:
+        # Wait until the poller is actually up before signalling, so the test
+        # cannot race the launcher's own startup ordering.
+        deadline = time.monotonic() + 10
+        while not _mute_poller_pids("300"):
+            assert time.monotonic() < deadline, "mute poller never started"
+            assert proc.poll() is None, "launcher exited early"
+            time.sleep(0.1)
+        proc.terminate()
+        proc.wait(timeout=15)
+        assert proc.returncode == TERM_EXIT_STATUS, proc.returncode
+        deadline = time.monotonic() + 10
+        while _mute_poller_pids("300"):
+            assert time.monotonic() < deadline, "mute poller survived TERM"
+            time.sleep(0.1)
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
 def test_connect_env_forwards_connect_arg(tmp_path: Path) -> None:
     _setup(tmp_path)
     r = _launch(tmp_path, connect="127.0.0.1:27025")
@@ -249,7 +402,11 @@ def test_compat_derives_from_game_library(tmp_path: Path) -> None:
     assert logdir.is_dir(), r.stdout
     # Direct-Proton branch taken, not the steam fallback.
     assert "Proton:" in r.stdout
-    _argv(tmp_path)
+    # The derived branch must still forward the launcher's contract flags.
+    argv = _argv(tmp_path)
+    assert "-noeac" in argv
+    assert "-force-d3d11" in argv
+    assert "-skipintro" in argv
 
 
 def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
@@ -292,6 +449,9 @@ def test_host_steam_is_never_reached(tmp_path: Path) -> None:
     _setup(tmp_path)
     r = _launch(tmp_path, extra_env={"PROTON": None, "COMPAT": None})
     assert "guard: unexpected host steam launch" in r.stderr, r.stderr
+    # The guard's exit status must propagate through the launcher, not be
+    # swallowed: a silent 0 would make the fallback look like it launched.
+    assert r.returncode == STEAM_GUARD_EXIT_STATUS, r.returncode
 
 
 @pytest.mark.skipif(shutil.which("jq") is None, reason="mute filter needs jq")
@@ -340,3 +500,51 @@ def test_client_mute_opt_out_never_invokes_pactl(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stderr
     assert "Client mute" not in r.stdout
     assert mute_log.read_text(encoding="utf-8") == ""
+
+
+PROTON_PATHS = ROOT / "scripts" / "proton_paths.sh"
+
+
+def _resolve_compat(game: str, appid: str, steam_root: str, compat: str = "") -> str:
+    """Run scripts/proton_paths.sh resolve_compat in a clean bash."""
+    script = (
+        f"source {shlex.quote(str(PROTON_PATHS))} && resolve_compat "
+        + " ".join(shlex.quote(a) for a in (game, appid, steam_root, compat))
+    )
+    return subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True, text=True, check=True, timeout=30,
+    ).stdout.strip()
+
+
+def test_resolve_compat_derives_second_library_prefix() -> None:
+    """The launcher writes its log under GAME's own library prefix and
+    one_shot_join.sh reads it back through the same helper: a second-disk
+    install must resolve to <library>/compatdata/<appid>, not the default
+    root, or the join poll watches an empty file and reports timeouts."""
+    assert _resolve_compat(
+        "/disks/b/steamapps/common/7 Days To Die", "251570", "/home/u/.local/share/Steam",
+    ) == "/disks/b/steamapps/compatdata/251570"
+
+
+def test_resolve_compat_explicit_override_wins() -> None:
+    assert _resolve_compat(
+        "/disks/b/steamapps/common/Game", "251570", "/home/u/.local/share/Steam",
+        "/custom/compat",
+    ) == "/custom/compat"
+
+
+def test_resolve_compat_falls_back_to_steam_root() -> None:
+    assert _resolve_compat("/opt/games/Game", "251570", "/steamroot") == (
+        "/steamroot/steamapps/compatdata/251570"
+    )
+
+
+def test_harnesses_resolve_log_prefix_through_shared_helper() -> None:
+    """The join harnesses must take the client-log prefix from proton_paths.sh,
+    never from their own copy of the rule: duplicated derivation is exactly how
+    second-disk installs drifted into polling a log the launcher never wrote."""
+    for name in ("one_shot_join.sh", "zero_nre_join_loop.sh"):
+        src = (ROOT / "scripts" / name).read_text(encoding="utf-8")
+        assert "proton_paths.sh" in src, name
+        assert "resolve_compat" in src, name

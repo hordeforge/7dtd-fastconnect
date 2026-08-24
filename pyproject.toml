@@ -1,0 +1,22 @@
+[project]
+name = "7dtd-fastconnect-dev"
+version = "0.10.4"
+description = "Dev tooling for 7dtd-fastconnect offline gates (ruff/mypy/pytest)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "ruff==0.16.4",
+  "mypy==2.3.1",
+  "pytest==9.1.1",
+]
+
+# Lint/typecheck settings live in ruff.toml and mypy.ini: those filenames
+# outrank [tool.*] sections here (first config found wins, no merging), so
+# keeping them out of this file avoids two drifting copies of each setting.
+
+[tool.pytest.ini_options]
+testpaths = ["scripts"]

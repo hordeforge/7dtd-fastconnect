@@ -4,8 +4,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT/scripts/proton_paths.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
+# Bound accumulation: zero_nre creates per-attempt logs that would grow without
+# limit if the harness is run repeatedly (e.g. CI). Prune old cycles.
+find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-zn*.log' -o -name 'zero_nre-cycle-*.txt' -o -name 'zero_nre_summary.txt' \) -mtime +3 -delete 2>/dev/null || true
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-6}"
@@ -13,14 +17,23 @@ TIMEOUT_SEC="${TIMEOUT_SEC:-90}"
 # Default root of the sibling zdtd checkout; empty when it is not checked
 # out here. Fail at the point of use (start_zdtd's listen wait), not here:
 # a failing command substitution in a default aborts the script under set -e.
-ZDTD_ROOT="$(cd "$ROOT/../zdtd-server-server" 2>/dev/null && pwd || true)"
+ZDTD_ROOT="$(cd "$ROOT/../zdtd-server" 2>/dev/null && pwd || true)"
 ZDTD_BIN="${ZDTD_BIN:-$ZDTD_ROOT/zig-out/bin/zdtd}"
 MAP_DIR="${MAP_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server/Data/Worlds/Navezgane}"
 GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 WORLD_DIR="${WORLD_DIR:-$ZDTD_ROOT/worlds/zdtd_goal}"
 ONE_SHOT="$ROOT/scripts/one_shot_join.sh"
+STEAM_APPID="${STEAM_APPID:-251570}"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
-CLIENT_LOG_SRC="${CLIENT_LOG_SRC:-$STEAM_ROOT/steamapps/compatdata/251570/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt}"
+# Same prefix resolution as launch_client.sh / one_shot_join.sh: the launcher
+# and the one-shot cycle both derive the client log path from GAME's own
+# Steam library, so a second-disk install must not fall back to the default
+# prefix here or every attempt would read an empty log.
+if [[ -z "${CLIENT_LOG_SRC:-}" ]]; then
+  CLIENT_GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
+  COMPAT="$(resolve_compat "$CLIENT_GAME" "$STEAM_APPID" "$STEAM_ROOT" "${COMPAT:-}")"
+  CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
+fi
 
 log() { printf '[zero_nre] %s\n' "$*" | tee -a "$SCRATCH/zero_nre_loop.log"; }
 
@@ -89,9 +102,23 @@ count_nre_after_join() {
 }
 
 : >"$SCRATCH/zero_nre_loop.log"
+# zero_nre_summary.txt appends per attempt across runs, so its mtime never
+# goes stale and the -mtime prune above can never fire on it. Trim to the
+# newest lines once per run instead; per-run growth is a handful of lines.
+SUMMARY="$SCRATCH/zero_nre_summary.txt"
+if [[ -f "$SUMMARY" ]] && (( $(wc -l <"$SUMMARY") > 400 )); then
+  tail -n 200 "$SUMMARY" >"$SCRATCH/.zero_nre_summary.tmp" \
+    && mv "$SCRATCH/.zero_nre_summary.tmp" "$SUMMARY"
+fi
 log "start max_attempts=$MAX_ATTEMPTS"
 
 # Validate before start_zdtd: a bad value would abort after the server is up.
+# PORT lands in --port argv and an ERE ("::${PORT}\b"), so it gets the same
+# numeric guard as TIMEOUT_SEC/MAX_ATTEMPTS here.
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+  log "WARN: PORT invalid ('$PORT'); using 27025"
+  PORT=27025
+fi
 if [[ ! "$MAX_ATTEMPTS" =~ ^[0-9]+$ ]]; then
   log "WARN: MAX_ATTEMPTS invalid ('$MAX_ATTEMPTS'); using 6"
   MAX_ATTEMPTS=6

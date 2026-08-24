@@ -7,21 +7,23 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MUTE_HELPER="$SCRIPT_DIR/mute_client_audio.sh"
+source "$SCRIPT_DIR/proton_paths.sh"
+# Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
+# scripts/log_sanitize.sh; same contract as ConnectTarget.SanitizeForLog.
+source "$SCRIPT_DIR/log_sanitize.sh"
 
 GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 STEAM_APPID="${STEAM_APPID:-251570}"
+# Prefer Proton Experimental / GE if present; fall back to steam launch.
+STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 # Derive the Proton prefix from GAME, so a library on another disk works. A
 # hardcoded default path silently falls through to the `steam -applaunch`
 # branch below on such an install, which loses the environment this script was
 # given -- and passing 7DTD_CONNECT or a playtest suite variable through the
-# environment is the whole point of launching Proton directly.
-COMPAT="${COMPAT:-}"
-if [[ -z "$COMPAT" && "$GAME" == */steamapps/common/* ]]; then
-  COMPAT="${GAME%/common/*}/compatdata/$STEAM_APPID"
-fi
-COMPAT="${COMPAT:-$HOME/.local/share/Steam/steamapps/compatdata/$STEAM_APPID}"
-# Prefer Proton Experimental / GE if present; fall back to steam launch.
-STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
+# environment is the whole point of launching Proton directly. The harnesses
+# (one_shot_join.sh) read the client log back from this same resolved prefix,
+# so the rule lives once in proton_paths.sh.
+COMPAT="$(resolve_compat "$GAME" "$STEAM_APPID" "$STEAM_ROOT" "${COMPAT:-}")"
 PROTON="${PROTON:-}"
 if [[ -z "$PROTON" ]]; then
   # The library holding GAME is searched first, so an install on a second disk
@@ -94,24 +96,18 @@ restore_platform() {
   fi
 }
 
-if [[ "$LOCAL_PLATFORM" == 1 ]]; then
-  swap_local_platform
-  trap restore_platform EXIT INT TERM
-fi
-
-LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
-mkdir -p "$LOGDIR"
-# Same file as WIN_LOGFILE below: LOGFILE is the prefix-side path, WIN_LOGFILE
-# the in-guest path handed to -logfile.
-LOGFILE="$LOGDIR/output_log_client_7dtd_connect.txt"
-WIN_LOGFILE="C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
-
 if [[ ! -d "$GAME" ]]; then
   echo "Game not found: $GAME" >&2
   exit 1
 fi
 
 MUTE_PID=""
+# PID of the direct-Proton game child this script waits on. INT/TERM forward
+# to it so a stop aimed at the launcher cannot orphan the wine/Proton stack
+# behind it; the EXIT trap still reaps the mute poller and restores
+# platform.cfg afterwards. The steam -applaunch fallback never registers here:
+# that pid is the shared desktop Steam client, not a child this script owns.
+GAME_PID=""
 start_mute_poll() {
   if [[ -z "$MUTE_CLIENT" ]]; then
     return 0
@@ -122,7 +118,9 @@ start_mute_poll() {
   if [[ -x "$MUTE_HELPER" ]]; then
     echo "Client mute: on (opt-out CLIENT_MUTE=0); polling up to ${MUTE_WAIT}s"
     # Background: audio stream appears after Unity init, not at process start.
-    CLIENT_MUTE_TIMEOUT="$MUTE_WAIT" "$MUTE_HELPER" "$MUTE_WAIT" &
+    # The timeout rides argv ($1); the helper's env fallbacks are only for
+    # standalone use, so no duplicate channel here.
+    "$MUTE_HELPER" "$MUTE_WAIT" &
     MUTE_PID=$!
   else
     echo "WARN: mute helper missing ($MUTE_HELPER); client audio not muted." >&2
@@ -141,26 +139,62 @@ stop_mute_poll() {
   fi
 }
 
+# One cleanup path for every exit route: normal completion, a set -e abort,
+# and INT/TERM (one_shot_join.sh stops launchers with TERM). Without the
+# exit-forwarding traps a bare TERM would kill the script mid-wait, leaving
+# the mute poller running its full window and, in Local-platform mode,
+# platform.cfg swapped. restore_platform is a no-op without a backup file.
+on_exit() {
+  stop_mute_poll
+  restore_platform
+}
+trap on_exit EXIT
+# Forward to the game child first (no-op when it already exited, as when
+# one_shot_join.sh kills clients before stopping this launcher), then take the
+# normal exit path so on_exit still runs.
+on_signal() {
+  if [[ -n "$GAME_PID" ]]; then
+    kill -TERM "$GAME_PID" 2>/dev/null || true
+  fi
+  exit "$1"
+}
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+
+# Side effects start only below the traps: a failure between the swap and the
+# old trap installation point (mkdir -p LOGDIR under set -e) used to leave
+# platform.cfg swapped with no restore until the next launch self-healed it.
+if [[ "$LOCAL_PLATFORM" == 1 ]]; then
+  swap_local_platform
+fi
+
+LOGDIR="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs"
+mkdir -p "$LOGDIR"
+# Same file as WIN_LOGFILE below: LOGFILE is the prefix-side path, WIN_LOGFILE
+# the in-guest path handed to -logfile.
+LOGFILE="$LOGDIR/output_log_client_7dtd_connect.txt"
+WIN_LOGFILE="C:/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
+
 if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   export STEAM_COMPAT_DATA_PATH="$COMPAT"
   export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$STEAM_ROOT}"
   echo "Proton: $PROTON"
-  echo "Connect: ${CONNECT:-"(none; use F1 connect after menu)"}"
+  echo "Connect: $(sanitize_log_text "${CONNECT:-"(none; use F1 connect after menu)"}")"
   echo "Log: $LOGFILE"
   cd "$GAME"
   # Cannot mute after exec — run proton, mute in parallel, wait for the game.
   env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe -force-d3d11 -nogs -noeac -logfile "$WIN_LOGFILE" "${EXTRA_ARGS[@]}" "$@" &
   game_pid=$!
+  GAME_PID="$game_pid"
   start_mute_poll
   launch_status=0
   wait "$game_pid" || launch_status=$?
-  stop_mute_poll
   exit "$launch_status"
 fi
 
 # Fallback: Steam app launch (may still run EAC depending on launcher settings).
 echo "Proton not found; using steam -applaunch $STEAM_APPID (set UseEAC false in launcher if needed)"
-echo "Connect: ${CONNECT:-"(none)"}"
+echo "Connect: $(sanitize_log_text "${CONNECT:-"(none)"}")"
 # Steam does not reliably pass -connect=; pass the canonical name through
 # `env` because bash cannot export a name starting with a digit.
 env 7DTD_CONNECT="${CONNECT:-}" steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@" &
@@ -168,5 +202,4 @@ steam_pid=$!
 start_mute_poll
 launch_status=0
 wait "$steam_pid" || launch_status=$?
-stop_mute_poll
 exit "$launch_status"

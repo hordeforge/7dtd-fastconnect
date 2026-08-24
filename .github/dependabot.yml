@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+  # Project uses uv (pyproject.toml + uv.lock); the "pip" ecosystem would
+  # find no manifests here. Grouped so the ruff/mypy/pytest toolchain
+  # updates land as a single PR.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      python-dev-tools:
+        patterns:
+          - "*"

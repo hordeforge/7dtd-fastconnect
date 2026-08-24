@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Text;
 
 namespace SdtdConnect
 {
@@ -14,43 +15,79 @@ namespace SdtdConnect
         // three times or, worse, look like "no target set".
         static bool _badTargetWarned;
 
+        /// <summary>
+        /// Flattens control characters so a launch-context string stays one
+        /// log line. Env and argv values are attacker-shapable (a clicked
+        /// steam://run URL chooses -connect= text), and join harnesses grep
+        /// the client log for fixed markers; an embedded newline could forge
+        /// those markers without ever connecting.
+        /// </summary>
+        internal static string SanitizeForLog(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return value;
+            bool dirty = false;
+            foreach (char c in value)
+            {
+                if (char.IsControl(c)) { dirty = true; break; }
+            }
+            if (!dirty) return value;
+            var sb = new StringBuilder(value.Length);
+            foreach (char c in value)
+                sb.Append(char.IsControl(c) ? ' ' : c);
+            return sb.ToString();
+        }
+
         static void WarnIgnoredTarget(string sourceLabel, string raw, string error)
         {
             if (_badTargetWarned) return;
             _badTargetWarned = true;
-            Log.Warning("[7dtd-fastconnect] " + sourceLabel + "='" + raw + "' ignored: "
+            Log.Warning("[7dtd-fastconnect] " + SanitizeForLog(sourceLabel) + "='"
+                + SanitizeForLog(raw) + "' ignored: "
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
+        // Shared normalization for every target grammar (F1 merge, env, argv),
+        // so the entry paths cannot drift: a pasted steam://connect/ prefix is
+        // stripped (its colons must not mask an explicit port), and a dangling
+        // separator colon ("host:", "[v6]:") carries an empty port by
+        // TryParse's rule, so it is dropped instead of leaving an unparsable
+        // host behind.
+        static string StripSchemeAndEmptyPort(string raw)
+        {
+            if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
+                raw = raw.Substring("steam://connect/".Length);
+            if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
+            return raw;
+        }
+
+        // Port-suffix rule shared by both grammar branches: integer 1..65535.
+        static bool TryParsePort(string text, out int port)
+        {
+            return int.TryParse(text, out port) && port >= 1 && port <= 65535;
+        }
+
         /// <summary>
-        /// Merges an optional explicit port argument into a raw host string:
-        /// strips a pasted steam://connect/ prefix (its colons must not mask
-        /// an explicit port) and applies TryParse's port rule so the second
-        /// token is only appended to a host that does not already carry a
-        /// port. A dangling separator colon ("host:", "[v6]:") is an empty
-        /// port by that same rule, so it is dropped first: appending would
-        /// otherwise double the colon, and passing through would leave an
-        /// unparsable host behind. A bare IPv6 address gets the port appended
-        /// in bracketed form: TryParse reads any ":port" suffix off a bare
-        /// IPv6 as part of the address, so the merged string must come back
-        /// as [addr]:port to round-trip. portArg=null keeps just the strips.
+        /// Merges an optional explicit port argument into a raw host string
+        /// (normalized by StripSchemeAndEmptyPort first): the second token is
+        /// only appended to a host that does not already carry a port. A bare
+        /// IPv6 address gets the port appended in bracketed form: TryParse
+        /// reads any ":port" suffix off a bare IPv6 as part of the address,
+        /// so the merged string must come back as [addr]:port to round-trip.
+        /// portArg=null keeps just the strips.
         /// </summary>
         public static string MergePortArg(string raw, string portArg)
         {
             if (raw == null) return null;
-            if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
-                raw = raw.Substring("steam://connect/".Length);
+            raw = StripSchemeAndEmptyPort(raw);
             bool hasPort;
             bool bracketed = raw.StartsWith("[");
             if (bracketed)
             {
-                if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
                 int close = raw.IndexOf(']');
                 hasPort = close >= 0 && close < raw.Length - 1 && raw[close + 1] == ':';
             }
             else
             {
-                if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
                 int firstColon = raw.IndexOf(':');
                 hasPort = firstColon >= 0 && firstColon == raw.LastIndexOf(':');
             }
@@ -73,15 +110,8 @@ namespace SdtdConnect
                 return false;
             }
 
-            raw = raw.Trim();
-            // Accept host, host:port, or a pasted steam://connect/ URL (scheme stripped).
-            if (raw.StartsWith("steam://connect/", StringComparison.OrdinalIgnoreCase))
-                raw = raw.Substring("steam://connect/".Length);
-            // Same dangling-separator rule MergePortArg applies: "host:" /
-            // "[v6]:" carry an empty port, so drop the colon instead of
-            // leaving an unparsable host behind (env/argv reach TryParse
-            // directly and would otherwise diverge from the F1 command).
-            if (raw.EndsWith(":")) raw = raw.Substring(0, raw.Length - 1);
+            // Accept host, host:port, or a pasted steam://connect/ URL.
+            raw = StripSchemeAndEmptyPort(raw.Trim());
 
             string hostPart = raw;
             int portPart = DefaultPort;
@@ -98,7 +128,7 @@ namespace SdtdConnect
                 hostPart = raw.Substring(1, close - 1);
                 if (close + 1 < raw.Length && raw[close + 1] == ':')
                 {
-                    if (!int.TryParse(raw.Substring(close + 2), out portPart) || portPart < 1 || portPart > 65535)
+                    if (!TryParsePort(raw.Substring(close + 2), out portPart))
                     {
                         error = "bad port";
                         return false;
@@ -112,12 +142,12 @@ namespace SdtdConnect
                 if (colon > 0 && colon < raw.Length - 1
                     && raw.IndexOf(':') == colon) // single colon → not bare IPv6
                 {
-                    hostPart = raw.Substring(0, colon);
-                    if (!int.TryParse(raw.Substring(colon + 1), out portPart) || portPart < 1 || portPart > 65535)
+                    if (!TryParsePort(raw.Substring(colon + 1), out portPart))
                     {
                         error = "bad port";
                         return false;
                     }
+                    hostPart = raw.Substring(0, colon);
                 }
                 else
                     hostPart = raw;
@@ -146,7 +176,7 @@ namespace SdtdConnect
             {
                 if (TryParse(env, out host, out port, out string envError))
                 {
-                    source = EnvVar + "=" + env.Trim();
+                    source = EnvVar + "=" + SanitizeForLog(env.Trim());
                     return true;
                 }
                 WarnIgnoredTarget(EnvVar, env.Trim(), envError);
@@ -178,7 +208,9 @@ namespace SdtdConnect
                 if (val == null) continue;
                 if (TryParse(val, out host, out port, out string argError))
                 {
-                    source = a.Contains("=") ? a : (a + " " + val);
+                    source = a.Contains("=")
+                        ? SanitizeForLog(a)
+                        : SanitizeForLog(a) + " " + SanitizeForLog(val);
                     return true;
                 }
                 // Only the flag name; the value is already in the message.
@@ -187,6 +219,57 @@ namespace SdtdConnect
             }
 
             return false;
+        }
+
+        // Resolves a hostname to an address, preferring IPv4 when DNS returns
+        // mixed families (matches stock direct-connect UI). Literal IPs pass
+        // through untouched.
+        static bool ResolveHostIPv4(string host, out string ip, out string message)
+        {
+            ip = host;
+            message = null;
+            if (IPAddress.TryParse(host, out _)) return true;
+            try
+            {
+                // GetHostEntry has no timeout; a wedged resolver would
+                // freeze the menu thread for the OS retry window. Bound
+                // the wait and report instead.
+                const int dnsTimeoutMs = 5000;
+                var pending = Dns.BeginGetHostEntry(host, null, null);
+                try
+                {
+                    if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
+                    {
+                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
+                        return false;
+                    }
+                    var entry = Dns.EndGetHostEntry(pending);
+                    if (entry.AddressList == null || entry.AddressList.Length == 0)
+                    {
+                        message = "no IP for hostname " + SanitizeForLog(host);
+                        return false;
+                    }
+                    ip = entry.AddressList[0].ToString();
+                    for (int i = 0; i < entry.AddressList.Length; i++)
+                    {
+                        if (entry.AddressList[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        {
+                            ip = entry.AddressList[i].ToString();
+                            break;
+                        }
+                    }
+                }
+                finally
+                {
+                    try { pending.AsyncWaitHandle.Close(); } catch { }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                message = "DNS failed for " + SanitizeForLog(host) + ": " + ex.Message;
+                return false;
+            }
         }
 
         /// <summary>Same path as stock "Connect by IP" UI (GameServerInfo IP + Port → ConnectionManager.Connect).</summary>
@@ -208,44 +291,8 @@ namespace SdtdConnect
                     return false;
                 }
 
-                // Prefer IPv4 when DNS returns mixed (matches stock direct-connect UI).
-                string ip = host;
-                if (!IPAddress.TryParse(host, out _))
-                {
-                    try
-                    {
-                        // GetHostEntry has no timeout; a wedged resolver would
-                        // freeze the menu thread for the OS retry window. Bound
-                        // the wait and report instead.
-                        const int dnsTimeoutMs = 5000;
-                        var pending = Dns.BeginGetHostEntry(host, null, null);
-                        if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
-                        {
-                            message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + host;
-                            return false;
-                        }
-                        var entry = Dns.EndGetHostEntry(pending);
-                        if (entry.AddressList == null || entry.AddressList.Length == 0)
-                        {
-                            message = "no IP for hostname " + host;
-                            return false;
-                        }
-                        ip = entry.AddressList[0].ToString();
-                        for (int i = 0; i < entry.AddressList.Length; i++)
-                        {
-                            if (entry.AddressList[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                            {
-                                ip = entry.AddressList[i].ToString();
-                                break;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        message = "DNS failed for " + host + ": " + ex.Message;
-                        return false;
-                    }
-                }
+                if (!ResolveHostIPv4(host, out string ip, out message))
+                    return false;
 
                 var gsi = new GameServerInfo();
                 gsi.SetValue(GameInfoString.IP, ip);
@@ -279,24 +326,7 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
 
-                // DoSpawn opens XUiC_SpawnSelectionWindow unless SkipSpawnButton is true.
-                // Auto-connect needs the direct RequestToSpawn path (no UI click).
-                // Interactive F1 joins keep stock behaviour: the pref persists,
-                // so setting it outside automation would suppress the spawn
-                // window in ordinary play too.
-                if (AutomationMode.Enabled)
-                {
-                    try
-                    {
-                        GamePrefs.Set(EnumGamePrefs.SkipSpawnButton, true);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning("[7dtd-fastconnect] SkipSpawnButton set failed: " + ex.Message);
-                    }
-                }
-
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level=Navezgane SkipSpawn=true (requested host={host})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level=Navezgane (requested host={SanitizeForLog(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";
@@ -305,122 +335,9 @@ namespace SdtdConnect
             catch (Exception ex)
             {
                 // Full stack: ProtocolManager.SetupProtocols NRE is otherwise silent.
-                message = ex.GetType().Name + ": " + ex.Message + "\n" + ex.StackTrace;
-                return false;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gates auto-join until stock platform networking can SetupProtocols without NRE.
-    /// NativePlatform null → HasNetworkingEnabled NRE before LiteNet Connect log.
-    /// </summary>
-    public static class ConnectReady
-    {
-        // Wall time (unscaled) when the cross user was first seen without an id.
-        static float _crossWaitStart = -1f;
-
-        public static bool IsReady(out string reason)
-        {
-            reason = null;
-            try
-            {
-                if (GameManager.Instance == null || !GameManager.Instance.bStaticDataLoaded)
-                {
-                    reason = "staticData=false";
-                    return false;
-                }
-
-                var cm = SingletonMonoBehaviour<ConnectionManager>.Instance;
-                if (cm == null)
-                {
-                    reason = "ConnectionManager=null";
-                    return false;
-                }
-                if (cm.IsConnected)
-                {
-                    reason = "already-connected";
-                    return false;
-                }
-
-                // ProtocolManager.SetupProtocols: NativePlatform.HasNetworkingEnabled
-                var native = Platform.PlatformManager.NativePlatform;
-                if (native == null)
-                {
-                    reason = "NativePlatform=null";
-                    return false;
-                }
-
-                // EOS login must finish before connecting on Steam clients:
-                // ProtocolManager.SetupProtocols builds Platform.EOS.NetworkServerEos
-                // and NREs when the cross user has no id yet (observed racing the
-                // [EOS] Login at ~8 s of boot). Wait for the cross user (bounded),
-                // then proceed anyway so a broken or absent EOS login cannot block
-                // the join forever. Local-mode clients have no cross platform, so
-                // this gate never engages there.
-                const float crossUserWaitMaxSec = 30f;
-                try
-                {
-                    var cross = Platform.PlatformManager.CrossplatformPlatform;
-                    if (cross != null)
-                    {
-                        var user = cross.User;
-                        if (user != null && user.PlatformUserId == null)
-                        {
-                            if (_crossWaitStart < 0f)
-                                _crossWaitStart = UnityEngine.Time.unscaledTime;
-                            if (UnityEngine.Time.unscaledTime - _crossWaitStart < crossUserWaitMaxSec)
-                            {
-                                reason = "cross user not logged in yet";
-                                return false;
-                            }
-                            Log.Out("[7dtd-fastconnect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
-                        }
-                        else if (user != null)
-                        {
-                            _crossWaitStart = -1f; // logged in; reset for later rejoins
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Out("[7dtd-fastconnect] cross-user note: " + ex.Message);
-                }
-
-                // Native steam user is optional when EAC off: block only during the
-                // early boot window, then proceed unauthenticated (stock accepts that
-                // on LiteNet when EAC off).
-                const float nativeUserBootWindowSec = 16f;
-                try
-                {
-                    var nUser = native.User;
-                    if (nUser != null && nUser.PlatformUserId == null)
-                    {
-                        // GameManager.Instance was already verified non-null above.
-                        if (UnityEngine.Time.unscaledTime < nativeUserBootWindowSec)
-                        {
-                            reason = "Native.User.PlatformUserId=null (early; retry in a moment)";
-                            return false;
-                        }
-                        Log.Out("[7dtd-fastconnect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Out("[7dtd-fastconnect] native-user note: " + ex.Message);
-                }
-
-                if (!PermissionsManager.IsMultiplayerAllowed())
-                {
-                    reason = "IsMultiplayerAllowed=false";
-                    return false;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                reason = "IsReady ex: " + ex.Message;
+                // The message may echo the raw host, so only that part is flattened;
+                // the deliberate newline before the stack trace stays.
+                message = ex.GetType().Name + ": " + SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
                 return false;
             }
         }

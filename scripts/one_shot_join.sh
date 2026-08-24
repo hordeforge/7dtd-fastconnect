@@ -4,11 +4,31 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT/scripts/proton_paths.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
+# Bound disk growth: one_shot creates per-cycle logs that would otherwise
+# accumulate forever across repeated harness runs. Keep only recent cycles.
+# Defer pruning failures (read-only FS) so a full cache never aborts the join.
+find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-*.log' -o -name 'launch-*.log' -o -name 'client-lifecycle-*.txt' \) -mtime +3 -delete 2>/dev/null || true
+# Also cap count: keep at most 20 newest of each pattern so a tight loop
+# with mtime < 3 days cannot fill the disk.
+for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt'; do
+  old="$(find "$SCRATCH" -maxdepth 1 -type f -name "$pat" -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n -20 | cut -d' ' -f2-)" || true
+  if [[ -n "$old" ]]; then
+    # shellcheck disable=SC2086
+    rm -f $old 2>/dev/null || true
+  fi
+done
 
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
+# PORT feeds both --port argv and an ERE ("::${PORT}\b"), so keep it numeric
+# like TIMEOUT_SEC below; metacharacters would silently skew the listener probe.
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+  echo "WARN: PORT invalid ('$PORT'); using 27025." >&2
+  PORT=27025
+fi
 # Bash cannot expand/export names starting with a digit, so read the canonical
 # 7DTD_CONNECT via printenv.
 CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
@@ -25,14 +45,20 @@ START_SERVER="${START_SERVER:-0}"
 # Default root of the sibling zdtd checkout; empty when it is not checked
 # out here. A hard failure must wait for the point of use (START_SERVER=1
 # validates the binary) so START_SERVER=0 cycles run anywhere.
-ZDTD_ROOT="$(cd "$ROOT/../zdtd-server-server" 2>/dev/null && pwd || true)"
+ZDTD_ROOT="$(cd "$ROOT/../zdtd-server" 2>/dev/null && pwd || true)"
 ZDTD_BIN="${ZDTD_BIN:-$ZDTD_ROOT/zig-out/bin/zdtd}"
 GAME_DIR="${GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 MAP_DIR="${MAP_DIR:-$GAME_DIR/Data/Worlds/Navezgane}"
 WORLD_DIR="${WORLD_DIR:-$ZDTD_ROOT/worlds/zdtd_goal}"
 STEAM_APPID="${STEAM_APPID:-251570}"
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
-COMPAT="${COMPAT:-$STEAM_ROOT/steamapps/compatdata/$STEAM_APPID}"
+# Resolve the client's Proton prefix exactly like launch_client.sh (same GAME
+# override, same second-library rule): the launcher truncates and writes the
+# client log under its own derived prefix, so polling a differently resolved
+# one would watch an empty file and report every join as a timeout on any
+# non-default Steam library layout.
+CLIENT_GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
+COMPAT="$(resolve_compat "$CLIENT_GAME" "$STEAM_APPID" "$STEAM_ROOT" "${COMPAT:-}")"
 CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
 CLIENT_LOG_OUT="$SCRATCH/stock-join-${CYCLE}.log"
 SERVER_LOG_OUT="$SCRATCH/zdtd-server-${CYCLE}.log"
@@ -44,53 +70,62 @@ launch_pid=""
 
 log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
 
-# Monotonic seconds since boot (/proc/uptime, CLOCK_BOOTTIME). Bash's SECONDS
-# is wall-clock derived: an NTP step or manual correction mid-wait would extend
-# or truncate the join timeout (killing a client that was about to spawn).
-# Fallback keeps the old behaviour off-Linux.
-mono_sec() {
-  local up
-  if read -r up _ < /proc/uptime 2>/dev/null && [[ "$up" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-    printf '%s\n' "${up%%.*}"
-  else
-    printf '%s\n' "$SECONDS"
-  fi
-}
+# Monotonic deadline source shared with mute_client_audio.sh: see
+# scripts/monotonic_clock.sh for why $SECONDS must not bound these waits.
+source "$ROOT/scripts/monotonic_clock.sh"
+# Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
+# scripts/log_sanitize.sh; same contract as ConnectTarget.SanitizeForLog.
+source "$ROOT/scripts/log_sanitize.sh"
 
 # Join success signal; some checks accept extra partial-progress markers too.
 JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'
 JOIN_SOFT_RE='Found own player entity with id|PlayerSpawnedInWorld|\[7dtd-fastconnect\] .*connected|Created player|Local Player'
 
 list_client_pids() {
-  # Match real game process only (not this script's shell line containing the name).
-  pgrep -f '[/]7DaysToDie\.exe' 2>/dev/null || true
-  pgrep -f 'wine64-preloader.*7DaysToDie' 2>/dev/null || true
+  # Match real game process only (not this script's shell line containing the
+  # name). One pgrep for both shapes: the poll loop calls this every cycle and
+  # each spawn walks /proc.
+  pgrep -f '[/]7DaysToDie\.exe|wine64-preloader.*7DaysToDie' 2>/dev/null || true
 }
+
+# The client log is append-only for this whole cycle (truncated above, then
+# written by the game), so once a marker has matched it can never un-match.
+# The join poll runs every 2s against a log that grows by megabytes;
+# re-grepping every already-decided marker from byte zero each poll is wasted
+# I/O competing with the loading client. See scripts/log_markers.sh.
+LOG_MARK_FILE="$CLIENT_LOG_SRC"
+source "$ROOT/scripts/log_markers.sh"
 
 kill_clients() {
   local pids
   pids="$(list_client_pids)"
   if [[ -z "$pids" ]]; then
     log "kill_clients: no 7DaysToDie.exe"
-    return 0
-  fi
-  log "kill_clients: sending TERM to: $pids"
-  # shellcheck disable=SC2086
-  kill $pids 2>/dev/null || true
-  sleep 2
-  pids="$(list_client_pids)"
-  if [[ -n "$pids" ]]; then
-    log "kill_clients: sending KILL to: $pids"
+  else
+    log "kill_clients: sending TERM to: $pids"
     # shellcheck disable=SC2086
-    kill -9 $pids 2>/dev/null || true
-    sleep 1
+    kill $pids 2>/dev/null || true
+    sleep 2
+    pids="$(list_client_pids)"
+    if [[ -n "$pids" ]]; then
+      log "kill_clients: sending KILL to: $pids"
+      # shellcheck disable=SC2086
+      kill -9 $pids 2>/dev/null || true
+      sleep 1
+    fi
+    pids="$(list_client_pids)"
+    if [[ -n "$pids" ]]; then
+      log "kill_clients: STILL ALIVE: $pids"
+      return 1
+    fi
+    log "kill_clients: gone"
   fi
-  pids="$(list_client_pids)"
-  if [[ -n "$pids" ]]; then
-    log "kill_clients: STILL ALIVE: $pids"
-    return 1
-  fi
-  log "kill_clients: gone"
+  # Proton/wine stack outlives the exe: leftover wineservers and
+  # pressure-vessel containers leak threads/NPROC across cycles until the
+  # client wedges at "Initializing Steam". Sweep them after the exe is gone.
+  pkill -9 -f 'wineserver' 2>/dev/null || true
+  pkill -9 -f 'pressure-vessel|pv-adverb|pv-bwrap' 2>/dev/null || true
+  pkill -9 -f 'proton.*7DaysToDie|SteamLaunch.*251570' 2>/dev/null || true
   return 0
 }
 
@@ -118,7 +153,7 @@ cleanup() {
 trap cleanup EXIT
 
 : >"$LIFE_OUT"
-log "=== one_shot_join cycle=$CYCLE connect=$CONNECT timeout=${TIMEOUT_SEC}s ==="
+log "=== one_shot_join cycle=$(sanitize_log_text "$CYCLE") connect=$(sanitize_log_text "$CONNECT") timeout=${TIMEOUT_SEC}s ==="
 log "before clients: $(list_client_pids | tr '\n' ' ')"
 
 if [[ "$START_SERVER" == "1" ]]; then
@@ -161,14 +196,17 @@ else
   fi
 fi
 
+# Kill any leftover client BEFORE truncating the log: a dying client holds
+# the log file open at its own write offset, so pre-cycle lines flushed
+# during kill_clients would land in (or past) the freshly truncated file and
+# cached markers could report a join from a previous cycle's bytes.
+kill_clients || true
+
 # Truncate client log so we only see this cycle.
 mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
 : >"$CLIENT_LOG_SRC"
 
-# Kill any leftover client before launch.
-kill_clients || true
-
-log "launching client connect=$CONNECT"
+log "launching client connect=$(sanitize_log_text "$CONNECT")"
 # Launch in background; capture proton/game children via pgrep after a beat.
 setsid env 7DTD_CONNECT="$CONNECT" "$LAUNCH" >"$SCRATCH/launch-${CYCLE}.log" 2>&1 &
 launch_pid=$!
@@ -181,7 +219,7 @@ result="timeout"
 while (( $(mono_sec) < deadline )); do
   if [[ -f "$CLIENT_LOG_SRC" ]]; then
     # Strong success first: in-world entity exists. Later package noise must not demote this.
-    if grep -Eq "$JOINED_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
+    if log_seen "$JOINED_RE"; then
       result="joined"
       # Optional settle for post-join work (control unlock, world settle).
       settle="${SETTLE_SEC:-0}"
@@ -191,36 +229,29 @@ while (( $(mono_sec) < deadline )); do
       fi
       break
     fi
-    if grep -Eq 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed' "$CLIENT_LOG_SRC" 2>/dev/null; then
+    if log_seen 'Kicked from server|NET: LiteNetLib: Disconnect|Failed to connect|connection failed'; then
       # Only treat as fail if we never saw a good join signal
-      if ! grep -Eq "$JOIN_SOFT_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if ! log_seen "$JOIN_SOFT_RE"; then
         result="kick_or_disconnect"
         break
       fi
     fi
     # Strong join bar: PlayerId ProcessPackage created local player, no parse/create failures.
-    if grep -Eq 'NET: LiteNetLib: Accepted by server' "$CLIENT_LOG_SRC" 2>/dev/null; then
-      if grep -Eq 'EntityFactory CreateEntity: unknown type|NCSimple_Deserializer|Attempted to read past the end of the stream' "$CLIENT_LOG_SRC" 2>/dev/null; then
-        # Soft: only fail if we never found our player.
-        if ! grep -Eq 'Found own player entity with id' "$CLIENT_LOG_SRC" 2>/dev/null; then
-          result="parse_fail"
-          break
-        fi
-      fi
-      if grep -Eq "$JOINED_RE" "$CLIENT_LOG_SRC" 2>/dev/null; then
-        result="joined"
+    if log_seen 'NET: LiteNetLib: Accepted by server'; then
+      if log_seen 'EntityFactory CreateEntity: unknown type|NCSimple_Deserializer|Attempted to read past the end of the stream' \
+        && ! log_seen 'Found own player entity with id'; then
+        result="parse_fail"
         break
       fi
       # PlayerId processed without CreateEntity error is partial success (in-world path)
-      if grep -Eq 'PlayerId\([0-9]+, [0-9]+\)' "$CLIENT_LOG_SRC" 2>/dev/null \
-        && grep -Eq 'Allowed ChunkViewDistance' "$CLIENT_LOG_SRC" 2>/dev/null \
-        && ! grep -Eq 'EntityFactory CreateEntity' "$CLIENT_LOG_SRC" 2>/dev/null; then
+      if log_seen 'PlayerId\([0-9]+, [0-9]+\)' && log_seen 'Allowed ChunkViewDistance' \
+        && ! log_seen 'EntityFactory CreateEntity'; then
         sleep 10
-        if grep -Eq 'Found own player entity with id|PlayerSpawnedInWorld' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        if log_seen 'Found own player entity with id|PlayerSpawnedInWorld'; then
           result="joined"
           break
         fi
-        if ! grep -Eq 'EntityFactory CreateEntity|NCSimple_Deserializer|Kicked from server' "$CLIENT_LOG_SRC" 2>/dev/null; then
+        if ! log_seen 'EntityFactory CreateEntity|NCSimple_Deserializer|Kicked from server'; then
           result="joined"
           break
         fi
@@ -249,7 +280,10 @@ grep -En '7dtd-fastconnect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Sp
   "$CLIENT_LOG_OUT" 2>/dev/null | head -80 | tee -a "$LIFE_OUT" || true
 
 log "after clients before kill: $(list_client_pids | tr '\n' ' ')"
-kill_clients
+# A client that survives SIGKILL makes kill_clients report failure; that must
+# not abort here (set -e) before the result-based exit below, or a joined
+# cycle would be misreported as failed by the cleanup trap.
+kill_clients || true
 log "after kill clients: $(list_client_pids | tr '\n' ' ')"
 
 case "$result" in

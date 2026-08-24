@@ -3,10 +3,12 @@ namespace SdtdConnect
     /// <summary>Runtime + persistent toggle for verbose 7dtd-fastconnect traces.</summary>
     internal static class DiagToggle
     {
+        internal const string EnvVar = "7DTD_CONNECT_DEBUG";
+
         // Snapshot once: Enabled sits first in per-frame/per-package hooks, and
         // a getenv there costs a native call plus a string alloc every frame.
         // The process env never changes at runtime; live toggling is Set().
-        static readonly bool _envEnabled = EnvFlags.VarIsSetOn("7DTD_CONNECT_DEBUG");
+        static readonly bool _envEnabled = EnvFlags.VarIsSetOn(EnvVar);
 
         // Console toggle: F1 `diag on/off/toggle/status`
         static bool _consoleOverride;

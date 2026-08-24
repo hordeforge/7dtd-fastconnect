@@ -127,11 +127,15 @@ namespace SdtdConnect
             {
                 GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
                 GamePrefs.Instance?.Save();
+                // Same log rule as 7DTD_CONNECT/-connect: env values are
+                // attacker-shapable and harnesses grep fixed markers, so the
+                // echoed value must not carry control characters.
+                string logged = ConnectTarget.SanitizeForLog(requested);
                 // Name the real source: a fallback logged as "from 7DTD_PLAYER_NAME="
                 // would send someone debugging after an env value that is not set.
                 Log.Out(fromEnv
-                    ? "[7dtd-fastconnect] player name from " + PlayerNameEnv + "=" + requested
-                    : "[7dtd-fastconnect] player name fallback '" + requested
+                    ? "[7dtd-fastconnect] player name from " + PlayerNameEnv + "=" + logged
+                    : "[7dtd-fastconnect] player name fallback '" + logged
                         + "' (" + PlayerNameEnv + " unset, stored PlayerName empty)");
             }
             catch (Exception ex)
@@ -164,6 +168,23 @@ namespace SdtdConnect
             }
 
             Log.Out("[7dtd-fastconnect] auto-join from " + source);
+            // DoSpawn opens XUiC_SpawnSelectionWindow unless SkipSpawnButton is
+            // true; auto-connect needs the direct RequestToSpawn path (no UI
+            // click). Set here rather than inside ConnectTarget.TryConnect so
+            // the connect plumbing stays independent of AutomationMode, and F1
+            // joins keep stock behaviour: the pref persists, so setting it
+            // outside automation would suppress the spawn window in ordinary
+            // play too.
+            try
+            {
+                if (AutomationMode.Enabled)
+                    GamePrefs.Set(EnumGamePrefs.SkipSpawnButton, true);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-fastconnect] SkipSpawnButton set failed: " + ex.Message);
+            }
+
             try
             {
                 ThreadManager.StartCoroutine(DelayedConnect(host, port));
@@ -179,10 +200,10 @@ namespace SdtdConnect
         {
             // SetupProtocols NREs on PlatformManager.NativePlatform before EOS/Steam settle.
             // Force-open CheckLogin fires MainMenuOpened ~1s before [EOS] Login succeeded;
-            // the connect-ready gate waits for the cross (EOS) user. Cap by wall time,
-            // not frames, because uncapped boot ticks thousands of frames per second
-            // (a frame cap would expire long before the EOS settle windows in ConnectReady).
-            // Poll on a wall interval, not per frame: IsReady touches several
+            // the connect-ready gate waits for the cross (EOS) user. Cap by monotonic
+            // time, not frames, because uncapped boot ticks thousands of frames per
+            // second (a frame cap would expire long before the EOS settle windows in ConnectReady).
+            // Poll on a monotonic interval, not per frame: IsReady touches several
             // subsystems and would otherwise run thousands of times per second
             // under the uncapped boot; 10 Hz costs at most 100 ms of extra
             // join latency against multi-second settle windows.

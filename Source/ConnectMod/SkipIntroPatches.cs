@@ -4,54 +4,6 @@ using UnityEngine;
 
 namespace SdtdConnect
 {
-    /// <summary>EULA acceptance shared by InitMod prefs and every skip patch.</summary>
-    internal static class EulaSkip
-    {
-        /// <summary>Marks the latest EULA accepted and persists it. Returns the recorded version.</summary>
-        internal static int AcceptLatest()
-        {
-            int latest = GamePrefs.GetInt(EnumGamePrefs.EulaLatestVersion);
-            if (latest < 1) latest = 99;
-            GamePrefs.Set(EnumGamePrefs.EulaLatestVersion, latest);
-            GamePrefs.Set(EnumGamePrefs.EulaVersionAccepted, latest);
-            GamePrefs.Instance?.Save();
-            return latest;
-        }
-
-        /// <summary>
-        /// Shared body for both GUIWindowManager.Open arities that can open
-        /// "windowEula": accept, reopen the main menu, and re-fire
-        /// MainMenuOpened directly so auto-join fires even if the XUi path is gated.
-        /// Once the window is windowEula it never falls back to stock Open.
-        /// </summary>
-        internal static bool BlockGateWindow(GUIWindowManager wm, string _windowName, string logTag)
-        {
-            if (_windowName != "windowEula") return true;
-            try
-            {
-                Log.Out("[7dtd-fastconnect] blocking GUI " + logTag);
-                AcceptLatest();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] windowEula accept failed (" + logTag + "): " + ex.Message);
-            }
-            try
-            {
-                var xui = wm?.playerUI?.xui;
-                if (xui != null) XUiC_MainMenu.Open(xui);
-                var data = new ModEvents.SMainMenuOpenedData(true);
-                ModEvents.MainMenuOpened.Invoke(ref data);
-                Log.Out("[7dtd-fastconnect] dispatched MainMenuOpened after " + logTag);
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] MainMenuOpened dispatch failed (" + logTag + "): " + ex.Message);
-            }
-            return false;
-        }
-    }
-
     /// <summary>
     /// Skip news "click to continue" by treating it as already shown.
     /// Intro splash video is skipped via -skipintro on the process argv (before mods load).
@@ -88,6 +40,7 @@ namespace SdtdConnect
     {
         static float _nextLog;
         static int _ticks;
+        static bool _failLogged;
 
         static void Prefix(MainMenuMono __instance)
         {
@@ -110,7 +63,18 @@ namespace SdtdConnect
                     + " openMM=" + (__instance != null && __instance.bOpenMainMenu)
                     + " action=" + action);
             }
-            catch { /* ignore */ }
+            catch (Exception ex)
+            {
+                // Same contract as the spawn/load heartbeats: a probe that
+                // always throws must not be silent, or it looks like a healthy
+                // quiet boot. Announce the first failure once, then mute.
+                if (!_failLogged)
+                {
+                    _failLogged = true;
+                    try { Log.Warning("[7dtd-fastconnect] boot hb failed (further failures muted):\n" + ex); }
+                    catch { }
+                }
+            }
         }
     }
 
@@ -249,6 +213,10 @@ namespace SdtdConnect
     {
         static bool Prefix(GUIWindowManager __instance, string _windowName, bool _bModal, bool _bIsNotEscClosable)
         {
+            // Name guard before the logTag concat: Open fires for every UI
+            // window (toolTip/saveIndicator per tick), so the non-EULA path
+            // must stay allocation-free.
+            if (_windowName != EulaSkip.GateWindowName) return true;
             return EulaSkip.BlockGateWindow(__instance, _windowName,
                 "windowEula modal=" + _bModal + " esc=" + _bIsNotEscClosable);
         }
@@ -261,6 +229,8 @@ namespace SdtdConnect
     {
         static bool Prefix(GUIWindowManager __instance, string _windowName, bool _bModal)
         {
+            // Same allocation-free non-EULA path as the 3-arity gate above.
+            if (_windowName != EulaSkip.GateWindowName) return true;
             return EulaSkip.BlockGateWindow(__instance, _windowName,
                 "windowEula(2) modal=" + _bModal);
         }

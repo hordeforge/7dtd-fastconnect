@@ -1,4 +1,4 @@
-# ⚡ Hotwire (7DTD FastConnect)
+# ⚡ 7DTD FastConnect
 
 > **Part of [HordeForge](https://github.com/hordeforge)** — High-Performance Systems Engineering for 7 Days to Die.
 
@@ -101,7 +101,7 @@ without a launch target can force the old behavior with
 
 ### Synchronous-load override
 
-Automated playtests enable the client's global `LoadManager.forceLoadSync`
+Automation boot mode enables the client's global `LoadManager.forceLoadSync`
 override by default so addressable loads cannot starve during unattended Proton
 launches. To keep all connect features active while using the stock asynchronous
 client loading path, set `7DTD_CONNECT_FORCE_LOAD_SYNC=0`. For example, in the
@@ -112,7 +112,7 @@ env 7DTD_CONNECT_FORCE_LOAD_SYNC=0 mangohud %command%
 ```
 
 The values `0`, `false`, `no`, and `off` disable only the synchronous-load
-override. With the variable unset, playtest behavior is unchanged.
+override. Any other value, or leaving the variable unset, keeps it enabled.
 
 ### Local player identity for an isolated test client
 
