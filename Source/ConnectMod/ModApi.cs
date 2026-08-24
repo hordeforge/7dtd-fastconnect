@@ -175,7 +175,11 @@ namespace SdtdConnect
 
             if (!ConnectTarget.TryFromLaunchContext(out string host, out int port, out string source))
             {
-                Log.Out("[7dtd-fastconnect] no 7DTD_CONNECT / -connect= ; use F1: connect 127.0.0.1 27025");
+                // "no usable" covers both unset and set-but-rejected: the
+                // rejection already warned with its own reason, and claiming
+                // "no 7DTD_CONNECT" after it would send someone debugging
+                // after why their variable was not seen at all.
+                Log.Out("[7dtd-fastconnect] auto-join idle (no usable 7DTD_CONNECT / -connect=); use F1: connect 127.0.0.1 27025");
                 return;
             }
 
