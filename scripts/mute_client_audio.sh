@@ -11,7 +11,9 @@
 #   ./scripts/unmute_client_audio.sh
 #
 # Env:
-#   CLIENT_MUTE_TIMEOUT  poll seconds for the stream (default 60)
+#   CLIENT_MUTE_TIMEOUT / SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT
+#     poll seconds for the stream (default 60; invalid values warn and use 60).
+#     The first positional arg overrides both.
 set -euo pipefail
 
 WAIT_SECONDS="${1:-${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}}"

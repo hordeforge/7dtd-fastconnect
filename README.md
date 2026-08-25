@@ -165,6 +165,10 @@ the F1 console in-world, arm it, and play for a few minutes:
 diag on
 ```
 
+To start verbose from boot instead of toggling in-world, launch with
+`7DTD_CONNECT_DEBUG=1` (`0`/`false`/`no`/`off` keep it off; any other non-empty
+value enables it).
+
 Every frame over 200 ms then logs one line with the GC generation deltas, the
 `LoadManager` backlog, the managed heap, and the live frame cap:
 
@@ -195,7 +199,7 @@ registry). Independent of master volume. Requires `pactl` and `jq`.
 | Env | Meaning |
 |---|---|
 | `CLIENT_MUTE` / `SEVEN_DAYS_TO_DIE_CLIENT_MUTE` | Default `1` (muted). Set `0` / `false` / `no` / `off` to leave audio on |
-| `CLIENT_MUTE_TIMEOUT` | Seconds to wait for the audio stream after launch (default 60) |
+| `CLIENT_MUTE_TIMEOUT` / `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT` | Seconds to wait for the audio stream after launch (default 60) |
 | `CLIENT_PLATFORM=local` | No-Steam client mode: backs up the game's `platform.cfg`, selects the `Local` platform with EOS crossplay off, restores on exit. Lets the real client join a test server without valid Steam auth and without a server-side bypass mod (loadgen bots already ride this path). See `../7dtd-loadgen/docs/STOCK_AUTH.md` |
 
 ```bash
@@ -227,6 +231,40 @@ is running:
 Clearing the mute needs a live stream so WirePlumber writes the unmuted
 state back. With the game closed the script reports whether the saved
 state is still muted.
+
+## Environment variables
+
+Every runtime knob in one place; the sections above carry the detail. Rules
+that hold for all of them:
+
+- Unset and empty mean the default. Boolean opt-outs accept `0` / `false` /
+  `no` / `off` (any case); any other non-empty value opts in.
+- Values echoed to logs are flattened to one line (no control characters).
+- Invalid enum values either abort with the valid set (`GFX_API`) or warn and
+  fall back (`CLIENT_PLATFORM`, numeric timeouts); nothing is silently ignored.
+
+| Variable | Default | Controls |
+|---|---|---|
+| `7DTD_CONNECT` | unset | Auto-join target `host[:port]` once the main menu opens (same as `-connect=host:port`; port defaults to 27025) |
+| `7DTD_CONNECT_AUTOMATION` | auto: on when a join target is present | Force automation boot mode on/off explicitly |
+| `7DTD_CONNECT_FORCE_LOAD_SYNC` | on in automation mode | `0` keeps stock async loading while connect features stay active |
+| `7DTD_CONNECT_DEBUG` | off | Verbose `[7dtd-fastconnect]` traces from boot (same as F1 `diag on`) |
+| `7DTD_PLAYER_NAME` | stored `PlayerName` pref | Local-platform identity used for the auto-join |
+| `GAME` | stock Steam client path | Client install dir (launcher, harnesses, `make build/install`) |
+| `PROTON` / `COMPAT` / `STEAM_ROOT` / `STEAM_APPID` | auto-detected | Proton binary, compatdata prefix, Steam root, app id overrides for the launcher |
+| `GFX_API` | `d3d11` | Forced backend: `d3d11`, `d3d12`, `vulkan`, `glcore`, or `none`; an invalid value aborts before launch |
+| `CLIENT_MUTE` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE`) | `1` | OS-level mute of the game audio stream at launch |
+| `CLIENT_MUTE_TIMEOUT` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT`) | `60` | Seconds the launcher polls for that stream |
+| `CLIENT_PLATFORM` | Steam mode | `1` / `local` / `lan` (case-insensitive) selects no-Steam Local mode; anything else warns and is ignored |
+
+Diagnostic-only: `7DTD_DUMP_BLOCK_IDS=1` dumps runtime block ids at load,
+writing to `7DTD_DUMP_BLOCK_IDS_PATH` (default inside the client profile); see
+[docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+
+The join harnesses (`one_shot_join.sh`, `zero_nre_join_loop.sh`,
+`restart_pair.sh`) take their own knobs (`PORT`, `HOST`, `TIMEOUT_SEC`,
+`CYCLE`, `START_SERVER`, `ZDTD_BIN`, ...): each validates its value at startup
+and names the fallback it uses.
 
 ## With zdtd
 

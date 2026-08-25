@@ -6,7 +6,8 @@ gate exercises real script behavior without a game install:
 
 - CLIENT_PLATFORM=local swap/restore: platform.cfg must be swapped to Local
   before launch and restored afterwards (the trap), without touching the real
-  install.
+  install. Matching is case-insensitive (1/local/lan); an unrecognized value
+  warns and is ignored rather than silently launching with Steam auth.
 - 7DTD_CONNECT forwarding: -connect= must reach the game process argv (the
   mod's core join path), and the EAC-off/render flags are part of the
   launcher's contract with the game (any C# client mod requires EAC off).
@@ -213,13 +214,41 @@ def test_no_platform_override_leaves_config_alone(tmp_path: Path) -> None:
 
 
 def test_invalid_platform_value_leaves_config_alone(tmp_path: Path) -> None:
-    """Only 1/local/Local/LAN select Local; anything else must be ignored."""
+    """Only 1/local/lan (any case) select Local; anything else must be ignored,
+    but not silently: a typo'd value would otherwise launch with Steam auth and
+    fail much later with opaque join errors."""
     game = _setup(tmp_path)
     r = _launch(tmp_path, local_platform=False,
                 extra_env={"CLIENT_PLATFORM": "bogus"})
     assert r.returncode == 0, r.stderr
+    assert "CLIENT_PLATFORM='bogus' is not 1/local/lan" in r.stderr
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
     assert not (game / "platform.cfg.re-localbak").exists()
+
+
+@pytest.mark.parametrize("value", ["LOCAL", "Lan", " local ", "1"])
+def test_platform_value_matches_case_insensitively(
+    tmp_path: Path, value: str,
+) -> None:
+    """Uppercase/padded aliases of the documented values select Local mode too;
+    the swap must still restore (the value only changes matching, not the trap
+    contract)."""
+    game = _setup(tmp_path)
+    r = _launch(tmp_path, extra_env={"CLIENT_PLATFORM": value})
+    assert r.returncode == 0, r.stderr
+    assert "WARN" not in r.stderr
+    assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+    assert not (game / "platform.cfg.re-localbak").exists()
+
+
+def test_empty_platform_value_is_unset_not_warning(tmp_path: Path) -> None:
+    """Empty means unset (the repo-wide rule): no Local mode, no warning."""
+    game = _setup(tmp_path)
+    r = _launch(tmp_path, local_platform=False,
+                extra_env={"CLIENT_PLATFORM": ""})
+    assert r.returncode == 0, r.stderr
+    assert "CLIENT_PLATFORM" not in r.stderr
+    assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
 def test_leftover_backup_is_restored_then_reswapped(tmp_path: Path) -> None:

@@ -87,8 +87,19 @@ MUTE_WAIT="${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}"
 # includes Local; loadgen bots ride this path), so the real client can join a
 # test server without valid Steam auth and without any server-side bypass mod.
 LOCAL_PLATFORM=0
-case "${CLIENT_PLATFORM:-}" in
-  1 | local | Local | LAN) LOCAL_PLATFORM=1 ;;
+# Trim + case-fold before matching so LOCAL/Lan/" local " behave like the
+# documented value (same shape as the MUTE_CLIENT opt-out above). An
+# unrecognized non-empty value warns instead of silently launching with Steam
+# auth: the join would then fail much later with opaque auth errors.
+PLATFORM_MODE="${CLIENT_PLATFORM:-}"
+PLATFORM_MODE="${PLATFORM_MODE#"${PLATFORM_MODE%%[![:space:]]*}"}"
+PLATFORM_MODE="${PLATFORM_MODE%"${PLATFORM_MODE##*[![:space:]]}"}"
+case "${PLATFORM_MODE,,}" in
+  "") ;;
+  1 | local | lan) LOCAL_PLATFORM=1 ;;
+  *)
+    echo "WARN: launch_client.sh: CLIENT_PLATFORM='$(sanitize_log_text "$PLATFORM_MODE")' is not 1/local/lan; ignoring (Steam client mode)" >&2
+    ;;
 esac
 PLATFORM_CFG="$GAME/platform.cfg"
 PLATFORM_BAK="$GAME/platform.cfg.re-localbak"
