@@ -20,6 +20,9 @@
 #   - PlayerNames: fallback identity invariants (never empty, trimmed, capped)
 #   - AutomationMode: decision table (launch-context detection vs explicit
 #     opt-in/opt-out), one process per case
+#   - Fuzz: seeded grammar-biased generator asserting invariants over
+#     TryParse/MergePortArg/SanitizeForLog/TryFromLaunchContext (totality,
+#     bounded ports, single-line log/source, cross-port merge consistency)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/test_common.sh"
@@ -78,6 +81,7 @@ expect_argv() {
 }
 
 assert "TryParse / MergePortArg table" run_mode parse
+assert "fuzz invariants over the launch-target grammar" run_mode fuzz
 assert "launch-context env resolution" run_mode launchctx
 assert "log-safe flattening of launch targets" run_mode sanitize
 assert "EnvFlags opt-out/opt-in truthiness table" run_mode envflags

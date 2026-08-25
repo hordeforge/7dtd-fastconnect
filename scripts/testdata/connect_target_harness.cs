@@ -28,9 +28,21 @@
 //                   "OK<TAB>host<TAB>port<TAB>source" or "NO"
 //   - `argvenv .` : same, but the shell-set 7DTD_CONNECT stays active so the
 //                   env-over-argv precedence is observable
+//   - `fuzz`      : deterministic seeded generator (grammar-biased: brackets,
+//                   colons, scheme prefixes, port-bound numerics, control
+//                   chars) hammers TryParse / MergePortArg / SanitizeForLog /
+//                   TryFromLaunchContext and asserts invariants instead of
+//                   fixed expectations: totality (no throw), accept/reject
+//                   contracts (bounded port, non-empty trimmed host, error
+//                   text, null host on reject), log flattening (length and
+//                   control-char free), cross-port merge consistency (the
+//                   same host must parse for every valid appended port), and
+//                   single-line source through the env wrapper. The seed is
+//                   printed so any failure reproduces offline.
 //
 // Exit status is nonzero when any assertion fails.
 using System;
+using System.Text;
 using SdtdConnect;
 
 static class TestMain
@@ -539,8 +551,228 @@ static class TestMain
             return 0;
         }
 
+        if (mode == "fuzz")
+        {
+            return RunFuzz();
+        }
+
         Console.Error.WriteLine("unknown mode: " + mode);
         return 2;
+    }
+
+    // ------------------------------------------------------------------
+    // Fuzz target for the launch-target grammar (the mod's untrusted-input
+    // surface: env/argv values are attacker-shapable via steam://run URLs).
+    // Deterministic seed so any invariant violation reproduces offline; a
+    // fuzzer alone proves presence of bugs, so every generated input is also
+    // checked against invariants that must hold for ALL inputs.
+    // ------------------------------------------------------------------
+    const int FuzzSeed = 20260826;
+    static int _fuzzReported;
+
+    // Failure reporting with a cap: the same bug usually fires thousands of
+    // times; the first few inputs plus the printed seed are enough to triage.
+    static void CheckFuzz(string name, bool cond)
+    {
+        if (cond) return;
+        _fails++;
+        if (_fuzzReported < 20)
+        {
+            _fuzzReported++;
+            Console.WriteLine("FAIL " + name);
+        }
+    }
+
+    static string EscapeForLog(string s)
+    {
+        if (s == null) return "<null>";
+        var sb = new StringBuilder(s.Length + 8);
+        foreach (char c in s)
+        {
+            if (c == '\\') sb.Append("\\\\");
+            else if (c < 0x20 || c == 0x7f) sb.Append("\\u").Append(((int)c).ToString("x4"));
+            else sb.Append(c);
+        }
+        return sb.ToString();
+    }
+
+    static readonly string[] FuzzPorts =
+    {
+        "0", "00", "1", "65535", "65536", "27025", "+1", "-1", " 42",
+        "2147483647", "2147483648", "99999999999999999999", "0x1b",
+        "abc", "", " ", "\t7"
+    };
+
+    static readonly string[] FuzzHosts =
+    {
+        "127.0.0.1", "10.0.0.1", "zdtd.lan", "localhost", "1.2.3.4",
+        "::1", "2001:db8::1", "", "[", "]", "[::1]", "[::1"
+    };
+
+    static string RandText(Random r, string charset, int len)
+    {
+        var sb = new StringBuilder(len);
+        for (int i = 0; i < len; i++) sb.Append(charset[r.Next(charset.Length)]);
+        return sb.ToString();
+    }
+
+    static string RandV6(Random r)
+    {
+        int groups = r.Next(2, 9);
+        var sb = new StringBuilder();
+        for (int i = 0; i < groups; i++)
+        {
+            if (i > 0) sb.Append(':');
+            if (r.Next(6) == 0) { sb.Append(':'); continue; } // splice in "::" forms
+            sb.Append(RandText(r, "0123456789abcdefABCDEF", r.Next(0, 5)));
+        }
+        return sb.ToString();
+    }
+
+    static string GenInput(Random r, int i)
+    {
+        const string grammar = "[]:.0123456789abcdefABCDEFghijklmnopqrstuvwxyz /=-+\t\n\r";
+        string raw;
+        switch (i % 6)
+        {
+            case 0:
+                raw = RandText(r, grammar, r.Next(0, 49));
+                break;
+            case 1:
+                raw = (r.Next(2) == 0 ? "steam://connect/" : "STEAM://CONNECT/")
+                    + RandText(r, grammar, r.Next(0, 25));
+                break;
+            case 2:
+                raw = "[" + RandV6(r) + "]";
+                if (r.Next(2) == 0) raw += ":" + FuzzPorts[r.Next(FuzzPorts.Length)];
+                if (r.Next(8) == 0) raw += RandText(r, "[:]", r.Next(0, 3));
+                break;
+            case 3:
+                raw = FuzzHosts[r.Next(FuzzHosts.Length)] + ":" + FuzzPorts[r.Next(FuzzPorts.Length)];
+                break;
+            case 4:
+                raw = RandText(r, "ab19.:]", r.Next(0, 6)) + new string(':', r.Next(1, 5))
+                    + RandText(r, "ab19.:]", r.Next(0, 6));
+                break;
+            default:
+                raw = RandV6(r);
+                if (r.Next(3) == 0) raw = "[" + raw + "]" + ":" + FuzzPorts[r.Next(FuzzPorts.Length)];
+                break;
+        }
+        // Occasionally forge log markers or pad: control chars must never
+        // reach the log as line breaks, and outer whitespace must not change
+        // the parse outcome.
+        if (r.Next(4) == 0) raw = "\n" + raw;
+        if (r.Next(4) == 0) raw = raw + "\rFAKE JOINED LINE";
+        if (r.Next(6) == 0) raw = "  " + raw + " ";
+        return raw;
+    }
+
+    static void FuzzOne(string raw, int i)
+    {
+        string label = "raw='" + EscapeForLog(raw) + "'";
+
+        // Totality: none of the entry points may throw on any input.
+        string san;
+        try { san = ConnectTarget.SanitizeForLog(raw); }
+        catch (Exception ex) { CheckFuzz(label + " SanitizeForLog threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
+
+        if (san != null)
+        {
+            CheckFuzz(label + " sanitize preserves length", san.Length == (raw ?? "").Length);
+            bool clean = true;
+            foreach (char c in san) { if (char.IsControl(c)) { clean = false; break; } }
+            CheckFuzz(label + " sanitize strips control chars", clean);
+        }
+
+        string host; int port; string err;
+        bool ok;
+        try { ok = ConnectTarget.TryParse(raw, out host, out port, out err); }
+        catch (Exception ex) { CheckFuzz(label + " TryParse threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
+
+        if (ok)
+        {
+            CheckFuzz(label + " accepted host non-empty", host != null && host.Length > 0);
+            CheckFuzz(label + " accepted host trimmed", host == null || host == host.Trim());
+            CheckFuzz(label + " accepted port bounded", port >= 1 && port <= 65535);
+            CheckFuzz(label + " accept leaves no error", err == null);
+            // Outer padding must never change the verdict or the values.
+            string paddedHost; int paddedPort; string paddedErr;
+            bool paddedOk = ConnectTarget.TryParse("  " + raw + " ", out paddedHost, out paddedPort, out paddedErr);
+            CheckFuzz(label + " padding keeps verdict", paddedOk
+                && paddedPort == port && paddedHost == host);
+        }
+        else
+        {
+            CheckFuzz(label + " rejection explains itself", !string.IsNullOrEmpty(err));
+            CheckFuzz(label + " rejection leaves host null", host == null);
+        }
+
+        // A raw value without any colon cannot carry a port suffix (the
+        // steam:// scheme and bare IPv6 both contain colons), so an
+        // accepted parse of it must fall back to the documented default.
+        if (ok && raw.IndexOf(':') < 0)
+            CheckFuzz(label + " portless input keeps default port", port == ConnectTarget.DefaultPort);
+
+        // Cross-port merge consistency: MergePortArg may add exactly one
+        // ":<digits>" suffix, so every valid appended port must yield the
+        // same accept/reject verdict and the same host.
+        const int portA = 27025, portB = 1, portC = 65535;
+        string mergedA = ConnectTarget.MergePortArg(raw, portA.ToString());
+        string mergedB = ConnectTarget.MergePortArg(raw, portB.ToString());
+        string mergedC = ConnectTarget.MergePortArg(raw, portC.ToString());
+        string mAHost, mBHost, mCHost; int mAPort, mBPort, mCPort; string mErr;
+        try
+        {
+            bool okA = ConnectTarget.TryParse(mergedA, out mAHost, out mAPort, out mErr);
+            bool okB = ConnectTarget.TryParse(mergedB, out mBHost, out mBPort, out mErr);
+            bool okC = ConnectTarget.TryParse(mergedC, out mCHost, out mCPort, out mErr);
+            CheckFuzz(label + " merge verdict stable across ports", okA == okB && okB == okC);
+            if (okA && okB && okC)
+                CheckFuzz(label + " merge host stable across ports",
+                    mAHost == mBHost && mBHost == mCHost);
+        }
+        catch (Exception ex)
+        {
+            CheckFuzz(label + " merged TryParse threw", false);
+            Console.WriteLine("     " + ex.GetType().Name);
+        }
+
+        // Sample the env wrapper too: it is what actually consumes
+        // attacker-shapable bytes, and its reported source stays one line.
+        if ((i % 64) == 0)
+        {
+            try
+            {
+                Environment.SetEnvironmentVariable(ConnectTarget.EnvVar, raw);
+                string srcHost; int srcPort; string srcSource;
+                bool srcOk = ConnectTarget.TryFromLaunchContext(out srcHost, out srcPort, out srcSource);
+                if (srcOk)
+                {
+                    CheckFuzz(label + " env source single-line",
+                        srcSource.IndexOf('\n') < 0 && srcSource.IndexOf('\r') < 0);
+                    CheckFuzz(label + " env port bounded", srcPort >= 1 && srcPort <= 65535);
+                    CheckFuzz(label + " env host non-empty", !string.IsNullOrEmpty(srcHost));
+                }
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(ConnectTarget.EnvVar, null);
+            }
+        }
+    }
+
+    static int RunFuzz()
+    {
+        const int iterations = 24000;
+        var rng = new Random(FuzzSeed);
+        int before = _fails;
+        for (int i = 0; i < iterations; i++)
+            FuzzOne(GenInput(rng, i), i);
+        int found = _fails - before;
+        Console.WriteLine("fuzz: seed=" + FuzzSeed + " iterations=" + iterations
+            + " violations=" + found);
+        return Done();
     }
 
     static void Env(string name, string value)
