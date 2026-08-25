@@ -22,6 +22,7 @@ Missing terrain, signs, inventory, spawn, or deco behaviour is fixed on the **se
 
 CI runs `make test` on every push and PR. Packaged builds are attached to
 GitHub releases (`make package` produces `dist/7dtd-fastconnect-<tag>.zip`).
+Release notes and upgrade notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Requirements
 
