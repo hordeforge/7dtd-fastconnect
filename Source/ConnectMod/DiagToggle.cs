@@ -32,7 +32,8 @@ namespace SdtdConnect
             if (Enabled) Log.Out("[7dtd-fastconnect] diag verbose ON (7DTD_CONNECT_DEBUG=1 or `diag on`)");
         }
 
-        // Console command sets this; it also re-announces via AnnounceOnce().
+        // Console command sets this; clearing _reported makes the next
+        // AnnounceOnce() (InitMod / MainMenuOpened) re-log the flipped state.
         internal static void Set(bool on)
         {
             _consoleHasOverride = true;

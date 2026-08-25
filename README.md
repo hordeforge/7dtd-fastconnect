@@ -105,9 +105,8 @@ forces every load sync from boot. The workaround drains `World.LoadWorld`
 synchronously, then after `createWorld` waits for `LoadManager`'s async queue to
 empty and holds sync loading until `StartAsServer` finishes, so player creation
 runs against an idle addressables system. Startup tracing is available with
-`diag on`. Specialized runners
-without a launch target can force the old behavior with
-`7DTD_CONNECT_AUTOMATION=1`.
+`diag on`. Specialized runners without a launch target can enable that
+automation boot mode explicitly with `7DTD_CONNECT_AUTOMATION=1`.
 
 ### Synchronous-load override
 
