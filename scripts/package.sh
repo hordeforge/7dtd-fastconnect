@@ -14,6 +14,31 @@
 # normalizes order/metadata so two builds of one tree produce identical
 # bytes. See scripts/repro_zip.sh for the full contract.
 set -euo pipefail
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+	echo "Usage: package.sh"
+	cat <<'EOF'
+
+Build the mod (make build) and zip dist/7dtd-fastconnect into
+dist/7dtd-fastconnect-<version>.zip with reproducible bytes: entry mtimes
+come from SOURCE_DATE_EPOCH (default: the last commit's timestamp), never
+the wall clock.
+
+The version comes from the newest git tag (vX.Y.Z -> X.Y.Z); VERSION=x.y.z
+overrides it, and a worktree with uncommitted tracked changes ships as
+<commit>-dirty instead of claiming a release. Requires a local client
+install (the build compiles against the shipped Assembly-CSharp.dll) and
+zip on PATH.
+
+Exit status: 0 zip written | 1 setup or build failure.
+
+Key env vars:
+  VERSION            override the version in the zip filename
+  SOURCE_DATE_EPOCH  archive timestamp (default: last commit time)
+EOF
+	exit 0
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Feature-test like every other external tool in this repo: fail fast, before

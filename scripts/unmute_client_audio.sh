@@ -11,6 +11,21 @@
 #   ./scripts/unmute_client_audio.sh
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: unmute_client_audio.sh
+
+Unmute the 7 Days To Die audio stream (pair of mute_client_audio.sh).
+Run it while the client is up so WirePlumber persists the unmuted state;
+with the game closed it reports whether the saved state would still start
+the next launch muted.
+
+Exit status: 0 stream unmuted or nothing to do | 1 pactl/jq missing, or
+no live stream while the saved state is still muted.
+EOF
+  exit 0
+fi
+
 STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/wireplumber/stream-properties"
 
 if ! command -v pactl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then

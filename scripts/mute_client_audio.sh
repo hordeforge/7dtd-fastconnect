@@ -16,6 +16,21 @@
 #     The first positional arg overrides both.
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: mute_client_audio.sh [wait-seconds]
+
+Mute the 7 Days To Die audio stream (pactl sink-input) as soon as it
+appears, polling up to wait-seconds. The first argument overrides
+CLIENT_MUTE_TIMEOUT / SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT (default 60).
+
+Exit status is 0 even when no stream appears within the window (the
+launch must not fail over audio); a warning goes to stderr instead.
+OS-level only: game client audio settings are never touched.
+EOF
+  exit 0
+fi
+
 WAIT_SECONDS="${1:-${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}}"
 
 if ! [[ "$WAIT_SECONDS" =~ ^[0-9]+$ ]] || ((WAIT_SECONDS < 1)); then

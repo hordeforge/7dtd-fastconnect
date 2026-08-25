@@ -3,6 +3,27 @@
 # after "Found own player", or max attempts.
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: zero_nre_join_loop.sh
+
+Drive one_shot_join.sh cycles against its own zdtd server until a joined
+cycle shows zero NREs after "Found own player" twice in a row, or
+MAX_ATTEMPTS is reached. Progress goes to stdout and SCRATCH logs.
+
+Exit status: 0 confirmed zero-NRE join | 1 budget exhausted or the
+             zdtd server failed to listen | 2 ZDTD_BIN missing.
+
+Key env vars:
+  PORT           zdtd listen port (default 27025)
+  MAX_ATTEMPTS   cycle budget (default 6)
+  TIMEOUT_SEC    per-cycle join wait in seconds (default 90)
+  ZDTD_BIN       zdtd binary (default ../zdtd-server/zig-out/bin/zdtd)
+  SCRATCH        artifact dir (default ~/.cache/7dtd-fastconnect)
+EOF
+  exit 0
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/proton_paths.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"

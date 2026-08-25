@@ -3,6 +3,29 @@
 # Always terminates the Proton client process for this run before exit.
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: one_shot_join.sh
+
+Run one auto-connect join cycle of the stock client against zdtd and exit
+0 when the client joined; 1 on any other outcome. This cycle's client
+process is always terminated before exit. Artifacts land in SCRATCH.
+
+Exit status: 0 joined | 1 join failed or client exited early
+             2 START_SERVER=1 but the zdtd binary is missing
+             3 server never listened / no listener on PORT
+
+Key env vars:
+  HOST / PORT    join target (default 127.0.0.1:27025); a set 7DTD_CONNECT wins
+  TIMEOUT_SEC    join wait budget in seconds (default 240)
+  SETTLE_SEC     post-join settle window (default 0)
+  CYCLE          label for this run's artifact filenames (default 1)
+  START_SERVER   1 starts ../zdtd-server/zig-out/bin/zdtd first (default 0)
+  SCRATCH        artifact dir (default ~/.cache/7dtd-fastconnect)
+EOF
+  exit 0
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/proton_paths.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"

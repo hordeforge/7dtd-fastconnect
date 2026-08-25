@@ -13,9 +13,27 @@
 #   - zip -X strips uid/gid and platform-specific extra fields.
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+	echo "Usage: repro_zip.sh <stage_dir> <out.zip>"
+	cat <<'EOF'
+
+Create a byte-reproducible zip from a staged mod directory: every entry's
+mtime is rewritten to SOURCE_DATE_EPOCH, entry order comes from an explicit
+C-locale sort, and uid/gid plus platform-specific extra fields are stripped
+(zip -X). Two runs over one tree produce identical bytes.
+
+Exit status: 0 zip written | 1 setup failure | 2 usage error.
+
+Key env vars:
+  SOURCE_DATE_EPOCH  required; seconds since 1970 UTC stamped on every
+                     entry (package.sh defaults it to the last commit)
+EOF
+	exit 0
+fi
+
 if (( $# != 2 )); then
-	echo "usage: $0 <stage_dir> <out.zip>" >&2
-	exit 1
+	echo "usage: $0 <stage_dir> <out.zip> (got $# argument(s))" >&2
+	exit 2
 fi
 STAGE="$1"
 OUT="$2"

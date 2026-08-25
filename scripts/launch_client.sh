@@ -5,6 +5,33 @@
 # runs. Opt out: CLIENT_MUTE=0 or SEVEN_DAYS_TO_DIE_CLIENT_MUTE=0.
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: launch_client.sh [extra args passed to 7DaysToDie.exe]
+
+Launch the stock 7DTD client under Proton with EAC off (-noeac), skipping
+the intro splash and news screen. Auto-joins a server when a connect target
+is set; otherwise use F1 -> connect after the main menu opens.
+
+    env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
+
+Exit status: 0 client ran, 2 usage error, 1 setup failure (missing game,
+no usable Proton). Any extra args are forwarded to the game executable.
+
+Key env vars (full table: README "Environment variables"):
+  7DTD_CONNECT         host[:port] auto-join target once the main menu opens
+  GAME                 client install dir (default: stock Steam path)
+  PROTON / COMPAT      Proton binary / compatdata prefix overrides
+  GFX_API              d3d11 (default) | d3d12 | vulkan | glcore | none;
+                       an invalid value aborts before launch
+  CLIENT_MUTE          1 (default) mutes the game audio stream at the OS
+                       audio layer; 0/false/no/off keeps sound on
+  CLIENT_MUTE_TIMEOUT  seconds to poll for that stream (default 60)
+  CLIENT_PLATFORM      local | lan | 1 selects no-Steam Local mode
+EOF
+  exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MUTE_HELPER="$SCRIPT_DIR/mute_client_audio.sh"
 source "$SCRIPT_DIR/proton_paths.sh"

@@ -4,12 +4,35 @@
 # survive plain pkill. Kill at wineserver level, then relaunch both.
 set -euo pipefail
 
-WORLD="${1:?usage: restart_pair.sh <world-dir> [port]}"
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: restart_pair.sh <world-dir> [port]
+
+Kill any running zdtd server + 7DTD client pair (down to the wine stack),
+then relaunch both: zdtd on [port] and the stock client pointed at it via
+7DTD_CONNECT. The pair keeps running after this script exits.
+
+Exit status: 0 relaunched, 2 usage error, 1 setup or readiness failure.
+
+Key env vars:
+  ZDTD      zdtd binary (default ../zdtd-server/zig-out/bin/zdtd)
+  GAME_SRV  dedicated server install dir
+  LOGDIR    log dir (default ~/.cache/zdtd-scratch)
+EOF
+  exit 0
+fi
+
+if (( $# < 1 )); then
+  echo "usage: $(basename "$0") <world-dir> [port]" >&2
+  exit 2
+fi
+WORLD="$1"
 PORT="${2:-27025}"
-# PORT goes to --port argv; a non-numeric value is a usage error, not a fallback.
+# PORT goes to --port argv; a non-numeric value is a usage error (exit 2,
+# same convention as launch_client.sh GFX_API), not a fallback.
 if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
   echo "ERROR: port must be numeric, got '$PORT'" >&2
-  exit 1
+  exit 2
 fi
 GAME_SRV="${GAME_SRV:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 LOGDIR="${LOGDIR:-$HOME/.cache/zdtd-scratch}"
