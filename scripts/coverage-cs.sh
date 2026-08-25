@@ -20,31 +20,9 @@ if ! command -v dotnet-coverage >/dev/null 2>&1; then
 	exit 0
 fi
 
-sources=(
-	"$root/Source/ConnectMod/ConnectTarget.cs"
-	"$root/Source/ConnectMod/EnvFlags.cs"
-	"$root/Source/ConnectMod/ConnectReady.cs"
-	"$root/Source/ConnectMod/PlayerNames.cs"
-	"$root/Source/ConnectMod/AutomationMode.cs"
-	"$root/Source/ConnectMod/BootUnblock.cs"
-	"$root/scripts/testdata/connect_target_stubs.cs"
-	"$root/scripts/testdata/connect_target_harness.cs"
-)
+source "$root/scripts/harness_csproj.sh"
 
-{
-	echo '<Project Sdk="Microsoft.NET.Sdk">'
-	echo '  <PropertyGroup>'
-	echo '    <OutputType>Exe</OutputType>'
-	echo '    <TargetFramework>net8.0</TargetFramework>'
-	echo '    <Nullable>disable</Nullable>'
-	echo '    <ImplicitUsings>disable</ImplicitUsings>'
-	echo '    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>'
-	echo '  </PropertyGroup>'
-	echo '  <ItemGroup>'
-	for f in "${sources[@]}"; do echo "    <Compile Include=\"$f\" />"; done
-	echo '  </ItemGroup>'
-	echo '</Project>'
-} > "$work/cov.csproj"
+emit_harness_csproj "$work/cov.csproj" "$root"
 
 cd "$work"
 # No output redirect: quiet verbosity is silent on success and must still show

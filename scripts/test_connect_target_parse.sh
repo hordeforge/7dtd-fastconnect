@@ -22,33 +22,48 @@
 #     opt-in/opt-out), one process per case
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="$ROOT/Source/ConnectMod/ConnectTarget.cs"
-ENVFLAGS_SRC="$ROOT/Source/ConnectMod/EnvFlags.cs"
-READY_SRC="$ROOT/Source/ConnectMod/ConnectReady.cs"
-NAMES_SRC="$ROOT/Source/ConnectMod/PlayerNames.cs"
-AUTOMATION_SRC="$ROOT/Source/ConnectMod/AutomationMode.cs"
-BOOT_SRC="$ROOT/Source/ConnectMod/BootUnblock.cs"
-STUBS="$ROOT/scripts/testdata/connect_target_stubs.cs"
-HARNESS="$ROOT/scripts/testdata/connect_target_harness.cs"
 source "$ROOT/scripts/test_common.sh"
-
-if ! command -v mcs >/dev/null 2>&1; then
-	echo "SKIP: mono mcs not found; cannot compile parse tests" >&2
-	exit 0
-fi
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/7dtd-connect-parse.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
-mcs -out:"$WORK/connect_target_tests.exe" -warn:1 "$SRC" "$ENVFLAGS_SRC" "$READY_SRC" "$NAMES_SRC" "$AUTOMATION_SRC" "$BOOT_SRC" "$STUBS" "$HARNESS" 1>&2
+# Two compile lanes for the same sources (scripts/harness_csproj.sh is the
+# single list): mono mcs + mono runtime where present, else the dotnet SDK
+# (same net8.0 project the coverage lane uses). Skipping requires BOTH to be
+# missing, so CI runners with only a dotnet SDK still run these tests.
+EXE=""
+RUN=()
+if command -v mcs >/dev/null 2>&1 && command -v mono >/dev/null 2>&1; then
+	source "$ROOT/scripts/harness_csproj.sh"
+	EXE="$WORK/connect_target_tests.exe"
+	sources=()
+	while IFS= read -r f; do sources+=("$f"); done < <(harness_sources "$ROOT")
+	mcs -out:"$EXE" -warn:1 "${sources[@]}" 1>&2
+	RUN=(mono "$EXE")
+elif command -v dotnet >/dev/null 2>&1; then
+	source "$ROOT/scripts/harness_csproj.sh"
+	emit_harness_csproj "$WORK/connect_target_tests.csproj" "$ROOT"
+	# No output redirect: quiet verbosity is silent on success and must still
+	# show compile errors, otherwise a broken harness build fails undiagnosed.
+	(cd "$WORK" && dotnet build -c Release -v q --nologo)
+	EXE="$(cd "$WORK" && find bin -name 'connect_target_tests.dll' | head -1)"
+	if [[ -z "$EXE" ]]; then
+		echo "FAIL: dotnet lane produced no connect_target_tests.dll" >&2
+		exit 1
+	fi
+	RUN=(dotnet "$WORK/$EXE")
+else
+	echo "SKIP: neither mono (mcs+mono) nor a dotnet SDK found; cannot compile parse tests" >&2
+	exit 0
+fi
 
 run_mode() {
 	# Bash cannot assign names starting with a digit, so the precedence cases
 	# pin 7DTD_CONNECT through env(1) via this ordinary-name variable.
 	if [[ -n "${ENV_TARGET:-}" ]]; then
-		env 7DTD_CONNECT="$ENV_TARGET" mono "$WORK/connect_target_tests.exe" "$@"
+		env 7DTD_CONNECT="$ENV_TARGET" "${RUN[@]}" "$@"
 	else
-		mono "$WORK/connect_target_tests.exe" "$@"
+		"${RUN[@]}" "$@"
 	fi
 }
 

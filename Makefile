@@ -8,10 +8,13 @@ DIST := $(ROOT)/dist/$(MOD_NAME)
 MODS_DIR ?= $(GAME)/Mods
 INSTALL_DIR := $(MODS_DIR)/$(MOD_NAME)
 
+# Only honor candidate roots that actually contain a dotnet SDK (an sdk/
+# subdir): pointing DOTNET_ROOT/PATH at a runtime-only install breaks SDK
+# resolution instead of falling through to the system dotnet. The required
+# band itself is pinned by global.json at the repo root.
 DOTNET_ROOT ?= $(firstword \
-  $(wildcard $(HOME)/.cache/dotnet-sdk) \
-  $(wildcard $(HOME)/.dotnet) \
-)
+  $(foreach d,$(HOME)/.cache/dotnet-sdk $(HOME)/.dotnet /usr/lib/dotnet, \
+    $(if $(wildcard $(d)/sdk/*),$(d))))
 ifneq ($(DOTNET_ROOT),)
   export DOTNET_ROOT
   export PATH := $(DOTNET_ROOT):$(PATH)
@@ -35,6 +38,7 @@ coverage:
 
 test:
 	$(ROOT)/scripts/test_connect_target_parse.sh
+	$(ROOT)/scripts/test_repro_zip.sh
 	$(ROOT)/scripts/test_player_name_override.sh
 	$(ROOT)/scripts/test_force_load_sync_override.sh
 	$(ROOT)/scripts/test_automation_mode.sh

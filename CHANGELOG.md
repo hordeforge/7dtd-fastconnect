@@ -28,6 +28,28 @@ in the affected sections instead of being papered over.
   ships, or the release workflow fails (#21).
 - uv-managed Python dev tooling backing the offline gates.
 
+### Added
+
+- Byte-reproducible packaging: `scripts/repro_zip.sh` normalizes zip entry
+  mtimes (`SOURCE_DATE_EPOCH`, defaulting to the last commit's timestamp),
+  sorts entries explicitly, pins `TZ=UTC`/`LC_ALL=C`, and strips
+  uid/gid/extra fields, so two builds of one tree produce identical archive
+  bytes. Pinned by `scripts/test_repro_zip.sh` in `make test`.
+- dotnet SDK band pinned by `global.json` (8.0.x, matching the CI coverage
+  lane); CI installs it via `actions/setup-dotnet` reading that file instead
+  of a separate version input.
+- The C# parse-test lane now falls back to the dotnet SDK when mono `mcs` is
+  absent (same harness project as the coverage lane), so CI runners without
+  mono run the behavioral tests instead of skipping them.
+
+### Changed
+
+- `make package` refuses to name a dirty-worktree artifact after the release
+  tag: uncommitted tracked changes fall back to `<shortsha>-dirty`.
+- The Makefile `DOTNET_ROOT` heuristic only honors candidate roots that
+  actually contain an SDK (`sdk/` subdir), instead of exporting a broken
+  `DOTNET_ROOT`/`PATH` that breaks SDK resolution.
+
 ### Fixed
 
 - Lifecycle-script hardening: surfaced silent probe failures, fail-fast on

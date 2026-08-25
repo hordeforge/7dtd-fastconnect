@@ -29,6 +29,8 @@ Release notes and upgrade notes: [CHANGELOG.md](CHANGELOG.md).
 - Stock client **EAC off** (`-noeac`; C# mods require it)
 - `0_TFP_Harmony` present (stock)
 - Game at `~/.local/share/Steam/steamapps/common/7 Days To Die` (override with `GAME=`)
+- dotnet SDK 8 for `make build` / `make package` (band pinned by `global.json`)
+- `zip` for `make package` (archive bytes are reproducible; `SOURCE_DATE_EPOCH` defaults to the last commit)
 
 ## Skips (faster boot)
 
@@ -59,10 +61,12 @@ make test
 
 The whole suite is offline: no game install, no server, no audio daemon.
 `test_connect_target_parse.sh` is behavioral rather than structural — it
-compiles the real `Source/ConnectMod/ConnectTarget.cs` with `mcs` against
-compiler-only game-API stubs (`scripts/testdata/`) and runs target parsing and
-launch-context resolution for real. It skips itself when mono is absent. The
-shellcheck / ruff / mypy / pytest gates run last and warn when a tool is
+compiles the real `Source/ConnectMod/ConnectTarget.cs` with `mcs`+mono (falling
+back to the dotnet SDK pinned by `global.json`) against compiler-only game-API
+stubs (`scripts/testdata/`) and runs target parsing and launch-context
+resolution for real. It skips itself only when neither toolchain is present.
+`test_repro_zip.sh` pins the byte-reproducibility contract of packaging.
+The shellcheck / ruff / mypy / pytest gates run last and warn when a tool is
 missing.
 
 ## Usage

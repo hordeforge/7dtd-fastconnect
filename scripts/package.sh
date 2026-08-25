@@ -8,6 +8,11 @@
 # with VERSION=x.y.z. Requires a local client install: the build compiles
 # against the shipped Assembly-CSharp.dll, which this repo does not
 # redistribute (see AGENTS.md).
+#
+# Reproducibility: entry mtimes come from SOURCE_DATE_EPOCH (default: the
+# last commit's timestamp), never the wall clock, and scripts/repro_zip.sh
+# normalizes order/metadata so two builds of one tree produce identical
+# bytes. See scripts/repro_zip.sh for the full contract.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -28,6 +33,16 @@ if [[ -z "$VERSION" || "$VERSION" == *-* ]]; then
   VERSION="$(git -C "$ROOT" rev-parse --short HEAD)"
 fi
 
+# A worktree with uncommitted tracked changes must not ship under the tag's
+# name: the artifact would claim to be a release while differing from it.
+if ! git -C "$ROOT" diff-index --quiet HEAD -- 2>/dev/null; then
+  VERSION="$(git -C "$ROOT" rev-parse --short HEAD)-dirty"
+fi
+
+# Archive timestamps default to the commit that produced this tree so the
+# same checkout always zips identically; SOURCE_DATE_EPOCH overrides.
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "$ROOT" log -1 --pretty=%ct)}"
+
 OUT="$ROOT/dist/7dtd-fastconnect-$VERSION.zip"
 # Use a project-local staging dir instead of /tmp (tmpfs/RAM) so an
 # interrupted package (SIGKILL) does not leak stage trees in volatile storage.
@@ -35,9 +50,5 @@ STAGE="$ROOT/dist/.package-stage-$$"
 mkdir -p "$STAGE"
 trap 'rm -rf "$STAGE"' EXIT INT TERM
 cp -a "$ROOT/dist/7dtd-fastconnect" "$STAGE/"
-# Start from an empty archive: zip -r updates entries into an existing file,
-# so a stale or truncated zip left by an interrupted run would keep deleted
-# files in the shipped artifact or fail confusingly mid-update.
-rm -f "$OUT"
-( cd "$STAGE" && zip -qr "$OUT" 7dtd-fastconnect )
-echo "Packaged -> $OUT"
+"$ROOT/scripts/repro_zip.sh" "$STAGE" "$OUT"
+echo "Packaged -> $OUT (epoch $SOURCE_DATE_EPOCH)"
