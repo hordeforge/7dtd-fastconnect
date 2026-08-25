@@ -3,7 +3,8 @@ Source/ConnectMod/bin/
 Source/ConnectMod/obj/
 __pycache__/
 .venv/
-*.lock
+# uv.lock is NOT ignored: make test runs uv with --frozen and dependabot's
+# "uv" ecosystem both require the lockfile to be committed.
 coverage.cobertura.xml
 cov-*.xml
 coverage.svg
