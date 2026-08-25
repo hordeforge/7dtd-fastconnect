@@ -141,20 +141,6 @@ namespace SdtdConnect
         }
     }
 
-    [AutomationPatch]
-    [HarmonyPatch(typeof(ClientInfo), "playerName", MethodType.Getter)]
-    static class Patch_ClientInfo_PlayerName_Guard
-    {
-        static void Postfix(ClientInfo __instance, ref string __result)
-        {
-            if (!string.IsNullOrWhiteSpace(__result)) return;
-            // Prefer GamePrefs name, then synthetic fallback.
-            string pref = null;
-            try { pref = GamePrefs.GetString(EnumGamePrefs.PlayerName); } catch { }
-            __result = !string.IsNullOrWhiteSpace(pref) ? pref.Trim() : PlayerNames.Resolve();
-        }
-    }
-
     // EOS path: patch concrete type directly (interface dispatch fails IL). The NRE is at Platform.EOS.AuthClient.GetAuthTicket when EOS not logged in.
     [AutomationPatch]
     [HarmonyPatch(typeof(Platform.EOS.AuthClient), "GetAuthTicket")]

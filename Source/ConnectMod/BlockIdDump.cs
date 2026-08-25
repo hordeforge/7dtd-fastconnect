@@ -1,8 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using System.Text;
 using HarmonyLib;
 
@@ -78,8 +76,9 @@ namespace SdtdConnect
         }
 
         /// <summary>
-        /// Enumerate every loaded Block and write name\tid lines.
-        /// Prefer Block.nameToBlock / list when present; fall back to pins only.
+        /// Enumerate every loaded Block and write name\tid lines from
+        /// Block.nameToBlock (public static Dictionary&lt;string, Block&gt;),
+        /// falling back to pins only when it yields nothing.
         /// </summary>
         static int DumpAllBlocks()
         {
@@ -90,7 +89,11 @@ namespace SdtdConnect
             var rows = new SortedDictionary<int, string>();
             try
             {
-                CollectFromStaticMaps(rows);
+                foreach (var kv in Block.nameToBlock)
+                {
+                    if (kv.Value == null || kv.Value.blockID < 0) continue;
+                    rows[kv.Value.blockID] = kv.Key;
+                }
             }
             catch (Exception ex)
             {
@@ -126,131 +129,6 @@ namespace SdtdConnect
                 Log.Warning("[7dtd-fastconnect] BlockIdDump write failed (" + outPath + "): " + ex.Message);
             }
             return rows.Count;
-        }
-
-        static void CollectFromStaticMaps(SortedDictionary<int, string> rows)
-        {
-            var bt = typeof(Block);
-            // Common stock field names across 7DTD builds.
-            string[] mapNames =
-            {
-                "nameToBlock", "NameToBlock", "nameToBlockMap",
-                "fullNameToBlock", "blocks", "list",
-            };
-            foreach (var fn in mapNames)
-            {
-                var fi = bt.GetField(fn, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-                if (fi == null) continue;
-                var obj = fi.GetValue(null);
-                if (obj == null) continue;
-                if (TryWalkDict(obj, rows)) return;
-                if (TryWalkList(obj, rows)) return;
-            }
-
-            // Property fallbacks.
-            string[] propNames = { "nameToBlock", "NameToBlock", "Blocks" };
-            foreach (var pn in propNames)
-            {
-                var pi = bt.GetProperty(pn, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-                if (pi == null) continue;
-                var obj = pi.GetValue(null, null);
-                if (obj == null) continue;
-                if (TryWalkDict(obj, rows)) return;
-                if (TryWalkList(obj, rows)) return;
-            }
-        }
-
-        static bool TryWalkDict(object obj, SortedDictionary<int, string> rows)
-        {
-            var dict = obj as IDictionary;
-            if (dict == null) return false;
-            int before = rows.Count;
-            foreach (DictionaryEntry de in dict)
-            {
-                if (de.Value == null) continue;
-                // key=name value=Block, or key=id value=Block
-                if (de.Key is string name)
-                {
-                    int id = BlockIdOf(de.Value);
-                    if (id >= 0) rows[id] = name;
-                }
-                else
-                {
-                    TryAddBlockInstance(de.Value, rows);
-                }
-            }
-            return rows.Count > before;
-        }
-
-        static bool TryWalkList(object obj, SortedDictionary<int, string> rows)
-        {
-            var list = obj as IEnumerable;
-            if (list == null || obj is string) return false;
-            if (obj is IDictionary) return false;
-            int before = rows.Count;
-            foreach (var item in list)
-            {
-                if (item == null) continue;
-                TryAddBlockInstance(item, rows);
-            }
-            return rows.Count > before;
-        }
-
-        static void TryAddBlockInstance(object b, SortedDictionary<int, string> rows)
-        {
-            int id = BlockIdOf(b);
-            string name = BlockNameOf(b);
-            if (id < 0 || string.IsNullOrEmpty(name)) return;
-            if (!rows.ContainsKey(id)) rows[id] = name;
-        }
-
-        static int BlockIdOf(object b)
-        {
-            if (b == null) return -1;
-            var t = b.GetType();
-            // Prefer blockID / BlockID field/property.
-            foreach (var n in new[] { "blockID", "BlockID", "blockId" })
-            {
-                var fi = t.GetField(n, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (fi != null && fi.FieldType == typeof(int)) return (int)fi.GetValue(b);
-                var pi = t.GetProperty(n, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (pi != null && pi.PropertyType == typeof(int)) return (int)pi.GetValue(b, null);
-            }
-            // Fallback GetBlockValue path via GetBlockName if present.
-            try
-            {
-                string name = BlockNameOf(b);
-                if (!string.IsNullOrEmpty(name))
-                {
-                    var bv = Block.GetBlockValue(name, true);
-                    return bv.type;
-                }
-            }
-            catch { }
-            return -1;
-        }
-
-        static string BlockNameOf(object b)
-        {
-            if (b == null) return null;
-            var t = b.GetType();
-            foreach (var n in new[] { "blockName", "BlockName", "name", "Name" })
-            {
-                var fi = t.GetField(n, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (fi != null && fi.FieldType == typeof(string)) return (string)fi.GetValue(b);
-                var pi = t.GetProperty(n, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (pi != null && pi.PropertyType == typeof(string))
-                {
-                    try { return (string)pi.GetValue(b, null); } catch { }
-                }
-            }
-            // GetBlockName() method
-            var mi = t.GetMethod("GetBlockName", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
-            if (mi != null && mi.ReturnType == typeof(string))
-            {
-                try { return (string)mi.Invoke(b, null); } catch { }
-            }
-            return null;
         }
 
         [HarmonyPatch(typeof(Block), nameof(Block.AssignIds))]
