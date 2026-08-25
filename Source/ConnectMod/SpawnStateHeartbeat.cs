@@ -33,9 +33,9 @@ namespace SdtdConnect
                 var world = gm.World;
                 if (world == null) return; // menu phase; boot hb covers it
 
-                LogLoadGate(gm, world);
-
+                // One fetch per heartbeat feeds every dump below.
                 var player = world.GetPrimaryPlayer();
+                LogLoadGate(gm, world, player);
                 if (player == null) return;
 
                 // Block coords anchor every per-player dump below.
@@ -58,7 +58,7 @@ namespace SdtdConnect
             }
         }
 
-        static void LogLoadGate(GameManager gm, World world)
+        static void LogLoadGate(GameManager gm, World world, EntityPlayer player)
         {
             bool started = LoadGate.GameStarted(gm);
             int cgo = LoadGate.DisplayedChunkObjects(world);
@@ -66,7 +66,6 @@ namespace SdtdConnect
             bool fixedSize = LoadGate.FixedSizeCache(world);
             int needed = LoadGate.NeededChunkObjects(fixedSize);
             bool terrainReady = LoadGate.TerrainReady;
-            var player = world.GetPrimaryPlayer();
             var ui = LocalPlayerUI.GetUIForPrimaryPlayer();
             bool xuiReady = ui != null && ui.xui != null && ui.xui.IsReady;
 

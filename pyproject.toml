@@ -1,6 +1,6 @@
 [project]
 name = "7dtd-fastconnect-dev"
-version = "0.10.4"
+version = "0.10.5"
 description = "Dev tooling for 7dtd-fastconnect offline gates (ruff/mypy/pytest)"
 readme = "README.md"
 requires-python = ">=3.12"

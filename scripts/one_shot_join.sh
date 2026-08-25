@@ -96,7 +96,9 @@ source "$ROOT/scripts/log_sanitize.sh"
 
 # Join success signal; some checks accept extra partial-progress markers too.
 JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'
-JOIN_SOFT_RE='Found own player entity with id|PlayerSpawnedInWorld|\[7dtd-fastconnect\] .*connected|Created player|Local Player'
+# Derived from JOINED_RE so the soft set can never drop a strong marker when
+# the strong set grows (the kick check below relies on that containment).
+JOIN_SOFT_RE="$JOINED_RE|\[7dtd-fastconnect\] .*connected|Created player|Local Player"
 
 list_client_pids() {
   # Match real game process only (not this script's shell line containing the

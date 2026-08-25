@@ -291,8 +291,10 @@ namespace SdtdConnect
                     var curId = EntryEntityIdField != null ? (int)EntryEntityIdField.GetValue(entry) : -1;
                     if (curId == ppd.EntityId && curId != -1) continue;
                     var worldEnt = GameManager.Instance.World.GetEntity(ppd.EntityId) as EntityAlive;
-                    if (worldEnt == null || worldEnt.EntityName == null
-                        || !worldEnt.EntityName.StartsWith("[Bot]", StringComparison.Ordinal))
+                    // Same predicate CollectBots used to admit this entity:
+                    // a buff-marker bot without the [Bot] name prefix would
+                    // otherwise keep the tail row appended for it blank.
+                    if (worldEnt == null || !IsBot(worldEnt))
                         continue;
                     BindBotRow(entry, ppd, worldEnt);
                 }
