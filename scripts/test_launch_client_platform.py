@@ -17,6 +17,8 @@ gate exercises real script behavior without a game install:
   7DTD_CONNECT to the steam process.
 - Client mute: default-on mutes matching sink inputs through the launched
   helper (stub pactl); CLIENT_MUTE=0 never invokes pactl.
+- GFX_API: the chosen forced render backend reaches the game exactly once,
+  none forces no backend, and an invalid value aborts before any launch.
 
 The stub Proton execs its args into a stub game exe that records its argv,
 so tests assert what actually reaches the game process.
@@ -50,8 +52,11 @@ SCRUB = {
     "GAME", "PROTON", "COMPAT", "STEAM_APPID", "STEAM_ROOT",
     "7DTD_CONNECT", "CLIENT_MUTE", "SEVEN_DAYS_TO_DIE_CLIENT_MUTE",
     "CLIENT_MUTE_TIMEOUT", "SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT",
-    "CLIENT_PLATFORM", "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+    "CLIENT_PLATFORM", "STEAM_COMPAT_CLIENT_INSTALL_PATH", "GFX_API",
 }
+# launch_client.sh rejects an unknown GFX_API with this usage-error status
+# before any side effect (game run, platform.cfg swap).
+GFX_API_EXIT_STATUS = 2
 BASE_ENV = {k: v for k, v in os.environ.items() if k not in SCRUB}
 
 # One matching stream (index 7) next to an unrelated one (index 9): the mute
@@ -99,7 +104,12 @@ def _setup(
     # children (the mute poller) finish their first poll deterministically.
     body = f"printf '%s\\n' \"$@\" > {shlex.quote(str(record))}\n"
     if game_run_seconds > 0:
-        body += f"sleep {game_run_seconds}\n"
+        # The launcher invokes ./7DaysToDie.exe relative to cwd=game, so no
+        # absolute-path pgrep can see the stub; it records its own pid instead.
+        # $$ is stable here: every exec from the launcher's env job through
+        # proton-stub down to this script keeps the same pid.
+        pidfile = tmp_path / "game-pid.txt"
+        body += f"echo $$ > {shlex.quote(str(pidfile))}\nsleep {game_run_seconds}\n"
     _write_executable(game / "7DaysToDie.exe", body)
     _write_executable(tmp_path / "proton-stub", "shift\nexec \"$@\"\n")
     return game
@@ -246,20 +256,30 @@ def test_failed_setup_restores_swapped_platform(tmp_path: Path) -> None:
     assert not (game / "platform.cfg.re-localbak").exists()
 
 
-def _pgrep_pids(pattern: str) -> list[str]:
-    out = subprocess.run(
-        ["pgrep", "-f", pattern],
-        capture_output=True, text=True, check=False,
-    )
-    return out.stdout.split()
+def _stub_game_pid(tmp_path: Path) -> int:
+    """Pid of THIS test's running stub game exe, as recorded by the stub
+    itself. A pgrep on <gamedir>/7DaysToDie.exe can never match because the
+    launcher execs the exe by its relative form (cwd=game), and a bare exe-name
+    match would see a real 7 Days To Die client running elsewhere on the host."""
+    pidfile = tmp_path / "game-pid.txt"
+    assert pidfile.exists(), "stub game exe was never invoked"
+    return int(pidfile.read_text(encoding="utf-8").strip())
 
 
-def _game_exe_pids(game_dir: Path) -> list[str]:
-    """PIDs of THIS test's running stub game exe. Scoped to the sandboxed game
-    dir: a bare exe-name match would see a real 7 Days To Die client running
-    elsewhere on the host and either fail the survival wait spuriously or,
-    worse, kill-sweep decisions on foreign pids."""
-    return _pgrep_pids(rf"{re.escape(str(game_dir))}/7DaysToDie\.exe")
+def _process_alive(pid: int) -> bool:
+    """Non-zombie liveness. Zombie-aware so a container PID 1 that never reaps
+    an orphaned stub cannot spin the wait out to its deadline."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_bytes()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        return True
+    return not stat.rpartition(b") ")[2].startswith(b"Z")
 
 
 def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
@@ -279,7 +299,15 @@ def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
         stderr=subprocess.DEVNULL, start_new_session=True,
     )
     try:
-        time.sleep(1.5)
+        # Wait until the stub game is actually up before signalling, so the
+        # TERM forwarding below cannot race a not-yet-started GAME_PID into
+        # being a silent no-op.
+        deadline = time.monotonic() + 10
+        while not (tmp_path / "game-pid.txt").exists():
+            assert time.monotonic() < deadline, "stub game exe never started"
+            assert proc.poll() is None, "launcher exited early"
+            time.sleep(0.05)
+        game_pid = _stub_game_pid(tmp_path)
         proc.terminate()
         proc.wait(timeout=15)
         assert proc.returncode == TERM_EXIT_STATUS, proc.returncode
@@ -288,7 +316,7 @@ def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
         assert not (game / "platform.cfg.re-localbak").exists()
         # The forwarded TERM took the stub game down with the launcher.
         deadline = time.monotonic() + 10
-        while _game_exe_pids(game):
+        while _process_alive(game_pid):
             assert time.monotonic() < deadline, "stub game survived launcher TERM"
             time.sleep(0.1)
     finally:
@@ -298,6 +326,14 @@ def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+
+
+def _pgrep_pids(pattern: str) -> list[str]:
+    out = subprocess.run(
+        ["pgrep", "-f", pattern],
+        capture_output=True, text=True, check=False,
+    )
+    return out.stdout.split()
 
 
 def _mute_poller_pids(timeout_arg: str) -> list[str]:
@@ -372,6 +408,41 @@ def test_eac_off_and_render_flags_reach_game(tmp_path: Path) -> None:
     assert "-force-d3d11" in argv
     assert "-nogs" in argv
     assert "-logfile" in argv
+
+
+@pytest.mark.parametrize(
+    "api,flag",
+    [("d3d12", "-force-d3d12"), ("vulkan", "-force-vulkan"), ("glcore", "-force-glcore")],
+)
+def test_gfx_api_override_selects_single_backend(
+    tmp_path: Path, api: str, flag: str,
+) -> None:
+    """GFX_API swaps the forced backend. Unity keeps only the first -force-*
+    it sees, so the launcher must emit exactly one flag, from the chosen API."""
+    _setup(tmp_path)
+    r = _launch(tmp_path, extra_env={"GFX_API": api})
+    assert r.returncode == 0, r.stderr
+    forced = [a for a in _argv(tmp_path) if a.startswith("-force-")]
+    assert forced == [flag]
+
+
+def test_gfx_api_none_forces_no_backend(tmp_path: Path) -> None:
+    """GFX_API=none lets the game choose its own backend."""
+    _setup(tmp_path)
+    r = _launch(tmp_path, extra_env={"GFX_API": "none"})
+    assert r.returncode == 0, r.stderr
+    assert not [a for a in _argv(tmp_path) if a.startswith("-force-")]
+
+
+def test_invalid_gfx_api_aborts_before_launch(tmp_path: Path) -> None:
+    """An unknown GFX_API is a usage error (exit 2) before any side effect:
+    no game run, no platform.cfg swap."""
+    game = _setup(tmp_path)
+    r = _launch(tmp_path, extra_env={"GFX_API": "metal"})
+    assert r.returncode == GFX_API_EXIT_STATUS, r.stdout + r.stderr
+    assert "GFX_API must be d3d11, d3d12, vulkan, glcore or none" in r.stderr
+    assert not (tmp_path / "game-argv.txt").exists()
+    assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
 def test_compat_derives_from_game_library(tmp_path: Path) -> None:
