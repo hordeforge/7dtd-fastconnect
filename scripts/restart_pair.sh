@@ -32,6 +32,34 @@ if [[ ! -x "$ZDTD" ]]; then
 fi
 mkdir -p "$WORLD" "$LOGDIR"
 
+# INT/TERM forward to the normal exit path so the EXIT trap runs: a
+# backgrounded (nohup) server never sees terminal ^C, so without this a
+# Ctrl-C during the startup window strands a freshly spawned zdtd ticking
+# its world until some later restart_pair run pkills it (the same
+# stranded-server rule one_shot_join.sh and zero_nre_join_loop.sh enforce).
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+on_exit() {
+  local ec=$?
+  # Only a signal aborts mid-startup. The designed failure exits keep their
+  # documented behaviour: the listen-failure path stops its own server
+  # inline, and a launcher that died immediately leaves the server up ("the
+  # server stays up either way"). Success leaves the pair running.
+  (( ec >= 128 )) || return 0
+  # Same TERM-then-KILL shape as one_shot_join.sh kill_clients / zero_nre's
+  # stop_zdtd: a wedged server that ignores TERM must not outlive this run.
+  if [[ -n "${server_pid:-}" ]]; then
+    kill "$server_pid" 2>/dev/null || true
+    sleep 1
+    kill -9 "$server_pid" 2>/dev/null || true
+  fi
+  # TERM lets the launcher's own trap restore platform.cfg and stop its mute
+  # poller instead of orphaning them.
+  [[ -n "${client_launch_pid:-}" ]] && kill "$client_launch_pid" 2>/dev/null || true
+}
+trap on_exit EXIT
+
 pkill -f 'zig-out/bin/zdtd' 2>/dev/null || true
 # Kill the whole Proton/wine stack, not just the game exe. Leftover
 # pressure-vessel containers + wineservers leak threads across relaunches and

@@ -109,7 +109,14 @@ namespace SdtdConnect
                 __result = _fake;
                 return false;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // This getter is polled at connect-ready cadence (~10 Hz): a
+                // persistently failing synthetic id would silently flip every
+                // poll back to the original getter (and, past the Finalizer,
+                // to a null id) with no trace. Announce once.
+                ProbeFailure.Once("synthetic steam id create", ex);
+            }
             return true;
         }
         static Exception Finalizer(Exception __exception, ref PlatformUserIdentifierAbs __result)
@@ -121,7 +128,13 @@ namespace SdtdConnect
                     if (_fake == null) _fake = SyntheticId();
                     __result = _fake;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // Both failures swallowed here leave callers with a null
+                    // id (same state as pre-login) and no trace of why;
+                    // announce once so identity drift is debuggable.
+                    ProbeFailure.Once("synthetic steam id finalizer", ex);
+                }
                 return null;
             }
             return null;
@@ -158,7 +171,14 @@ namespace SdtdConnect
                 if (user != null && user.PlatformUserId != null)
                     return true;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // Same naming rule as the Steam ticket prefix: a wedged
+                // platform probe must not look like plain "not logged in",
+                // because both end in the same empty ticket.
+                Log.Warning("[7dtd-fastconnect] EOS auth-ticket login probe failed ("
+                    + ex.GetType().Name + " " + ex.Message + "), returning empty ticket");
+            }
             __result = "";
             return false;
         }
