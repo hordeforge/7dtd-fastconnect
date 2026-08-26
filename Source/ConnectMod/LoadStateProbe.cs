@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace SdtdConnect
 {
-    /// <summary>Spawn-selection heartbeat — opt-in via 7DTD_CONNECT_DEBUG or `diag on`.</summary>
+    /// <summary>Spawn-selection heartbeat, opt-in via 7DTD_CONNECT_DEBUG or `diag on`.</summary>
     [HarmonyPatch(typeof(XUiC_SpawnSelectionWindow), "updateLoadState")]
     static class Patch_SpawnSelectionWindow_updateLoadState
     {
@@ -16,7 +16,7 @@ namespace SdtdConnect
             if (!DiagToggle.Enabled) return;
             _calls++;
             if (Time.unscaledTime < _next) return;
-            _next = Time.unscaledTime + 5f;
+            _next = Time.unscaledTime + DiagToggle.HeartbeatIntervalSec;
             try
             {
                 var gm = GameManager.Instance;

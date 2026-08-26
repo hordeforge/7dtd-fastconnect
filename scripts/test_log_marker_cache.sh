@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/test_common.sh"
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/7dtd-log-markers.XXXXXX")"
+WORK="$(scratch_mktemp "$ROOT" 7dtd-log-markers)"
 trap 'rm -rf "$WORK"' EXIT
 
 # shellcheck disable=SC2034  # consumed by log_markers.sh via LOG_MARK_FILE

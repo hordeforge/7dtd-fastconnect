@@ -52,8 +52,11 @@ namespace SdtdConnect
 
         static void Out(string s)
         {
+            // Console echo is best-effort: Output throws while the F1 console
+            // is tearing down, and the Log.Out below is the record that
+            // matters (harnesses grep the client log, not the console).
             try { SingletonMonoBehaviour<SdtdConsole>.Instance?.Output(s); }
-            catch { /* ignore */ }
+            catch (System.Exception) { }
             Log.Out(s);
         }
     }

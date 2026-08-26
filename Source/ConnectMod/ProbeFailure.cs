@@ -32,8 +32,12 @@ namespace SdtdConnect
         static void Announce(string body)
         {
             _announced = true;
+            // Swallows a failure of the game's own logger. This is the last
+            // stop for every probe failure in the mod, so there is nowhere
+            // left to report to; rethrowing would push a diagnostic's failure
+            // into the stock call site the probe was only observing.
             try { Log.Warning("[7dtd-fastconnect] " + body + " (further failures muted)"); }
-            catch { }
+            catch (Exception) { }
         }
     }
 }

@@ -60,7 +60,7 @@ make test
 ```
 
 The whole suite is offline: no game install, no server, no audio daemon.
-`test_connect_target_parse.sh` is behavioral rather than structural — it
+`test_connect_target_parse.sh` is behavioral rather than structural: it
 compiles the real `Source/ConnectMod/ConnectTarget.cs` with `mcs`+mono (falling
 back to the dotnet SDK pinned by `global.json`) against compiler-only game-API
 stubs (`scripts/testdata/`) and runs target parsing and launch-context
@@ -140,8 +140,8 @@ That identity also names the save's player file, so **switching platform
 changes which character a save loads**. A world played under Steam stores
 `Saves/<world>/<game>/Player/EOS_<id>.ttp`; the same world opened with
 `CLIENT_PLATFORM=local` looks for `Local_<name>.ttp`, does not find it, and
-spawns a fresh character in the existing world — `PlayerSpawnedInWorld
-(reason: NewGame)` rather than `LoadedGame`. Nothing is lost; the original
+spawns a fresh character in the existing world (`PlayerSpawnedInWorld
+(reason: NewGame)` rather than `LoadedGame`). Nothing is lost; the original
 `.ttp` stays on disk and comes back under the original platform. But a test
 that means to exercise the load-an-existing-character path has to check that
 reason, or it silently tests the new-character path instead. This is useful only for an isolated second client in a real
@@ -217,7 +217,7 @@ GFX_API=vulkan ./scripts/launch_client.sh
 and through Proton, so every existing run keeps measuring what it measured
 before. It is a variable rather than a constant because **Unity takes the first
 `-force-*` argument it is given**, so a hardcoded one cannot be overridden by
-appending another — which left this launcher unable to drive a client on
+appending another, which left this launcher unable to drive a client on
 OpenGL or Vulkan at all. Anything checking that a shader renders on more than
 one graphics API needs exactly that.
 
@@ -257,9 +257,7 @@ that hold for all of them:
 | `CLIENT_MUTE_TIMEOUT` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT`) | `60` | Seconds the launcher polls for that stream |
 | `CLIENT_PLATFORM` | Steam mode | `1` / `local` / `lan` (case-insensitive) selects no-Steam Local mode; anything else warns and is ignored |
 
-Diagnostic-only: `7DTD_DUMP_BLOCK_IDS=1` dumps runtime block ids at load,
-writing to `7DTD_DUMP_BLOCK_IDS_PATH` (default inside the client profile); see
-[docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+Threat model and known gaps: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 The join harnesses (`one_shot_join.sh`, `zero_nre_join_loop.sh`,
 `restart_pair.sh`) take their own knobs (`PORT`, `HOST`, `TIMEOUT_SEC`,

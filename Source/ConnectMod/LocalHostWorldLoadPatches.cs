@@ -12,7 +12,7 @@ namespace SdtdConnect
     /// Proton. Stock builds the local player with ~20 synchronous addressable
     /// loads (SDCSUtils via EntityAlive.switchModelView), each ending in
     /// Addressables.WaitForCompletion(), which deadlocks while any async
-    /// addressable operation is still in flight -- and world creation leaves
+    /// addressable operation is still in flight, and world creation leaves
     /// ~100 async loads queued in LoadManager. Automation never hits it because
     /// it forces every load sync from boot. Drain the async queue before player
     /// creation and hold sync loading until startup finishes.
@@ -22,8 +22,8 @@ namespace SdtdConnect
         // createWorld yields exactly nine plain frame breaks before its first
         // async wait (four before World.LoadWorld, then one each after LoadWorld,
         // AstarManager, LootManager, LockManager, TraderManager). Those nine are
-        // suppressed; every later yield -- the WeatherManager LoadAsync loop, the
-        // SkySystem WaitUntil, the rest -- is passed through, because those must
+        // suppressed; every later yield (the WeatherManager LoadAsync loop, the
+        // SkySystem WaitUntil, the rest) is passed through, because those must
         // reach Unity to complete. The sequence is unconditional code, so the
         // count is fixed per game build and does not vary with the save. Verify
         // it against GameManager.createWorld when the game updates. Replacing
@@ -63,9 +63,9 @@ namespace SdtdConnect
 
             // Stock leaves backgroundLoadingPriority at Low, which caps how much
             // time Unity gives async loads per frame, and enables runInBackground
-            // only in the editor, so loads crawl while the window is unfocused --
-            // ordinary while a world loads. Draining World.LoadWorld synchronously
-            // monopolises the main thread on top of that. Raised for the load
+            // only in the editor, so loads crawl while the window is unfocused,
+            // which is ordinary while a world loads. Draining World.LoadWorld
+            // synchronously monopolises the main thread on top of that. Raised for the load
             // window and restored in the finally, so no user preference is
             // changed. Not BootUnblock.ApplyFrameUncap: that also drops vsync and
             // the frame cap, which are the player's settings outside automation.
@@ -183,12 +183,20 @@ namespace SdtdConnect
             ThreadManager.StartCoroutine(HitchMonitor());
         }
 
+        // Frame time above which a frame is reported as a hitch. Well past any
+        // ordinary frame at playable rates, so the log names stalls a player
+        // would actually feel rather than jitter.
+        const float HitchThresholdSec = 0.2f;
+        // GC.GetTotalMemory returns bytes; report megabytes.
+        const int BytesToMegabytesShift = 20;
+
         /// <summary>
         /// In-world frame-hitch attribution for the Local host, `diag on` only:
-        /// every frame over 200 ms with GC deltas, LoadManager backlog and heap,
-        /// plus the live frame cap / vsync, so a "GPU always busy, seconds-long
-        /// hangs" report can be checked against what the renderer is told. The
-        /// coroutine runs either way so `diag on` mid-session starts logging.
+        /// every frame over HitchThresholdSec with GC deltas, LoadManager
+        /// backlog and heap, plus the live frame cap / vsync, so a "GPU always
+        /// busy, seconds-long hangs" report can be checked against what the
+        /// renderer is told. The coroutine runs either way so `diag on`
+        /// mid-session starts logging.
         /// </summary>
         static IEnumerator HitchMonitor()
         {
@@ -201,7 +209,7 @@ namespace SdtdConnect
                 float now = Time.realtimeSinceStartup;
                 float dt = now - last;
                 last = now;
-                if (dt < 0.2f || !DiagToggle.Enabled) continue;
+                if (dt < HitchThresholdSec || !DiagToggle.Enabled) continue;
                 int n0 = GC.CollectionCount(0), n1 = GC.CollectionCount(1), n2 = GC.CollectionCount(2);
                 if (!announced)
                 {
@@ -214,7 +222,7 @@ namespace SdtdConnect
                 Log.Out("[7dtd-fastconnect] hitch " + (int)(dt * 1000) + "ms frame " + Time.frameCount
                     + " gc +" + (n0 - gc0) + "/+" + (n1 - gc1) + "/+" + (n2 - gc2)
                     + " pendingLoads " + PendingLoadCount()
-                    + " heap " + (GC.GetTotalMemory(false) >> 20) + "MB"
+                    + " heap " + (GC.GetTotalMemory(false) >> BytesToMegabytesShift) + "MB"
                     + " targetFps " + Application.targetFrameRate
                     + " vsync " + QualitySettings.vSyncCount);
                 gc0 = n0; gc1 = n1; gc2 = n2;

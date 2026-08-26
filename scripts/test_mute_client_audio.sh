@@ -29,7 +29,7 @@ BEHAV=""
 # Behavioral: the helper's jq filter must mute streams whose application.name
 # or (case-insensitive) process binary matches 7DaysToDie, and nothing else.
 if command -v jq >/dev/null 2>&1; then
-	BEHAV="$(mktemp -d "${TMPDIR:-/tmp}/mute-helper.XXXXXX")"
+	BEHAV="$(scratch_mktemp "$ROOT" mute-helper)"
 	cp "$ROOT/scripts/testdata/pactl_stub.sh" "$BEHAV/pactl"
 	chmod +x "$BEHAV/pactl"
 
@@ -69,7 +69,7 @@ fi
 # alone and exit 0 rather than failing the launch. A bin dir holding only bash
 # keeps the helper runnable while hiding both tools from it. BEHAV is only set
 # when the jq block above ran, so keep it out of the trap when it is empty.
-NO_PULSE_BIN="$(mktemp -d "${TMPDIR:-/tmp}/mute-nopulse.XXXXXX")"
+NO_PULSE_BIN="$(scratch_mktemp "$ROOT" mute-nopulse)"
 trap 'rm -rf ${BEHAV:+"$BEHAV"} "$NO_PULSE_BIN"' EXIT
 ln -s "$(command -v bash)" "$NO_PULSE_BIN/bash"
 

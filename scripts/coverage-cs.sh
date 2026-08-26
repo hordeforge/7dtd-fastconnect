@@ -8,7 +8,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-work="$(mktemp -d "${TMPDIR:-/tmp}/7dtd-connect-cov.XXXXXX")"
+source "$root/scripts/test_common.sh"
+work="$(scratch_mktemp "$root" 7dtd-connect-cov)"
 trap 'rm -rf "$work"' EXIT
 
 if ! command -v dotnet >/dev/null 2>&1; then

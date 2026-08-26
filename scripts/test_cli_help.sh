@@ -28,7 +28,7 @@ done
 
 # Help must be side-effect free: no scratch dir, no world dir creation, and
 # nothing on stdout for the helpers' normal chatter channels to clobber.
-SCRATCH_PROBE="$(mktemp -d "${TMPDIR:-/tmp}/cli-help.XXXXXX")"
+SCRATCH_PROBE="$(scratch_mktemp "$ROOT" cli-help)"
 trap 'rm -rf "$SCRATCH_PROBE"' EXIT
 SCRATCH="$SCRATCH_PROBE/scratch" "$ROOT/scripts/one_shot_join.sh" --help >/dev/null
 assert "one_shot_join.sh --help creates no scratch dir" \

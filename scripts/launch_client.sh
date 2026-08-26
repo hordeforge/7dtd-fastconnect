@@ -253,7 +253,7 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   echo "Connect: $(sanitize_log_text "${CONNECT:-"(none; use F1 connect after menu)"}")"
   echo "Log: $LOGFILE"
   cd "$GAME"
-  # Cannot mute after exec — run proton, mute in parallel, wait for the game.
+  # Cannot mute after exec: run proton, mute in parallel, wait for the game.
   env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe "${GFX_ARGS[@]}" -nogs -noeac -logfile "$WIN_LOGFILE" "${EXTRA_ARGS[@]}" "$@" &
   game_pid=$!
   GAME_PID="$game_pid"

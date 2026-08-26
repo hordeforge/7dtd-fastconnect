@@ -8,6 +8,10 @@ DIST := $(ROOT)/dist/$(MOD_NAME)
 MODS_DIR ?= $(GAME)/Mods
 INSTALL_DIR := $(MODS_DIR)/$(MOD_NAME)
 
+# Every Python file in the repo, so a new one is type-checked the day it lands
+# instead of the day someone remembers to add it here.
+PY_SOURCES := $(wildcard scripts/*.py)
+
 # Only honor candidate roots that actually contain a dotnet SDK (an sdk/
 # subdir): pointing DOTNET_ROOT/PATH at a runtime-only install breaks SDK
 # resolution instead of falling through to the system dotnet. The required
@@ -60,9 +64,11 @@ test:
 	fi
 	@if command -v uv >/dev/null; then \
 	  cd "$(ROOT)" && uv run --frozen --group dev ruff check scripts && \
-	  uv run --frozen --group dev mypy --strict scripts/test_launch_client_platform.py; \
+	  uv run --frozen --group dev ruff format --check scripts && \
+	  uv run --frozen --group dev mypy --strict $(PY_SOURCES); \
 	elif command -v ruff >/dev/null && command -v mypy >/dev/null; then \
-	  cd "$(ROOT)" && ruff check scripts && mypy --strict scripts/test_launch_client_platform.py; \
+	  cd "$(ROOT)" && ruff check scripts && ruff format --check scripts && \
+	  mypy --strict $(PY_SOURCES); \
 	else \
 	  echo "WARN: ruff/mypy not available; static analysis skipped" >&2; \
 	fi

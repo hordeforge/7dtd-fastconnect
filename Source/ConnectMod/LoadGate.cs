@@ -20,9 +20,15 @@ namespace SdtdConnect
         internal static bool FixedSizeCache(World world)
             => world.ChunkCache != null && world.ChunkCache.IsFixedSize;
 
-        // Stock updateLoadState's start bar: viewDist^2 minus a small slack.
+        // Slack stock updateLoadState subtracts from viewDist^2 so a few
+        // chunk objects still in flight cannot hold the start bar forever.
+        const int StartBarSlackChunks = 10;
+
+        // Stock updateLoadState's start bar.
         internal static int NeededChunkObjects(bool fixedSizeCache)
-            => fixedSizeCache ? 0 : GameUtils.GetViewDistance() * GameUtils.GetViewDistance() - 10;
+            => fixedSizeCache
+                ? 0
+                : GameUtils.GetViewDistance() * GameUtils.GetViewDistance() - StartBarSlackChunks;
 
         internal static bool TerrainReady
             => DistantTerrain.Instance == null || DistantTerrain.Instance.IsTerrainReady;

@@ -1,3 +1,4 @@
+using System;
 using HarmonyLib;
 using UnityEngine;
 
@@ -15,9 +16,15 @@ namespace SdtdConnect
                 Log.Out("[7dtd-fastconnect] sp set=" + value
                     + " was=" + __instance.Spawned
                     + " t=" + Time.unscaledTime
-                    + "\n" + System.Environment.StackTrace);
+                    + "\n" + Environment.StackTrace);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // Prefix on a stock property setter: throwing here would
+                // propagate into spawn handling and break the join this trace
+                // exists to observe. Announce the first failure, then mute.
+                ProbeFailure.Once("sp set trace", ex);
+            }
         }
     }
 
@@ -33,9 +40,13 @@ namespace SdtdConnect
                 Log.Out("[7dtd-fastconnect] sp added remote=" + __instance.isEntityRemote
                     + " Spawned=" + __instance.Spawned
                     + " t=" + Time.unscaledTime
-                    + "\n" + System.Environment.StackTrace);
+                    + "\n" + Environment.StackTrace);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // Same contract as the setter trace above.
+                ProbeFailure.Once("sp added trace", ex);
+            }
         }
     }
 }

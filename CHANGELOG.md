@@ -11,10 +11,62 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-26
+
+Scope enforcement release: the mod is now only join and automation plumbing,
+as AGENTS.md rules 3-5 always required. Three features are gone. Nothing that
+connects, auto-joins, or skips a boot gate changed.
+
+### Removed
+
+- **Tab bot-list injector** (`BotTabPatch.cs`). It synthesized
+  `PersistentPlayerData` rows for `[Bot]`-named server entities and injected
+  them into `XUiC_PlayersList` by reflection. That is gameplay UI built from
+  client-invented state for players the server never sent, which rules 3 and 4
+  forbid; it was also undocumented and untested. A dedicated server that wants
+  bots in Tab sends them as players.
+- **Block-id and entity-class RE dumpers** (`BlockIdDump.cs`,
+  `EntityClassDump.cs`) with env `7DTD_DUMP_BLOCK_IDS`,
+  `7DTD_DUMP_BLOCK_IDS_PATH`, `7DTD_DUMP_ENTITY_CLASS`. Stock-game reverse
+  engineering belongs in `../7dtd-engine-research/`, not in the client mod.
+  This also closes threat-model **R1**: `7DTD_DUMP_BLOCK_IDS_PATH` was used
+  verbatim as a `File.WriteAllText` destination, so launch-env control meant
+  arbitrary file overwrite with client privileges. There is no longer a write
+  path to disable.
+- **Terrain forensics from the spawn heartbeat**: the block column, density
+  channel, collision-mesh raycast, chunk neighbour ring, chunk-cache window,
+  and the Navezgane `abandoned_house_07` POI probe hardcoded to world
+  coordinates, plus the in-game screenshot writer. These instrumented a
+  server-side chunk-delivery gap that rule 5 moved to zdtd. The heartbeat
+  keeps its join-gate probes: load gate, movement replication, respawn UI,
+  and open windows.
+- `UserDirs.cs` and the `UnityEngine.PhysicsModule` /
+  `UnityEngine.ScreenCaptureModule` assembly references, dead once the above
+  were gone.
+
 ### Changed
 
 - Renamed the project from **7dtd-connect** to **7dtd-fastconnect**
   (`ae212bc`); install path is now `<game>/Mods/7dtd-fastconnect/`.
+- `make package` refuses to name a dirty-worktree artifact after the release
+  tag: uncommitted tracked changes fall back to `<shortsha>-dirty`.
+- The Makefile `DOTNET_ROOT` heuristic only honors candidate roots that
+  actually contain an SDK (`sdk/` subdir), instead of exporting a broken
+  `DOTNET_ROOT`/`PATH` that breaks SDK resolution.
+- Offline gates and the coverage lane stage their temporaries under the
+  repo's gitignored `.scratch/` instead of `$TMPDIR`/`/tmp`, which is tmpfs:
+  staged game trees and zip fixtures were charged to RAM. pytest's
+  `tmp_path` moves with them via `--basetemp`.
+- `make test` type-checks every `scripts/*.py` rather than one named file,
+  and gates formatting with `ruff format --check`.
+- Thresholds and placeholders that were literals are named constants: the
+  heartbeat interval (shared by the boot, spawn, and load probes), the hitch
+  threshold, the load-gate start-bar slack, the port range, the FNV-1a
+  parameters and synthetic-id band, and the `GameServerInfo` fields the stock
+  direct-connect path leaves unset.
+- Every empty `catch` states what it swallows and why nothing downstream can
+  act on it; the diagnostic traces that silently dropped their own failures
+  now announce the first one through `ProbeFailure`.
 
 ### Added
 
@@ -27,9 +79,6 @@ in the affected sections instead of being papered over.
 - Release gate: a pushed `vX.Y.Z` tag must match the version `ModInfo.xml`
   ships, or the release workflow fails (#21).
 - uv-managed Python dev tooling backing the offline gates.
-
-### Added
-
 - Byte-reproducible packaging: `scripts/repro_zip.sh` normalizes zip entry
   mtimes (`SOURCE_DATE_EPOCH`, defaulting to the last commit's timestamp),
   sorts entries explicitly, pins `TZ=UTC`/`LC_ALL=C`, and strips
@@ -42,20 +91,15 @@ in the affected sections instead of being papered over.
   absent (same harness project as the coverage lane), so CI runners without
   mono run the behavioral tests instead of skipping them.
 
-### Changed
-
-- `make package` refuses to name a dirty-worktree artifact after the release
-  tag: uncommitted tracked changes fall back to `<shortsha>-dirty`.
-- The Makefile `DOTNET_ROOT` heuristic only honors candidate roots that
-  actually contain an SDK (`sdk/` subdir), instead of exporting a broken
-  `DOTNET_ROOT`/`PATH` that breaks SDK resolution.
-
 ### Fixed
 
 - Lifecycle-script hardening: surfaced silent probe failures, fail-fast on
   missing binaries, monotonic marker-scan resumes, log-dir creation before
   truncation, signal forwarding from launcher to game child.
 - Auto-join idle state no longer reported as an unset target.
+- `test_launch_client_platform.py` finds the repo root by walking up to
+  `pyproject.toml` instead of counting parent directories, which broke
+  silently if the file moved and surfaced as a missing launcher.
 
 ## [0.10.5] - 2026-08-23
 
@@ -119,7 +163,7 @@ jumped straight from 0.9.5 to 0.10.2: releases 0.10.0 and 0.10.1 do not exist.
 ### Added
 
 - Renamed the mod from **zdtd-connect** to **7dtd-connect** (later renamed
-  again to 7dtd-fastconnect, see Unreleased).
+  again to 7dtd-fastconnect, see 0.11.0).
 - Steamless LAN join for non-Steam servers: synthetic host-derived ID,
   EULA-gate handling, distinct local test-player names.
 - `CLIENT_PLATFORM=local` no-Steam mode: swaps `platform.cfg` to the Local
@@ -130,7 +174,8 @@ jumped straight from 0.9.5 to 0.10.2: releases 0.10.0 and 0.10.1 do not exist.
   `7DTD_CONNECT_DEBUG=1`.
 - Proton prefix derived from `GAME`, overridable Steam paths and Mods dir.
 
-[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.5...HEAD
+[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.5...v0.11.0
 [0.10.5]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.2...v0.10.3

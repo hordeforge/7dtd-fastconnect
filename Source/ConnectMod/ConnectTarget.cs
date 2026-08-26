@@ -10,6 +10,26 @@ namespace SdtdConnect
         public const string EnvVar = "7DTD_CONNECT";
         public const int DefaultPort = 27025;
 
+        // Wire-protocol port range; not a tunable.
+        const int MinPort = 1;
+        const int MaxPort = 65535;
+
+        // Placeholders for the GameServerInfo fields the stock direct-connect
+        // UI leaves unset. worldInfoCo writes RemoteWorldInfo from
+        // LastGameServerInfo and uses LevelName/WorldSize to match a local
+        // world; with them empty it logs "Failed writing RemoteWorldInfo".
+        // The server replaces every one of these at handshake, so they only
+        // have to parse, not to be true. ServerVersion is the exception: the
+        // running client's own version is used when it can be read, because a
+        // stale literal would advertise a mismatch against itself.
+        const string PlaceholderGameType = "7DTD";
+        const string PlaceholderGameName = "zdtd";
+        const string PlaceholderLevelName = "Navezgane";
+        const string PlaceholderGameMode = "Survival";
+        const string PlaceholderServerVersion = "V.3.1.4";
+        const int PlaceholderWorldSize = 6144;
+        const int PlaceholderMaxPlayers = 8;
+
         // Both the boot-mode probe and the menu-open auto-join read the same
         // launch context; warn once so an invalid value cannot sit in the log
         // three times or, worse, look like "no target set".
@@ -60,10 +80,10 @@ namespace SdtdConnect
             return raw;
         }
 
-        // Port-suffix rule shared by both grammar branches: integer 1..65535.
+        // Port-suffix rule shared by both grammar branches.
         static bool TryParsePort(string text, out int port)
         {
-            return int.TryParse(text, out port) && port >= 1 && port <= 65535;
+            return int.TryParse(text, out port) && port >= MinPort && port <= MaxPort;
         }
 
         /// <summary>
@@ -272,7 +292,10 @@ namespace SdtdConnect
                 }
                 finally
                 {
-                    try { pending.AsyncWaitHandle.Close(); } catch { }
+                    // Close on an already-disposed wait handle throws; the
+                    // handle is unreachable either way and this runs on the
+                    // success path of a resolve the caller is about to use.
+                    try { pending.AsyncWaitHandle.Close(); } catch (Exception) { }
                 }
                 return true;
             }
@@ -308,28 +331,29 @@ namespace SdtdConnect
                 var gsi = new GameServerInfo();
                 gsi.SetValue(GameInfoString.IP, ip);
                 gsi.SetValue(GameInfoInt.Port, port);
-                // worldInfoCo writes RemoteWorldInfo from LastGameServerInfo.ServerVersion
-                // (VersionInformation.TryParseSerializedString) and uses LevelName/WorldSize
-                // for local-world matching. Direct-connect UI only sets IP+Port, which leaves
-                // ServerVersion empty and logs "Failed writing RemoteWorldInfo".
-                gsi.SetValue(GameInfoString.GameType, "7DTD");
-                gsi.SetValue(GameInfoString.GameName, "zdtd");
-                gsi.SetValue(GameInfoString.GameHost, "zdtd");
-                gsi.SetValue(GameInfoString.LevelName, "Navezgane");
-                gsi.SetValue(GameInfoString.GameMode, "Survival");
-                string ver = "V.3.1.4";
+                gsi.SetValue(GameInfoString.GameType, PlaceholderGameType);
+                gsi.SetValue(GameInfoString.GameName, PlaceholderGameName);
+                gsi.SetValue(GameInfoString.GameHost, PlaceholderGameName);
+                gsi.SetValue(GameInfoString.LevelName, PlaceholderLevelName);
+                gsi.SetValue(GameInfoString.GameMode, PlaceholderGameMode);
+                string ver = PlaceholderServerVersion;
                 try
                 {
                     if (Constants.cVersionInformation != null
                         && !string.IsNullOrEmpty(Constants.cVersionInformation.SerializableString))
                         ver = Constants.cVersionInformation.SerializableString;
                 }
-                catch { /* keep fallback */ }
+                catch (Exception)
+                {
+                    // Reading the client's own version string is a nicety;
+                    // PlaceholderServerVersion still parses, and the server
+                    // overwrites the field at handshake either way.
+                }
                 gsi.SetValue(GameInfoString.ServerVersion, ver);
-                gsi.SetValue(GameInfoInt.WorldSize, 6144);
+                gsi.SetValue(GameInfoInt.WorldSize, PlaceholderWorldSize);
                 gsi.SetValue(GameInfoInt.CurrentPlayers, 0);
-                gsi.SetValue(GameInfoInt.MaxPlayers, 8);
-                gsi.SetValue(GameInfoInt.FreePlayerSlots, 8);
+                gsi.SetValue(GameInfoInt.MaxPlayers, PlaceholderMaxPlayers);
+                gsi.SetValue(GameInfoInt.FreePlayerSlots, PlaceholderMaxPlayers);
                 gsi.SetValue(GameInfoBool.IsDedicated, true);
                 gsi.SetValue(GameInfoBool.EACEnabled, false);
                 gsi.SetValue(GameInfoBool.IsPasswordProtected, false);
@@ -337,7 +361,7 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
 
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level=Navezgane (requested host={SanitizeForLog(host)})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={SanitizeForLog(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";

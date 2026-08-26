@@ -46,7 +46,7 @@ namespace SdtdConnect
             _ticks++;
             BootUnblock.ApplyFrameUncap("hb");
             if (Time.unscaledTime < _nextLog) return;
-            _nextLog = Time.unscaledTime + 5f;
+            _nextLog = Time.unscaledTime + DiagToggle.HeartbeatIntervalSec;
             try
             {
                 var gm = GameManager.Instance;
