@@ -12,8 +12,8 @@ Agent ownership: mark `[-] in progress: <agent>, YYYY-MM-DD` before editing;
   is not the startup addressables deadlock recurring. The instrument is already
   shipped: `diag on` in the F1 console, play a few minutes, read the
   `[7dtd-fastconnect] hitch` lines (README § Diagnosing in-world frame hitches).
-  First question to settle is whether the frame cap reaches the renderer at all
-  — set Options → Video → FPS Limit In Game to 60 and check whether the next
+  First question to settle is whether the frame cap reaches the renderer at all:
+  set Options → Video → FPS Limit In Game to 60 and check whether the next
   hitch line reports `targetFps 60`. If it stays `-1` under a 60 cap, that is a
   separate bug from the stutter and should be fixed first. Log gaps are not a
   hitch measure: the game does not log per frame.

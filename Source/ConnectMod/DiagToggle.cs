@@ -5,6 +5,12 @@ namespace SdtdConnect
     {
         internal const string EnvVar = "7DTD_CONNECT_DEBUG";
 
+        // Shared cadence for every gated heartbeat (boot / spawn / load). One
+        // value so the probes stay comparable in a single log: staggered
+        // intervals make two heartbeats describing the same stall look like
+        // different stalls.
+        internal const float HeartbeatIntervalSec = 5f;
+
         // Snapshot once: Enabled sits first in per-frame/per-package hooks, and
         // a getenv there costs a native call plus a string alloc every frame.
         // The process env never changes at runtime; live toggling is Set().

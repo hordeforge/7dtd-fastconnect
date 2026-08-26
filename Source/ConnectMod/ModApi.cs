@@ -11,14 +11,14 @@ namespace SdtdConnect
     public class ModApi : IModApi
     {
         public const string HarmonyId = "com.7dtd.connect";
-        public const string Version = "0.10.5";
+        public const string Version = "0.11.0";
         public const string PlayerNameEnv = "7DTD_PLAYER_NAME";
         static bool _autoTried;
 
         public void InitMod(Mod _modInstance)
         {
             DiagToggle.AnnounceOnce();
-            Log.Out("[7dtd-fastconnect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest) — diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
+            Log.Out("[7dtd-fastconnect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest); diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
             Log.Out("[7dtd-fastconnect] automation boot mode " + (AutomationMode.Enabled ? "enabled" : "disabled")
                 + " (auto when 7DTD_CONNECT/-connect is present; override with " + AutomationMode.EnvVar + ")");
 
@@ -121,12 +121,14 @@ namespace SdtdConnect
             {
                 // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline.
                 // Ensure ClientInfo.playerName is never empty even without env.
+                // A prefs read that throws (store not loaded yet) carries the
+                // same signal as an empty stored name, and takes the same path.
                 try
                 {
                     string existing = GamePrefs.GetString(EnumGamePrefs.PlayerName);
                     if (!string.IsNullOrWhiteSpace(existing)) return;
                 }
-                catch { }
+                catch (Exception) { }
                 requested = PlayerNames.Resolve();
             }
             else
@@ -225,6 +227,9 @@ namespace SdtdConnect
             // join latency against multi-second settle windows.
             const float maxWaitSec = 45f;
             const float pollIntervalSec = 0.1f;
+            // Progress cadence for the wait, independent of the poll rate:
+            // one line per poll would be 450 lines for a single timeout.
+            const float waitLogIntervalSec = 5f;
             float waitStart = UnityEngine.Time.unscaledTime;
             float nextLog = 0f;
             int polls = 0;
@@ -233,7 +238,7 @@ namespace SdtdConnect
             {
                 if (polls == 0 || UnityEngine.Time.unscaledTime >= nextLog)
                 {
-                    nextLog = UnityEngine.Time.unscaledTime + 5f;
+                    nextLog = UnityEngine.Time.unscaledTime + waitLogIntervalSec;
                     Log.Out("[7dtd-fastconnect] connect wait polls=" + polls + " " + whyNot);
                 }
                 polls++;

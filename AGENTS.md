@@ -34,7 +34,11 @@ Canonical modding guide: [MODDING_BEST_PRACTICES.md](https://github.com/hordefor
    (or the real dedi), not this mod. Workspace rule: root `AGENTS.md` #10.
 5. **No server-gap patches.** Former LocalChunk/sign/spawn/NRE workarounds were
    removed in v0.9.0. Missing terrain/join behaviour is fixed in **zdtd**, not
-   here.
+   here. v0.11.0 removed the last of it: the Tab bot-list injector (invented
+   client player rows for server entities), the block-id and entity-class RE
+   dumpers, and the terrain/chunk/POI forensics inside the spawn heartbeat.
+   The heartbeat keeps only the join-gate probes (load gate, movement,
+   respawn UI, open windows).
 6. **No playtest driver here.** Scripted dig/place/combat lives in
    `7dtd-playtest`. `restart_pair.sh` may still pass `PLAYTEST*` env through
    to the client for the playtest mod.

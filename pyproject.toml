@@ -1,6 +1,6 @@
 [project]
 name = "7dtd-fastconnect-dev"
-version = "0.10.5"
+version = "0.11.0"
 description = "Dev tooling for 7dtd-fastconnect offline gates (ruff/mypy/pytest)"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -20,3 +20,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["scripts"]
+# tmp_path stages whole fake game trees; the default base is /tmp, which is
+# tmpfs here, so those fixtures would be charged to RAM. Keep them in the
+# repo's gitignored scratch dir like every other temporary in this project.
+addopts = "--basetemp=.scratch/pytest"

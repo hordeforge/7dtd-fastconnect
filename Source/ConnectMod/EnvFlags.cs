@@ -28,8 +28,11 @@ namespace SdtdConnect
         /// <summary>IsSetOn for an env var name; unreadable env counts as unset.</summary>
         internal static bool VarIsSetOn(string name)
         {
+            // A block on reading the environment (SecurityException under a
+            // restricted host) carries no more information than an unset
+            // variable, and every caller's default is "off".
             try { return IsSetOn(Environment.GetEnvironmentVariable(name)); }
-            catch { return false; }
+            catch (Exception) { return false; }
         }
     }
 }

@@ -39,7 +39,22 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+
+def _repo_root() -> Path:
+    """Walk up to the directory holding the project marker.
+
+    Counting parent hops instead breaks silently the moment this file moves a
+    level, and the failure looks like a missing launcher rather than a bad path.
+    """
+    marker = "pyproject.toml"
+    here = Path(__file__).resolve()
+    for candidate in here.parents:
+        if (candidate / marker).is_file():
+            return candidate
+    raise RuntimeError(f"no {marker} above {here}")
+
+
+ROOT = _repo_root()
 LAUNCH = ROOT / "scripts" / "launch_client.sh"
 STEAM_CFG = "platform=Steam\ncrossplatform=EOS\nserverplatforms=Steam,XBL,PSN,LAN,\n"
 LOCAL_CFG = "platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n"
@@ -50,10 +65,19 @@ TERM_EXIT_STATUS = 128 + int(signal.SIGTERM)
 # Vars launch_client.sh reads; scrub them so a developer shell that happens to
 # carry 7DTD_CONNECT / CLIENT_* cannot change what these tests exercise.
 SCRUB = {
-    "GAME", "PROTON", "COMPAT", "STEAM_APPID", "STEAM_ROOT",
-    "7DTD_CONNECT", "CLIENT_MUTE", "SEVEN_DAYS_TO_DIE_CLIENT_MUTE",
-    "CLIENT_MUTE_TIMEOUT", "SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT",
-    "CLIENT_PLATFORM", "STEAM_COMPAT_CLIENT_INSTALL_PATH", "GFX_API",
+    "GAME",
+    "PROTON",
+    "COMPAT",
+    "STEAM_APPID",
+    "STEAM_ROOT",
+    "7DTD_CONNECT",
+    "CLIENT_MUTE",
+    "SEVEN_DAYS_TO_DIE_CLIENT_MUTE",
+    "CLIENT_MUTE_TIMEOUT",
+    "SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT",
+    "CLIENT_PLATFORM",
+    "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+    "GFX_API",
 }
 # launch_client.sh rejects an unknown GFX_API with this usage-error status
 # before any side effect (game run, platform.cfg swap).
@@ -112,7 +136,7 @@ def _setup(
         pidfile = tmp_path / "game-pid.txt"
         body += f"echo $$ > {shlex.quote(str(pidfile))}\nsleep {game_run_seconds}\n"
     _write_executable(game / "7DaysToDie.exe", body)
-    _write_executable(tmp_path / "proton-stub", "shift\nexec \"$@\"\n")
+    _write_executable(tmp_path / "proton-stub", 'shift\nexec "$@"\n')
     return game
 
 
@@ -185,8 +209,10 @@ def _launch(
             mute=mute,
             extra_env=extra_env,
         ),
-        capture_output=True, text=True,
-        timeout=60, check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
     )
 
 
@@ -218,8 +244,7 @@ def test_invalid_platform_value_leaves_config_alone(tmp_path: Path) -> None:
     but not silently: a typo'd value would otherwise launch with Steam auth and
     fail much later with opaque join errors."""
     game = _setup(tmp_path)
-    r = _launch(tmp_path, local_platform=False,
-                extra_env={"CLIENT_PLATFORM": "bogus"})
+    r = _launch(tmp_path, local_platform=False, extra_env={"CLIENT_PLATFORM": "bogus"})
     assert r.returncode == 0, r.stderr
     assert "CLIENT_PLATFORM='bogus' is not 1/local/lan" in r.stderr
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
@@ -228,7 +253,8 @@ def test_invalid_platform_value_leaves_config_alone(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("value", ["LOCAL", "Lan", " local ", "1"])
 def test_platform_value_matches_case_insensitively(
-    tmp_path: Path, value: str,
+    tmp_path: Path,
+    value: str,
 ) -> None:
     """Uppercase/padded aliases of the documented values select Local mode too;
     the swap must still restore (the value only changes matching, not the trap
@@ -244,8 +270,7 @@ def test_platform_value_matches_case_insensitively(
 def test_empty_platform_value_is_unset_not_warning(tmp_path: Path) -> None:
     """Empty means unset (the repo-wide rule): no Local mode, no warning."""
     game = _setup(tmp_path)
-    r = _launch(tmp_path, local_platform=False,
-                extra_env={"CLIENT_PLATFORM": ""})
+    r = _launch(tmp_path, local_platform=False, extra_env={"CLIENT_PLATFORM": ""})
     assert r.returncode == 0, r.stderr
     assert "CLIENT_PLATFORM" not in r.stderr
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
@@ -323,9 +348,12 @@ def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
     # deadlocking communicate/wait; devnull avoids that. A new session keeps
     # the game subtree killable as a unit.
     proc = subprocess.Popen(
-        ["bash", str(LAUNCH)], env=env,
-        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, start_new_session=True,
+        ["bash", str(LAUNCH)],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
     try:
         # Wait until the stub game is actually up before signalling, so the
@@ -360,7 +388,9 @@ def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
 def _pgrep_pids(pattern: str) -> list[str]:
     out = subprocess.run(
         ["pgrep", "-f", pattern],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     return out.stdout.split()
 
@@ -387,13 +417,17 @@ def test_sigterm_does_not_orphan_mute_poller(tmp_path: Path) -> None:
     _write_executable(bin_dir / "jq", "exit 0\n")
     env = _launch_env(
         tmp_path,
-        local_platform=False, mute=True,
+        local_platform=False,
+        mute=True,
         extra_env={"PATH": str(bin_dir), "CLIENT_MUTE_TIMEOUT": "300"},
     )
     proc = subprocess.Popen(
-        ["bash", str(LAUNCH)], env=env,
-        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, start_new_session=True,
+        ["bash", str(LAUNCH)],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
     )
     try:
         # Wait until the poller is actually up before signalling, so the test
@@ -444,7 +478,9 @@ def test_eac_off_and_render_flags_reach_game(tmp_path: Path) -> None:
     [("d3d12", "-force-d3d12"), ("vulkan", "-force-vulkan"), ("glcore", "-force-glcore")],
 )
 def test_gfx_api_override_selects_single_backend(
-    tmp_path: Path, api: str, flag: str,
+    tmp_path: Path,
+    api: str,
+    flag: str,
 ) -> None:
     """GFX_API swaps the forced backend. Unity keeps only the first -force-*
     it sees, so the launcher must emit exactly one flag, from the chosen API."""
@@ -486,15 +522,25 @@ def test_compat_derives_from_game_library(tmp_path: Path) -> None:
     library_root = tmp_path / "library" / "steamapps"
     proton = library_root / "common" / "Proton - Experimental" / "proton"
     proton.parent.mkdir(parents=True)
-    proton.write_text("#!/usr/bin/env bash\nshift\nexec \"$@\"\n", encoding="utf-8")
+    proton.write_text('#!/usr/bin/env bash\nshift\nexec "$@"\n', encoding="utf-8")
     proton.chmod(proton.stat().st_mode | stat.S_IEXEC)
     (library_root / "compatdata" / "251570").mkdir(parents=True)
     r = _launch(tmp_path, extra_env={"GAME": str(game), "COMPAT": None})
     assert r.returncode == 0, r.stderr
     # Log dir under the DERIVED prefix proves which COMPAT was used.
-    logdir = (library_root / "compatdata" / "251570"
-              / "pfx" / "drive_c" / "users" / "steamuser" / "AppData"
-              / "Roaming" / "7DaysToDie" / "logs")
+    logdir = (
+        library_root
+        / "compatdata"
+        / "251570"
+        / "pfx"
+        / "drive_c"
+        / "users"
+        / "steamuser"
+        / "AppData"
+        / "Roaming"
+        / "7DaysToDie"
+        / "logs"
+    )
     assert logdir.is_dir(), r.stdout
     # Direct-Proton branch taken, not the steam fallback.
     assert "Proton:" in r.stdout
@@ -530,8 +576,11 @@ def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stderr
     argv = steam_argv.read_text(encoding="utf-8").splitlines()
     assert argv == [
-        "-applaunch", "251570", "-noeac",
-        "-skipintro", "-SkipNewsScreen=true",
+        "-applaunch",
+        "251570",
+        "-noeac",
+        "-skipintro",
+        "-SkipNewsScreen=true",
         "-connect=127.0.0.1:27025",
     ]
     # Steam does not reliably pass -connect=; the env is the reliable channel.
@@ -604,13 +653,15 @@ PROTON_PATHS = ROOT / "scripts" / "proton_paths.sh"
 
 def _resolve_compat(game: str, appid: str, steam_root: str, compat: str = "") -> str:
     """Run scripts/proton_paths.sh resolve_compat in a clean bash."""
-    script = (
-        f"source {shlex.quote(str(PROTON_PATHS))} && resolve_compat "
-        + " ".join(shlex.quote(a) for a in (game, appid, steam_root, compat))
+    script = f"source {shlex.quote(str(PROTON_PATHS))} && resolve_compat " + " ".join(
+        shlex.quote(a) for a in (game, appid, steam_root, compat)
     )
     return subprocess.run(
         ["bash", "-c", script],
-        capture_output=True, text=True, check=True, timeout=30,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
     ).stdout.strip()
 
 
@@ -619,16 +670,26 @@ def test_resolve_compat_derives_second_library_prefix() -> None:
     one_shot_join.sh reads it back through the same helper: a second-disk
     install must resolve to <library>/compatdata/<appid>, not the default
     root, or the join poll watches an empty file and reports timeouts."""
-    assert _resolve_compat(
-        "/disks/b/steamapps/common/7 Days To Die", "251570", "/home/u/.local/share/Steam",
-    ) == "/disks/b/steamapps/compatdata/251570"
+    assert (
+        _resolve_compat(
+            "/disks/b/steamapps/common/7 Days To Die",
+            "251570",
+            "/home/u/.local/share/Steam",
+        )
+        == "/disks/b/steamapps/compatdata/251570"
+    )
 
 
 def test_resolve_compat_explicit_override_wins() -> None:
-    assert _resolve_compat(
-        "/disks/b/steamapps/common/Game", "251570", "/home/u/.local/share/Steam",
-        "/custom/compat",
-    ) == "/custom/compat"
+    assert (
+        _resolve_compat(
+            "/disks/b/steamapps/common/Game",
+            "251570",
+            "/home/u/.local/share/Steam",
+            "/custom/compat",
+        )
+        == "/custom/compat"
+    )
 
 
 def test_resolve_compat_falls_back_to_steam_root() -> None:

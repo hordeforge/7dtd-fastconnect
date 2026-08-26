@@ -17,7 +17,7 @@ assert "mute helper still exists (pair)" test -x "$ROOT/scripts/mute_client_audi
 
 BEHAV=""
 if command -v jq >/dev/null 2>&1; then
-	BEHAV="$(mktemp -d "${TMPDIR:-/tmp}/unmute-helper.XXXXXX")"
+	BEHAV="$(scratch_mktemp "$ROOT" unmute-helper)"
 	cp "$ROOT/scripts/testdata/pactl_stub.sh" "$BEHAV/pactl"
 	chmod +x "$BEHAV/pactl"
 
@@ -55,7 +55,7 @@ else
 	echo "SKIP behavioral unmute checks (jq missing)" >&2
 fi
 
-NO_PULSE_BIN="$(mktemp -d "${TMPDIR:-/tmp}/unmute-nopulse.XXXXXX")"
+NO_PULSE_BIN="$(scratch_mktemp "$ROOT" unmute-nopulse)"
 trap 'rm -rf ${BEHAV:+"$BEHAV"} "$NO_PULSE_BIN"' EXIT
 ln -s "$(command -v bash)" "$NO_PULSE_BIN/bash"
 

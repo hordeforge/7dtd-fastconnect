@@ -48,15 +48,24 @@ namespace SdtdConnect
     [HarmonyPatch(typeof(Platform.Steam.User), nameof(Platform.Steam.User.PlatformUserId), MethodType.Getter)]
     static class Patch_SteamUserId_Synthetic
     {
-        // Individual-account SteamID64 base. Real accounts occupy
-        // [IndividualAccountBase, IndividualAccountBase + 2^32): the account
-        // number is a uint32, so the highest real id is 76561202255233023.
-        // Synthetic ids live ABOVE that ceiling and below BotTabPatch's bot
-        // ids (>= 90000000000000000), so a derived id can collide neither
-        // with a real player's account (the server would merge/kick two
-        // people onto one persisted identity) nor with a bot.
-        const ulong IndividualAccountBase = 76561197960265728UL;
+        // Real individual SteamID64s occupy [76561197960265728, +2^32): the
+        // account number is a uint32, so the highest real id is
+        // 76561202255233023. Synthetic ids start above that ceiling, so a
+        // derived id can never collide with a real player's account (the
+        // server would otherwise merge or kick two people onto one persisted
+        // identity).
         const ulong SyntheticIdBase = 80000000000000000UL;
+        // Keeps every derived id inside the synthetic band.
+        const ulong SyntheticIdSpan = 100000000UL;
+        // Used when the OS names neither the host nor the user: any two such
+        // clients do collide, which is the honest outcome when there is
+        // nothing left to distinguish them by.
+        const ulong SyntheticIdSeedless = SyntheticIdBase + 42UL;
+
+        // FNV-1a 64-bit, chosen for being deterministic and dependency-free;
+        // no security property is claimed or needed here.
+        const ulong Fnv1aOffsetBasis = 14695981039346656037UL;
+        const ulong Fnv1aPrime = 1099511628211UL;
 
         static PlatformUserIdentifierAbs _fake;
 
@@ -64,22 +73,25 @@ namespace SdtdConnect
         // (server-side player data persists), distinct across machines.
         static PlatformUserIdentifierAbs SyntheticId()
         {
+            // Either lookup throws when the OS cannot name a host or profile
+            // (observed under a bare Proton prefix). A throw is the same
+            // signal as an empty name here, and the next fallback covers it.
             string seed = null;
-            try { seed = Environment.MachineName; } catch { }
+            try { seed = Environment.MachineName; } catch (Exception) { }
             if (string.IsNullOrWhiteSpace(seed))
             {
-                try { seed = Environment.UserName; } catch { }
+                try { seed = Environment.UserName; } catch (Exception) { }
             }
             if (string.IsNullOrWhiteSpace(seed))
-                return new Platform.Steam.UserIdentifierSteam("80000000000000042");
-            ulong hash = 14695981039346656037UL;
+                return new Platform.Steam.UserIdentifierSteam(SyntheticIdSeedless.ToString());
+            ulong hash = Fnv1aOffsetBasis;
             foreach (char c in seed.Trim())
             {
                 hash ^= c;
-                hash *= 1099511628211UL;
+                hash *= Fnv1aPrime;
             }
             return new Platform.Steam.UserIdentifierSteam(
-                (SyntheticIdBase + hash % 100000000UL).ToString());
+                (SyntheticIdBase + hash % SyntheticIdSpan).ToString());
         }
 
         static bool Prefix(Platform.Steam.User __instance, ref PlatformUserIdentifierAbs __result)
@@ -98,7 +110,7 @@ namespace SdtdConnect
             catch (Exception ex)
             {
                 // Same naming rule as the auth-ticket prefix: a wedged
-                // Steamworks init must not look like plain "no Steam" --
+                // Steamworks init must not look like plain "no Steam";
                 // here it also silently swaps the real platform id for the
                 // synthetic one, which changes the server-side identity.
                 ProbeFailure.Once("Steam identity probe", ex);

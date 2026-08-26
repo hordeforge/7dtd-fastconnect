@@ -5,6 +5,17 @@
 
 FAILS=0
 
+# Disposable working dir for a gate, under the repo's gitignored .scratch/.
+# Deliberately not /tmp or $TMPDIR: those are tmpfs on this platform, so every
+# staged game tree and zip fixture a gate builds is charged to RAM and lost on
+# reboot. Callers own the cleanup trap, as they did with mktemp.
+scratch_mktemp() {
+	local root="${1:?scratch_mktemp: repo root required}"
+	local prefix="${2:?scratch_mktemp: name prefix required}"
+	mkdir -p "$root/.scratch"
+	mktemp -d "$root/.scratch/$prefix.XXXXXX"
+}
+
 assert() {
 	local name="$1"
 	shift

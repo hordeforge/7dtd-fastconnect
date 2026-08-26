@@ -11,7 +11,7 @@ if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
 	exit 0
 fi
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/7dtd-reprozip.XXXXXX")"
+WORK="$(scratch_mktemp "$ROOT" 7dtd-reprozip)"
 trap 'rm -rf "$WORK"' EXIT
 
 stage_a="$WORK/a"
