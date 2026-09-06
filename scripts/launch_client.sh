@@ -74,7 +74,7 @@ fi
 # the canonical 7DTD_CONNECT via printenv.
 CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
 # Always skip TFP intro splash (before mods load) and stock news launch pref.
-EXTRA_ARGS=(-skipintro -SkipNewsScreen=true)
+EXTRA_ARGS=(-skipintro -SkipNewsScreen=true -disablenativeinput)
 
 # Which graphics API the client forces. d3d11 stays the default because that is
 # what this game ships with on Windows and through Proton, and changing it would

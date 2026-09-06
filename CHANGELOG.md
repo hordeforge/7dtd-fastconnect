@@ -11,6 +11,12 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+### Fixed
+
+- `launch_client.sh` now passes `-disablenativeinput`. V 3.2.0 enables
+  InControl `NativeInputDeviceManager` by default, which crashes Proton
+  before mods load.
+
 ## [0.11.0] - 2026-08-26
 
 Scope enforcement release: the mod is now only join and automation plumbing,
