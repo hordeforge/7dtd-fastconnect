@@ -471,6 +471,7 @@ def test_eac_off_and_render_flags_reach_game(tmp_path: Path) -> None:
     assert "-force-d3d11" in argv
     assert "-nogs" in argv
     assert "-logfile" in argv
+    assert "-disablenativeinput" in argv
 
 
 @pytest.mark.parametrize(
@@ -581,6 +582,7 @@ def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
         "-noeac",
         "-skipintro",
         "-SkipNewsScreen=true",
+        "-disablenativeinput",
         "-connect=127.0.0.1:27025",
     ]
     # Steam does not reliably pass -connect=; the env is the reliable channel.
