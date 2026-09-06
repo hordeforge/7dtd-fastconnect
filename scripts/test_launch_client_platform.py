@@ -78,6 +78,7 @@ SCRUB = {
     "CLIENT_PLATFORM",
     "STEAM_COMPAT_CLIENT_INSTALL_PATH",
     "GFX_API",
+    "WINEDLLOVERRIDES",
 }
 # launch_client.sh rejects an unknown GFX_API with this usage-error status
 # before any side effect (game run, platform.cfg swap).
@@ -472,6 +473,27 @@ def test_eac_off_and_render_flags_reach_game(tmp_path: Path) -> None:
     assert "-nogs" in argv
     assert "-logfile" in argv
     assert "-disablenativeinput" in argv
+
+
+def test_proton_disables_xinput_dlls(tmp_path: Path) -> None:
+    """V 3.2 InControl still calls XInputGetState after -disablenativeinput;
+    Proton's xinput1_3 crashes a Steam-free Local client unless those DLLs
+    are disabled. Keep a caller-supplied WINEDLLOVERRIDES prefix."""
+    _setup(tmp_path)
+    record = tmp_path / "winedll.txt"
+    _write_executable(
+        tmp_path / "proton-stub",
+        f'printenv WINEDLLOVERRIDES > {shlex.quote(str(record))}\n'
+        'shift\n'
+        'exec "$@"\n',
+    )
+    r = _launch(tmp_path, extra_env={"WINEDLLOVERRIDES": "existing.dll=n"})
+    assert r.returncode == 0, r.stderr
+    text = record.read_text(encoding="utf-8")
+    assert "existing.dll=n" in text
+    assert "xinput1_3.dll=d" in text
+    assert "xinput1_4.dll=d" in text
+    assert "xinput9_1_0.dll=d" in text
 
 
 @pytest.mark.parametrize(

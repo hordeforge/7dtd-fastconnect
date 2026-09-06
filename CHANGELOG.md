@@ -16,6 +16,9 @@ in the affected sections instead of being papered over.
 - `launch_client.sh` now passes `-disablenativeinput`. V 3.2.0 enables
   InControl `NativeInputDeviceManager` by default, which crashes Proton
   before mods load.
+- Proton `WINEDLLOVERRIDES` disables `xinput1_3` / `xinput1_4` / `xinput9_1_0`.
+  V 3.2 InControl still calls `XInputGetState` after `-disablenativeinput`;
+  Proton's xinput stub hard-crashes a Steam-free Local client there.
 
 ## [0.11.0] - 2026-08-26
 

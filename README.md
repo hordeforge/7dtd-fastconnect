@@ -39,6 +39,7 @@ Release notes and upgrade notes: [CHANGELOG.md](CHANGELOG.md).
 | TFP intro splash video | Process arg **`-skipintro`** (must be on argv; splash runs before mods) |
 | News “click to continue” | **`-SkipNewsScreen=true`** + Harmony forces `shownNewsScreenOnce` / blocks `XUiC_NewsScreen.Open` |
 | InControl native input | Process arg **`-disablenativeinput`**. V 3.2.0 turns native input on by default; that plugin crashes Proton before mods load |
+| Proton XInput | `WINEDLLOVERRIDES` disables `xinput1_3.dll`, `xinput1_4.dll`, `xinput9_1_0.dll`. InControl still calls `XInputGetState` after `-disablenativeinput`; Proton's stub crashes a Steam-free Local client |
 | EULA accept gate | Harmony forces `HasAcceptedLatestEula=true` and blocks the `windowEula` window: accepts latest and reopens the main menu |
 | Opener movie on world load | `showOpenerMovieOnLoad = false`, `OptionsIntroMovieEnabled = false` |
 | Discord login / SDK | `GamePrefs.DiscordDisabled=true` + Harmony skips `DiscordManager.Init` and Discord first-time menu |
