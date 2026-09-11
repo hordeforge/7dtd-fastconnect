@@ -483,9 +483,7 @@ def test_proton_disables_xinput_dlls(tmp_path: Path) -> None:
     record = tmp_path / "winedll.txt"
     _write_executable(
         tmp_path / "proton-stub",
-        f'printenv WINEDLLOVERRIDES > {shlex.quote(str(record))}\n'
-        'shift\n'
-        'exec "$@"\n',
+        f'printenv WINEDLLOVERRIDES > {shlex.quote(str(record))}\nshift\nexec "$@"\n',
     )
     r = _launch(tmp_path, extra_env={"WINEDLLOVERRIDES": "existing.dll=n"})
     assert r.returncode == 0, r.stderr
