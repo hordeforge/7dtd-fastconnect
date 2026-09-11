@@ -11,6 +11,8 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-11
+
 ### Fixed
 
 - `launch_client.sh` now passes `-disablenativeinput`. V 3.2.0 enables
@@ -183,7 +185,8 @@ jumped straight from 0.9.5 to 0.10.2: releases 0.10.0 and 0.10.1 do not exist.
   `7DTD_CONNECT_DEBUG=1`.
 - Proton prefix derived from `GAME`, overridable Steam paths and Mods dir.
 
-[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.5...v0.11.0
 [0.10.5]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.3...v0.10.4
