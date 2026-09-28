@@ -48,9 +48,8 @@ namespace SdtdConnect
                 }
                 if (cm.IsConnected)
                 {
-                    // This gate is the one poller of the connection state, so
-                    // it is where a connect request that was made is seen to
-                    // have landed; the request latch releases on that.
+                    // A request that was made is seen to have landed here and
+                    // in the frame hook; either way the request latch releases.
                     ConnectTarget.NoteConnected();
                     reason = "already-connected";
                     return false;

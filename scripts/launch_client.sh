@@ -94,12 +94,17 @@ EXTRA_ARGS=(-skipintro -SkipNewsScreen=true -disablenativeinput)
 # pipeline needs in order to check that a shader renders on more than one
 # graphics API. Set GFX_API=vulkan, glcore, d3d11 or d3d12 - or none, to let the
 # game choose.
-GFX_API="$(lower "$(trim "${GFX_API:-d3d11}")")"
+# Set-but-blank reads as unset (the same rule env_bool and CLIENT_PLATFORM
+# apply), so the value is trimmed before the default is chosen rather than
+# after: a whitespace-only GFX_API trims to empty and must take d3d11, not
+# fall into the invalid arm and abort the launch.
+GFX_API="$(lower "$(trim "${GFX_API-d3d11}")")"
+GFX_API="${GFX_API:-d3d11}"
 case "$GFX_API" in
   d3d11|d3d12|vulkan|glcore) GFX_ARGS=(-force-"$GFX_API") ;;
   none) GFX_ARGS=() ;;
   *)
-    echo "launch_client.sh: GFX_API must be d3d11, d3d12, vulkan, glcore or none (got '$GFX_API')" >&2
+    echo "launch_client.sh: GFX_API must be d3d11, d3d12, vulkan, glcore or none (got '$(sanitize_log_text "$GFX_API")')" >&2
     exit 2
     ;;
 esac

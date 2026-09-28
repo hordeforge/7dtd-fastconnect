@@ -16,6 +16,11 @@ namespace SdtdConnect
         static float _nextLog;
         static void Postfix()
         {
+            // Ahead of the diag gate and never logged: a connect request that
+            // landed has to be observed while the session is live, or the
+            // request latch only clears when its own 30 s window expires.
+            ConnectTarget.NoteConnectedIfSessionLive();
+
             if (!DiagToggle.Enabled) return;
             if (Time.realtimeSinceStartup < _nextLog) return;
             _nextLog = Time.realtimeSinceStartup + DiagToggle.HeartbeatIntervalSec;

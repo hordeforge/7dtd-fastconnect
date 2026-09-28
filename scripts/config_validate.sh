@@ -16,6 +16,17 @@
 #
 # Source this file; do not execute it.
 
+# The boolean reader below echoes a rejected value, and an env value can carry
+# a line break or a bidi override. Sourced here rather than left to the caller
+# so every script that reads a knob also gets the one flattening implementation
+# (scripts/log_sanitize.sh) instead of a per-script guess. Located with
+# builtins only: mute_client_audio.sh is launched with a PATH that holds
+# neither coreutils nor pactl, so a `dirname` here would break that caller.
+_config_validate_dir="${BASH_SOURCE[0]%/*}"
+[[ "$_config_validate_dir" == "${BASH_SOURCE[0]}" ]] && _config_validate_dir=.
+source "$_config_validate_dir/log_sanitize.sh"
+unset _config_validate_dir
+
 # The join target every harness falls back to: the local zdtd pair on the
 # stock Connect-to-IP / ServerPort. One owner for the number, because it is
 # also the mod's ConnectTarget.DefaultPort, and a harness that carries its own
@@ -24,6 +35,7 @@
 # rather than a run.
 # shellcheck disable=SC2034  # read by the harnesses that source this file
 DEFAULT_CONNECT_HOST=127.0.0.1
+# shellcheck disable=SC2034  # same: the source above is not followable, so the harnesses' reads are invisible to the analysis
 DEFAULT_CONNECT_PORT=27025
 
 # Env values arrive with whatever spacing and case the caller's shell had, and
@@ -189,7 +201,7 @@ env_bool() {
 			0 | false | no | off) printf '0\n'; return 0 ;;
 		esac
 		printf "WARN: %s='%s' is not a documented boolean (1/true/yes/on, or 0/false/no/off to disable); reading it as ON\n" \
-			"$name" "$value" >&2
+			"$name" "$(sanitize_log_text "$value")" >&2
 		printf '1\n'
 		return 0
 	done

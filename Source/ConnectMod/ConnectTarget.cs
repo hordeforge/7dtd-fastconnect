@@ -265,7 +265,19 @@ namespace SdtdConnect
                 WarnIgnoredTarget(EnvVar, env.Trim(), envError);
             }
 
-            string[] args = Environment.GetCommandLineArgs();
+            // Same rule as the env read above, for the same reason: a blocked
+            // argv read is indistinguishable from a launch with no -connect,
+            // and letting the exception escape would abort mod load from a
+            // static initializer.
+            string[] args;
+            try
+            {
+                args = Environment.GetCommandLineArgs();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
             for (int i = 0; i < args.Length; i++)
             {
                 string a = args[i];
@@ -387,13 +399,33 @@ namespace SdtdConnect
         const float ConnectRequestWindowSec = 30f;
 
         /// <summary>
-        /// Records that a request this mod made reached the server. The join
-        /// gate is the one place that polls the connection state, so it is what
-        /// turns a request from in-flight into connected.
+        /// Records that a request this mod made reached the server.
         /// </summary>
         internal static void NoteConnected()
         {
             if (_request == ConnectRequest.InFlight) _request = ConnectRequest.Connected;
+        }
+
+        /// <summary>
+        /// Turns a request from in-flight into connected when the client is in
+        /// a live session. The join gate stops polling the moment it fires a
+        /// request, so it cannot be the only observer: the frame hook that
+        /// runs for the whole session is, and without it the refusal only
+        /// lifts when the 30 s window expires, long after the join landed.
+        /// </summary>
+        internal static void NoteConnectedIfSessionLive()
+        {
+            try
+            {
+                var cm = SingletonMonoBehaviour<ConnectionManager>.Instance;
+                if (cm != null && cm.IsConnected) NoteConnected();
+            }
+            catch (Exception)
+            {
+                // A singleton torn down mid-frame is the usual cause, and the
+                // latch carries its own window, so a miss here costs at most
+                // that window.
+            }
         }
 
         /// <summary>Same path as stock "Connect by IP" UI (GameServerInfo IP + Port → ConnectionManager.Connect).</summary>

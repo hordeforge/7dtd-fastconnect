@@ -25,11 +25,15 @@
 #
 # Source this file; do not execute it.
 
-readonly LOG_INVISIBLE_FORMAT_CHARS=$'\u200b\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2060\u2061\u2062\u2063\u2064\u2066\u2067\u2068\u2069\ufeff'
+# Guarded because more than one sourced library pulls this file in (the
+# scripts source it directly, config_validate.sh sources it for env_bool):
+# a second `readonly` assignment to the same name in one shell is an error,
+# which under `set -e` would kill a script that did nothing wrong.
+[[ -n "${LOG_INVISIBLE_FORMAT_CHARS:-}" ]] || readonly LOG_INVISIBLE_FORMAT_CHARS=$'\u200b\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2060\u2061\u2062\u2063\u2064\u2066\u2067\u2068\u2069\ufeff'
 
 # U+0001 to U+001F and U+007F. U+0000 is absent because a shell variable
 # cannot hold it, so no value reaching this function carries one.
-readonly LOG_CONTROL_CHARS=$'\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u007f'
+[[ -n "${LOG_CONTROL_CHARS:-}" ]] || readonly LOG_CONTROL_CHARS=$'\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u007f'
 
 sanitize_log_text() {
 	local text="$1" i c cp hex

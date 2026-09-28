@@ -273,6 +273,19 @@ and enum handling, so a patch bump would claim none of that.
   rest of the message.
 - `WindowTrace.Emit` and the open-window heartbeat wrote window names straight
   to the log, the only string sinks in the mod that bypassed `LogText`.
+- `Environment.GetCommandLineArgs()` was read unguarded next to a guarded env
+  read, so a host that blocks it turned a launch-context scan into an escaping
+  exception out of a static initializer: the mod stopped loading at all, with
+  no trace of its own. It now reads as "no argv target", the same as the
+  unreadable env var beside it.
+- `env_bool` echoed an undocumented boolean value unsanitized, so a newline or
+  a bidi override in `CLIENT_MUTE` / `START_SERVER` forged a second line into
+  the launcher's stderr, which the join harnesses archive. The shared reader
+  now flattens the value like every other rejection line, and sources
+  `log_sanitize.sh` itself so a script that reads a knob cannot miss it.
+- A whitespace-only `GFX_API` trimmed to empty and fell into the invalid-value
+  arm, aborting the launch, where "unset and empty mean the default" says it
+  takes `d3d11`. It is now normalized before the default is chosen.
 - The console echo (`LogText.EchoForMessage`) cut a pasted value at 40 UTF-16
   code units, so a long paste of emoji or CJK could end in a lone surrogate
   and print as U+FFFD. It now counts code points, like `ConnectTarget`'s
