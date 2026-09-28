@@ -242,6 +242,12 @@ and enum handling, so a patch bump would claim none of that.
   `LocalHostWorldLoadPatches.cs` into `PerfTrace.cs`. They are diagnostics, not
   part of the world-load workaround, and the other opt-in probes already live
   in their own `*Trace.cs` files.
+- The `[7dtd-fastconnect] ` log prefix is the constant `LogText.Tag` rather
+  than a literal at every call site, so the marker the join harness greps
+  for has one definition. Emitted lines are unchanged.
+- `docs/architecture.md` maps every file under `Source/ConnectMod/` and
+  `scripts/` to what it owns, and names the dependency direction inside the
+  mod, which was only discoverable by reading every source.
 
 ### Fixed
 

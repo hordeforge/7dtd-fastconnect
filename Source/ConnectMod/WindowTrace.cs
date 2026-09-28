@@ -27,7 +27,7 @@ namespace SdtdConnect
             if (!DiagToggle.Enabled) return;
             try
             {
-                Log.Out("[7dtd-fastconnect] wt " + what + " "
+                Log.Out(LogText.Tag + "wt " + what + " "
                     + LogText.SanitizeForLog(subject)
                     + " t=" + Time.realtimeSinceStartup);
             }

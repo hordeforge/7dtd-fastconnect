@@ -7,6 +7,10 @@ using UnityEngine;
 
 namespace SdtdConnect
 {
+    // Signature of the three world-load wrappers below, so the Harmony
+    // postfixes that call them and WrapGuarded share one name for it.
+    internal delegate void WrapFn(ref IEnumerator result);
+
     /// <summary>
     /// A normal (non-automation) local host hangs on "Initializing world" under
     /// Proton. Stock builds the local player with ~20 synchronous addressable
@@ -29,6 +33,12 @@ namespace SdtdConnect
         // it against GameManager.createWorld when the game updates. Replacing
         // this boundary with a throttle regressed at "AstarManager Init".
         const int CreateWorldUnsafeFrameBreaks = 9;
+
+        // Reflection handles for the LoadManager load-request counters the
+        // pending-load probe reads; resolved once, then reused.
+        static FieldInfo _loadRequests, _deferredLoadRequests;
+        static MethodInfo _workBatchCount;
+        static bool _pendingResolved;
 
         internal static void WrapStartAsServer(ref IEnumerator result)
         {
@@ -65,7 +75,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] " + target + " wrap failed; stock load kept: "
+                Log.Warning(LogText.Tag + target + " wrap failed; stock load kept: "
                     + ex.GetType().Name + ": " + ex.Message);
             }
             return result;
@@ -77,7 +87,7 @@ namespace SdtdConnect
 
         static IEnumerator Flatten(IEnumerator root)
         {
-            Log.Out("[7dtd-fastconnect] Local-host world-load workaround active");
+            Log.Out(LogText.Tag + "Local-host world-load workaround active");
 
             // One MoveNext of this child per frame: it only ever yields null
             // while waiting on the prefab, so forwarding preserves pacing.
@@ -98,12 +108,12 @@ namespace SdtdConnect
             {
                 Application.backgroundLoadingPriority = ThreadPriority.High;
                 Application.runInBackground = true;
-                Log.Out("[7dtd-fastconnect] Local-host load priority raised (was "
+                Log.Out(LogText.Tag + "Local-host load priority raised (was "
                     + previousLoadPriority + ", runInBackground was " + previousRunInBackground + ")");
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] Local-host load priority raise failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "Local-host load priority raise failed: " + ex.GetType().Name + ": " + ex.Message);
             }
 
             try
@@ -153,10 +163,10 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[7dtd-fastconnect] Local-host load priority restore failed: " + ex.GetType().Name + ": " + ex.Message);
+                    Log.Warning(LogText.Tag + "Local-host load priority restore failed: " + ex.GetType().Name + ": " + ex.Message);
                 }
             }
-            Log.Out("[7dtd-fastconnect] Local-host startup completed");
+            Log.Out(LogText.Tag + "Local-host startup completed");
             PerfTrace.StartHitchMonitor();
         }
 
@@ -178,7 +188,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] Local-host player prefab prewarm failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "Local-host player prefab prewarm failed: " + ex.GetType().Name + ": " + ex.Message);
                 yield break;
             }
             // A load request the manager declines (renamed asset after a game
@@ -188,26 +198,26 @@ namespace SdtdConnect
             // so the prewarm would be lost with no trace at all.
             if (playerPrefab == null)
             {
-                Log.Warning("[7dtd-fastconnect] Local-host player prefab prewarm skipped: "
+                Log.Warning(LogText.Tag + "Local-host player prefab prewarm skipped: "
                     + "LoadManager returned no request for Prefabs/prefabEntityPlayerLocal");
                 yield break;
             }
 
-            Log.Out("[7dtd-fastconnect] Local-host prewarming local player prefab");
+            Log.Out(LogText.Tag + "Local-host prewarming local player prefab");
             const float prewarmMaxSec = 60f;
             float prewarmDeadline = Time.realtimeSinceStartup + prewarmMaxSec;
             while (!playerPrefab.IsDone)
             {
                 if (Time.realtimeSinceStartup >= prewarmDeadline)
                 {
-                    Log.Warning("[7dtd-fastconnect] Local-host prefab prewarm timed out after "
+                    Log.Warning(LogText.Tag + "Local-host prefab prewarm timed out after "
                         + prewarmMaxSec + "s; continuing without it");
                     break;
                 }
                 yield return null;
             }
             if (playerPrefab.IsDone)
-                Log.Out("[7dtd-fastconnect] Local-host local player prefab ready");
+                Log.Out(LogText.Tag + "Local-host local player prefab ready");
         }
 
         static IEnumerator DrainWorldLoad(IEnumerator root)
@@ -292,7 +302,7 @@ namespace SdtdConnect
             const float asyncDrainMaxSec = 60f;
             float deadline = Time.realtimeSinceStartup + asyncDrainMaxSec;
             int pending = PendingLoadCount();
-            if (pending > 0) Log.Out("[7dtd-fastconnect] Local-host draining " + pending + " pending async loads before player creation");
+            if (pending > 0) Log.Out(LogText.Tag + "Local-host draining " + pending + " pending async loads before player creation");
             while (pending > 0 && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
@@ -306,8 +316,8 @@ namespace SdtdConnect
             yield return null;
             yield return null;
             Log.Out(pending > 0
-                ? "[7dtd-fastconnect] Local-host async drain timed out with " + pending + " pending"
-                : "[7dtd-fastconnect] Local-host async loads drained, sync loading held until startup completes");
+                ? LogText.Tag + "Local-host async drain timed out with " + pending + " pending"
+                : LogText.Tag + "Local-host async loads drained, sync loading held until startup completes");
         }
 
         // One latch for both holders: the World.LoadWorld drain holds the flag
@@ -326,7 +336,7 @@ namespace SdtdConnect
                 forceSync.SetValue(null, true);
                 _forceSyncHeld = true;
             }
-            catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync hold failed: " + ex.GetType().Name + ": " + ex.Message); }
+            catch (Exception ex) { Log.Warning(LogText.Tag + "force-sync hold failed: " + ex.GetType().Name + ": " + ex.Message); }
         }
 
         static void ReleaseForceLoadSync()
@@ -340,13 +350,9 @@ namespace SdtdConnect
                 FieldInfo forceSync = BootUnblock.ForceLoadSyncField();
                 if (forceSync != null) forceSync.SetValue(null, previousForceSync);
             }
-            catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync release failed: " + ex.GetType().Name + ": " + ex.Message); }
+            catch (Exception ex) { Log.Warning(LogText.Tag + "force-sync release failed: " + ex.GetType().Name + ": " + ex.Message); }
             _forceSyncHeld = false;
         }
-
-        static FieldInfo _loadRequests, _deferredLoadRequests;
-        static MethodInfo _workBatchCount;
-        static bool _pendingResolved;
 
         internal static int PendingLoadCount()
         {
@@ -396,13 +402,11 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Error("[7dtd-fastconnect] Local-host load failed in " + stage + ": " + ex);
+                Log.Error(LogText.Tag + "Local-host load failed in " + stage + ": " + ex);
                 throw;
             }
         }
     }
-
-    internal delegate void WrapFn(ref IEnumerator result);
 
     [HarmonyPatch(typeof(World), nameof(World.LoadWorld))]
     static class Patch_LocalHost_WorldLoad

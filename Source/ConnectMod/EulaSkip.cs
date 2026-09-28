@@ -57,14 +57,14 @@ namespace SdtdConnect
             bool accepted = false;
             try
             {
-                Log.Out("[7dtd-fastconnect] blocking GUI " + logTag);
+                Log.Out(LogText.Tag + "blocking GUI " + logTag);
                 AcceptLatest();
                 accepted = true;
             }
             catch (Exception ex)
             {
                 accepted = false;
-                Log.Warning("[7dtd-fastconnect] windowEula accept failed (" + logTag + "): " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "windowEula accept failed (" + logTag + "): " + ex.GetType().Name + ": " + ex.Message);
             }
             try
             {
@@ -72,11 +72,11 @@ namespace SdtdConnect
                 if (xui != null) XUiC_MainMenu.Open(xui);
                 var data = new ModEvents.SMainMenuOpenedData(true);
                 ModEvents.MainMenuOpened.Invoke(ref data);
-                Log.Out("[7dtd-fastconnect] dispatched MainMenuOpened after " + logTag);
+                Log.Out(LogText.Tag + "dispatched MainMenuOpened after " + logTag);
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] MainMenuOpened dispatch failed (" + logTag + "): " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "MainMenuOpened dispatch failed (" + logTag + "): " + ex.GetType().Name + ": " + ex.Message);
             }
             _gateHandled = accepted;
             return false;

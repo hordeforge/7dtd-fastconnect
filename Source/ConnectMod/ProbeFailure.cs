@@ -28,7 +28,7 @@ namespace SdtdConnect
             // stop for every probe failure in the mod, so there is nowhere
             // left to report to; rethrowing would push a diagnostic's failure
             // into the stock call site the probe was only observing.
-            try { Log.Warning("[7dtd-fastconnect] " + what + " failed: " + ex + " (further failures muted)"); }
+            try { Log.Warning(LogText.Tag + what + " failed: " + ex + " (further failures muted)"); }
             catch (Exception) { }
         }
     }

@@ -19,8 +19,8 @@ namespace SdtdConnect
         public void InitMod(Mod _modInstance)
         {
             DiagToggle.AnnounceOnce();
-            Log.Out("[7dtd-fastconnect] InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest); diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
-            Log.Out("[7dtd-fastconnect] automation boot mode " + (AutomationMode.Enabled ? "enabled" : "disabled")
+            Log.Out(LogText.Tag + "InitMod v" + Version + " (connect/join only; playtest is 7dtd-playtest); diag " + (DiagToggle.Enabled ? "ON" : "OFF") + " (`diag on/off/status`, or 7DTD_CONNECT_DEBUG=1)");
+            Log.Out(LogText.Tag + "automation boot mode " + (AutomationMode.Enabled ? "enabled" : "disabled")
                 + " (auto when 7DTD_CONNECT/-connect is present; override with " + AutomationMode.EnvVar + ")");
 
             TryStep("intro movie disable", () =>
@@ -57,7 +57,7 @@ namespace SdtdConnect
                 // setting. EULA gate blocks MainMenu (scroll+accept); force
                 // accepted for automation.
                 TryStep("EULA prefs accept", () =>
-                    Log.Out("[7dtd-fastconnect] EULA prefs accepted=" + EulaSkip.AcceptLatest()));
+                    Log.Out(LogText.Tag + "EULA prefs accepted=" + EulaSkip.AcceptLatest()));
             }
 
             // 7DTD_PLAYER_NAME is an operator ask, not automation plumbing, so
@@ -88,20 +88,20 @@ namespace SdtdConnect
                     catch (Exception ex)
                     {
                         fail++;
-                        Log.Warning("[7dtd-fastconnect] Harmony skip " + t.Name + ": " + ex.GetType().Name + ": " + ex.Message);
+                        Log.Warning(LogText.Tag + "Harmony skip " + t.Name + ": " + ex.GetType().Name + ": " + ex.Message);
                     }
                 }
                 // Error severity when a patch failed: the mod then runs
                 // half-patched (a menu forced open behind a gate that was
                 // never skipped), and an info line in a log the harness greps
                 // hides that.
-                string summary = "[7dtd-fastconnect] Harmony patches applied ok=" + ok + " fail=" + fail
+                string summary = LogText.Tag + "Harmony patches applied ok=" + ok + " fail=" + fail
                     + " (news/discord skip for automation only)";
                 if (fail > 0) Log.Error(summary); else Log.Out(summary);
             }
             catch (Exception ex)
             {
-                Log.Error("[7dtd-fastconnect] Harmony failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Error(LogText.Tag + "Harmony failed: " + ex.GetType().Name + ": " + ex.Message);
             }
 
             if (AutomationMode.Enabled)
@@ -117,7 +117,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Error("[7dtd-fastconnect] MainMenuOpened register failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Error(LogText.Tag + "MainMenuOpened register failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
 
@@ -136,7 +136,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] " + what + " failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + what + " failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
 
@@ -170,7 +170,7 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[7dtd-fastconnect] stored PlayerName read failed; leaving it untouched: "
+                    Log.Warning(LogText.Tag + "stored PlayerName read failed; leaving it untouched: "
                         + ex.GetType().Name + ": " + ex.Message);
                     return;
                 }
@@ -197,8 +197,8 @@ namespace SdtdConnect
             // 7DTD_PLAYER_NAME" would send someone debugging after an env
             // value that is not set.
             Log.Out(fromEnv
-                ? "[7dtd-fastconnect] player name applied from " + PlayerNameEnv
-                : "[7dtd-fastconnect] player name applied from fallback ("
+                ? LogText.Tag + "player name applied from " + PlayerNameEnv
+                : LogText.Tag + "player name applied from fallback ("
                     + PlayerNameEnv + " unset, stored PlayerName empty)");
         }
 
@@ -244,11 +244,11 @@ namespace SdtdConnect
                 // rejection already warned with its own reason, and claiming
                 // "no 7DTD_CONNECT" after it would send someone debugging
                 // after why their variable was not seen at all.
-                Log.Out("[7dtd-fastconnect] auto-join idle (no usable 7DTD_CONNECT / -connect=); use F1: connect 127.0.0.1 27025");
+                Log.Out(LogText.Tag + "auto-join idle (no usable 7DTD_CONNECT / -connect=); use F1: connect 127.0.0.1 27025");
                 return;
             }
 
-            Log.Out("[7dtd-fastconnect] auto-join from " + source);
+            Log.Out(LogText.Tag + "auto-join from " + source);
             // DoSpawn opens XUiC_SpawnSelectionWindow unless SkipSpawnButton is
             // true; auto-connect needs the direct RequestToSpawn path (no UI
             // click). Set here rather than inside ConnectTarget.TryConnect so
@@ -265,7 +265,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] coroutine failed, connecting immediately: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "coroutine failed, connecting immediately: " + ex.GetType().Name + ": " + ex.Message);
                 ConnectAndLog(host, port);
             }
         }
@@ -300,7 +300,7 @@ namespace SdtdConnect
                 if (polls == 0 || UnityEngine.Time.realtimeSinceStartup >= nextLog)
                 {
                     nextLog = UnityEngine.Time.realtimeSinceStartup + waitLogIntervalSec;
-                    Log.Out("[7dtd-fastconnect] connect wait t="
+                    Log.Out(LogText.Tag + "connect wait t="
                         + ElapsedSec(waitStart) + "s polls=" + polls + " " + whyNot);
                 }
                 polls++;
@@ -315,10 +315,10 @@ namespace SdtdConnect
             // how long the gate held before it connected or gave up, and polls
             // alone only say how often, not for how long.
             if (!ready)
-                Log.Warning("[7dtd-fastconnect] connect gate timeout t=" + ElapsedSec(waitStart)
+                Log.Warning(LogText.Tag + "connect gate timeout t=" + ElapsedSec(waitStart)
                     + "s polls=" + polls + " " + whyNot + "; trying anyway");
             else if (polls > 0)
-                Log.Out("[7dtd-fastconnect] connect-ready t=" + ElapsedSec(waitStart)
+                Log.Out(LogText.Tag + "connect-ready t=" + ElapsedSec(waitStart)
                     + "s polls=" + polls);
 
             ConnectAndLog(host, port);
@@ -338,9 +338,9 @@ namespace SdtdConnect
         static void ConnectAndLog(string host, int port)
         {
             if (!ConnectTarget.TryConnect(host, port, out string msg))
-                Log.Error("[7dtd-fastconnect] " + msg);
+                Log.Error(LogText.Tag + msg);
             else
-                Log.Out("[7dtd-fastconnect] " + msg);
+                Log.Out(LogText.Tag + msg);
         }
     }
 }

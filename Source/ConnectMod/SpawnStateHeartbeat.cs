@@ -68,7 +68,7 @@ namespace SdtdConnect
             var ui = LocalPlayerUI.GetUIForPrimaryPlayer();
             bool xuiReady = ui != null && ui.xui != null && ui.xui.IsReady;
 
-            Log.Out("[7dtd-fastconnect] spawn hb started=" + started
+            Log.Out(LogText.Tag + "spawn hb started=" + started
                 + " cgo=" + cgo + "/" + needed
                 + " fixedSize=" + fixedSize
                 + " viewDist=" + viewDist
@@ -107,7 +107,7 @@ namespace SdtdConnect
             bool wouldSend = Mathf.Abs(d.x) >= PositionSendThresholdBlocks
                 || Mathf.Abs(d.y) >= PositionSendThresholdBlocks
                 || Mathf.Abs(d.z) >= PositionSendThresholdBlocks;
-            Log.Out("[7dtd-fastconnect] move hb posI=" + b + " serverPos=" + srv + " raw=" + srvRaw
+            Log.Out(LogText.Tag + "move hb posI=" + b + " serverPos=" + srv + " raw=" + srvRaw
                 + " delta=" + d + " wouldSend=" + wouldSend
                 + " spawned=" + player.IsSpawned() + " Spawned=" + player.Spawned
                 + " remote=" + player.isEntityRemote
@@ -130,7 +130,7 @@ namespace SdtdConnect
                 // position against spawnPosition and needs the spawn
                 // window object to exist. Log both sides.
                 var ssw = XUiC_SpawnSelectionWindow.GetWindow(LocalPlayerUI.primaryUI);
-                Log.Out("[7dtd-fastconnect] pmc hb spawnPos=" + pmc.spawnPosition.position
+                Log.Out(LogText.Tag + "pmc hb spawnPos=" + pmc.spawnPosition.position
                     + " undef=" + pmc.spawnPosition.IsUndef()
                     + " playerPos=" + player.position
                     + " equal=" + (player.position == pmc.spawnPosition.position)
@@ -140,7 +140,7 @@ namespace SdtdConnect
             }
             var ui = LocalPlayerUI.GetUIForPrimaryPlayer();
             var wm = ui != null ? ui.windowManager : null;
-            Log.Out("[7dtd-fastconnect] ui hb respawnReason="
+            Log.Out(LogText.Tag + "ui hb respawnReason="
                 + (pmc != null ? pmc.respawnReason.ToString() : "null")
                 + " spawnWindowOpened=" + (pmc != null ? pmc.spawnWindowOpened.ToString() : "-")
                 + " loadingScreen=" + (wm != null && wm.IsWindowOpen(XUiC_LoadingScreen.ID))
@@ -165,7 +165,7 @@ namespace SdtdConnect
                         wins += " " + LogText.SanitizeForLog(kv.Key);
                 }
             }
-            Log.Out("[7dtd-fastconnect] win hb frame=" + Time.frameCount
+            Log.Out(LogText.Tag + "win hb frame=" + Time.frameCount
                 + " focused=" + Application.isFocused
                 + " open:" + (wins.Length == 0 ? " (none)" : wins));
         }

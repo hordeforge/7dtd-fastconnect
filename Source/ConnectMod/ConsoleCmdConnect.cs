@@ -46,7 +46,7 @@ namespace SdtdConnect
             // carries: a silently swallowed token lands the join somewhere the
             // operator did not ask for.
             if (_params.Count > 2)
-                ConsoleOutput.Fail("[7dtd-fastconnect] connect: ignoring extra argument(s) '"
+                ConsoleOutput.Fail(LogText.Tag + "connect: ignoring extra argument(s) '"
                     + LogText.EchoForMessage(string.Join(" ", _params.GetRange(2, _params.Count - 2)))
                     + "'; the command takes host [port]");
 
@@ -57,7 +57,7 @@ namespace SdtdConnect
                 // is labeled rather than parenthesized because a reason that
                 // already quotes the offending half ("got '27025x'") would
                 // otherwise read as two echoes of one message.
-                ConsoleOutput.Fail("[7dtd-fastconnect] connect failed: " + err
+                ConsoleOutput.Fail(LogText.Tag + "connect failed: " + err
                     + " [typed '" + LogText.EchoForMessage(raw) + "']");
                 return;
             }
@@ -72,10 +72,10 @@ namespace SdtdConnect
                 // waits for an answer, and TryConnect's own message only says
                 // the attempt started.
                 ConnectTarget.WatchConsoleRequest(host + ":" + port);
-                ConsoleOutput.Out("[7dtd-fastconnect] " + msg);
+                ConsoleOutput.Out(LogText.Tag + msg);
             }
             else
-                ConsoleOutput.Fail("[7dtd-fastconnect] connect failed: " + msg);
+                ConsoleOutput.Fail(LogText.Tag + "connect failed: " + msg);
         }
     }
 }

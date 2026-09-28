@@ -56,6 +56,9 @@ make install
 env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 ```
 
+Source layout (which file owns what, and the dependency direction inside the
+mod): [`docs/architecture.md`](docs/architecture.md).
+
 ## Stock-game research -> 7dtd-engine-research
 
 Anything that studies the **stock** dedicated server belongs in

@@ -24,6 +24,8 @@ CI runs `make test` on every push and PR. Packaged builds are attached to
 GitHub releases (`make package` produces `dist/7dtd-fastconnect-<tag>.zip`).
 Release notes and upgrade notes: [CHANGELOG.md](CHANGELOG.md). How to cut one,
 and how to roll one back: [docs/RELEASING.md](docs/RELEASING.md).
+Which file owns what, and the dependency direction inside the mod:
+[docs/architecture.md](docs/architecture.md).
 Contributing (setup, the edit-test loop, what a change has to pass):
 [CONTRIBUTING.md](CONTRIBUTING.md).
 

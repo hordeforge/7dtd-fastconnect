@@ -56,7 +56,7 @@ namespace SdtdConnect
         internal static void WarnUnknownValue(string name, string raw)
         {
             if (string.IsNullOrWhiteSpace(raw) || Parse(raw) != null) return;
-            Log.Warning("[7dtd-fastconnect] " + name + "='" + LogText.SanitizeForLog(raw.Trim())
+            Log.Warning(LogText.Tag + name + "='" + LogText.SanitizeForLog(raw.Trim())
                 + "' is not a documented boolean (1/true/yes/on, or 0/false/no/off to disable); reading it as ON");
         }
 

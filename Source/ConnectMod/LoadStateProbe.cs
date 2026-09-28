@@ -25,7 +25,7 @@ namespace SdtdConnect
                 bool fixedSize = world != null && LoadGate.FixedSizeCache(world);
                 int needed = LoadGate.NeededChunkObjects(fixedSize);
                 var cm = SingletonMonoBehaviour<ConnectionManager>.Instance;
-                Log.Out("[7dtd-fastconnect] load hb calls=" + _calls + " started="
+                Log.Out(LogText.Tag + "load hb calls=" + _calls + " started="
                     + LoadGate.GameStarted(gm)
                     + " gameState=" + GameStats.GetInt(EnumGameStats.GameState)
                     + " delay=" + __instance.delayCountdownTime

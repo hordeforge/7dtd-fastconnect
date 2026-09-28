@@ -98,7 +98,7 @@ namespace SdtdConnect
                         if (!_nativeProceedLogged)
                         {
                             _nativeProceedLogged = true;
-                            Log.Warning("[7dtd-fastconnect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
+                            Log.Warning(LogText.Tag + "note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
                         }
                     }
                 }
@@ -167,7 +167,7 @@ namespace SdtdConnect
                 if (!_crossProceedLogged)
                 {
                     _crossProceedLogged = true;
-                    Log.Out("[7dtd-fastconnect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
+                    Log.Out(LogText.Tag + "note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
                 }
                 return true;
             }

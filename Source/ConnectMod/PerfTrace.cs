@@ -29,7 +29,7 @@ namespace SdtdConnect
         internal static void Trace(string message)
         {
             if (DiagToggle.Enabled)
-                Log.Out("[7dtd-fastconnect] startup trace: " + message);
+                Log.Out(LogText.Tag + "startup trace: " + message);
         }
 
         internal static void StartHitchMonitor()
@@ -77,12 +77,12 @@ namespace SdtdConnect
                     if (!announced)
                     {
                         announced = true;
-                        Log.Out("[7dtd-fastconnect] hitch monitor: limitFpsPref "
+                        Log.Out(LogText.Tag + "hitch monitor: limitFpsPref "
                             + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxLimitFpsInGame)
                             + " vsyncPref " + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxVsync)
                             + " loadPriority " + Application.backgroundLoadingPriority);
                     }
-                    Log.Out("[7dtd-fastconnect] hitch " + (int)(dt * 1000) + "ms frame " + Time.frameCount
+                    Log.Out(LogText.Tag + "hitch " + (int)(dt * 1000) + "ms frame " + Time.frameCount
                         + " gc +" + (n0 - gc0) + "/+" + (n1 - gc1) + "/+" + (n2 - gc2)
                         + " pendingLoads " + LocalHostWorldLoad.PendingLoadCount()
                         + " heap " + (GC.GetTotalMemory(false) >> BytesToMegabytesShift) + "MB"
@@ -93,7 +93,7 @@ namespace SdtdConnect
                 catch (Exception ex)
                 {
                     _hitchMonitorStarted = false;
-                    Log.Warning("[7dtd-fastconnect] hitch monitor stopped: " + ex.GetType().Name + ": " + ex.Message);
+                    Log.Warning(LogText.Tag + "hitch monitor stopped: " + ex.GetType().Name + ": " + ex.Message);
                     yield break;
                 }
             }

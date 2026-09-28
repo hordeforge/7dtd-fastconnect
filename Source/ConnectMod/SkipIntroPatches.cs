@@ -26,7 +26,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] MainMenu.Open prefix failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "MainMenu.Open prefix failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
     }
@@ -52,7 +52,7 @@ namespace SdtdConnect
                 var gm = GameManager.Instance;
                 bool loaded = gm != null && gm.bStaticDataLoaded;
                 string action = gm != null ? gm.CurrentLoadAction : "?";
-                Log.Out("[7dtd-fastconnect] boot hb ticks=" + _ticks
+                Log.Out(LogText.Tag + "boot hb ticks=" + _ticks
                     + " focused=" + Application.isFocused
                     + " rib=" + Application.runInBackground
                     + " vsync=" + QualitySettings.vSyncCount
@@ -90,7 +90,7 @@ namespace SdtdConnect
                 __instance.loginCheckDone = true;
                 __instance.bOpenMainMenu = true;
                 __result = true;
-                Log.Out("[7dtd-fastconnect] CheckLogin force-open main menu (automation)");
+                Log.Out(LogText.Tag + "CheckLogin force-open main menu (automation)");
                 try
                 {
                     var xui = __instance.windowManager?.playerUI?.xui;
@@ -99,13 +99,13 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[7dtd-fastconnect] background Login start failed: " + ex.GetType().Name + ": " + ex.Message);
+                    Log.Warning(LogText.Tag + "background Login start failed: " + ex.GetType().Name + ": " + ex.Message);
                 }
                 return false;
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] CheckLogin patch failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "CheckLogin patch failed: " + ex.GetType().Name + ": " + ex.Message);
                 return true;
             }
         }
@@ -121,7 +121,7 @@ namespace SdtdConnect
         {
             try
             {
-                Log.Out("[7dtd-fastconnect] blocking news screen open");
+                Log.Out(LogText.Tag + "blocking news screen open");
                 XUiC_MainMenu.shownNewsScreenOnce = true;
                 // Fall through to main menu instead of news.
                 if (_xuiInstance != null)
@@ -130,7 +130,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] news skip failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "news skip failed: " + ex.GetType().Name + ": " + ex.Message);
                 return true;
             }
         }
@@ -143,7 +143,7 @@ namespace SdtdConnect
     {
         static bool Prefix()
         {
-            Log.Out("[7dtd-fastconnect] skipping DiscordManager.Init");
+            Log.Out(LogText.Tag + "skipping DiscordManager.Init");
             return false;
         }
     }
@@ -187,7 +187,7 @@ namespace SdtdConnect
             try
             {
                 int latest = EulaSkip.AcceptLatest();
-                Log.Out("[7dtd-fastconnect] blocking EULA window viewMode=" + _viewMode + " accepted=" + latest);
+                Log.Out(LogText.Tag + "blocking EULA window viewMode=" + _viewMode + " accepted=" + latest);
                 if (_viewMode)
                     return true; // options "view EULA" path: leave alone
                 if (_xui != null)
@@ -196,7 +196,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] EULA skip failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "EULA skip failed: " + ex.GetType().Name + ": " + ex.Message);
                 return true;
             }
         }

@@ -27,18 +27,18 @@ namespace SdtdConnect
             if (arg == "on" || arg == "1" || arg == "enable" || arg == "true")
             {
                 DiagToggle.Set(true);
-                outLine = "[7dtd-fastconnect] diag ON: verbose traces enabled (window/spawn/flags)";
+                outLine = LogText.Tag + "diag ON: verbose traces enabled (window/spawn/flags)";
             }
             else if (arg == "off" || arg == "0" || arg == "disable" || arg == "false")
             {
                 DiagToggle.Set(false);
-                outLine = "[7dtd-fastconnect] diag OFF: verbose traces muted";
+                outLine = LogText.Tag + "diag OFF: verbose traces muted";
             }
             else if (arg == "toggle" || arg == "flip")
             {
                 bool next = !DiagToggle.Enabled;
                 DiagToggle.Set(next);
-                outLine = "[7dtd-fastconnect] diag " + (next ? "ON" : "OFF") + " (toggled)";
+                outLine = LogText.Tag + "diag " + (next ? "ON" : "OFF") + " (toggled)";
             }
             else if (arg == "status")
             {
@@ -50,7 +50,7 @@ namespace SdtdConnect
             {
                 // A typo must not read as a status query: say which word was
                 // not understood, then the current state anyway.
-                outLine = "[7dtd-fastconnect] diag: unknown argument '"
+                outLine = LogText.Tag + "diag: unknown argument '"
                     + LogText.EchoForMessage(_params[0])
                     + "'; expected on, off, toggle or status (no argument means status)\n"
                     + DiagToggle.StatusLine();

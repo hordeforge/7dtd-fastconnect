@@ -12,6 +12,15 @@ namespace SdtdConnect
     internal static class LogText
     {
         /// <summary>
+        /// The prefix every line this mod logs carries, so a reader and the
+        /// join harness (JOIN_SOFT_RE in scripts/one_shot_join.sh)
+        /// can pick mod output out of a client log that also carries stock
+        /// and LiteNetLib lines. One constant because a prefix spelled out at
+        /// each call site is a marker that can drift.
+        /// </summary>
+        internal const string Tag = "[7dtd-fastconnect] ";
+
+        /// <summary>
         /// Every Unicode format character (general category Cf), which a
         /// terminal renders as nothing (or lays the line out around) while the
         /// bytes stay in the log, so a reader sees a different string than

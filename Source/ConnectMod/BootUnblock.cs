@@ -36,7 +36,7 @@ namespace SdtdConnect
                 BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             if (fi == null || fi.FieldType != typeof(bool))
             {
-                Log.Warning("[7dtd-fastconnect] LoadManager.forceLoadSync field missing");
+                Log.Warning(LogText.Tag + "LoadManager.forceLoadSync field missing");
                 return null;
             }
             _forceSyncField = fi;
@@ -84,7 +84,7 @@ namespace SdtdConnect
                 if (!_forceSyncOptOutLogged)
                 {
                     _forceSyncOptOutLogged = true;
-                    Log.Out("[7dtd-fastconnect] LoadManager.forceLoadSync disabled by "
+                    Log.Out(LogText.Tag + "LoadManager.forceLoadSync disabled by "
                         + ForceLoadSyncEnv);
                 }
                 return;
@@ -95,11 +95,11 @@ namespace SdtdConnect
                 if (fi == null) return;
                 fi.SetValue(null, true);
                 _forceSyncSet = true;
-                Log.Out("[7dtd-fastconnect] LoadManager.forceLoadSync=true (automation addressables)");
+                Log.Out(LogText.Tag + "LoadManager.forceLoadSync=true (automation addressables)");
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] forceLoadSync set failed: " + ex.GetType().Name + ": " + ex.Message);
+                Log.Warning(LogText.Tag + "forceLoadSync set failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
     }
@@ -112,7 +112,7 @@ namespace SdtdConnect
         {
             BootUnblock.ApplyFrameUncap("Awake");
             BootUnblock.ApplyForceLoadSync();
-            Log.Out("[7dtd-fastconnect] boot unblock RIB+noVSync+uncappedFPS");
+            Log.Out(LogText.Tag + "boot unblock RIB+noVSync+uncappedFPS");
         }
     }
 

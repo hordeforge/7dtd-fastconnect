@@ -39,7 +39,7 @@ namespace SdtdConnect
         {
             if (_reported) return;
             _reported = true;
-            if (Enabled) Log.Out("[7dtd-fastconnect] diag verbose ON (7DTD_CONNECT_DEBUG=1 or `diag on`)");
+            if (Enabled) Log.Out(LogText.Tag + "diag verbose ON (7DTD_CONNECT_DEBUG=1 or `diag on`)");
         }
 
         // Console command sets this; clearing _reported lets a later
@@ -54,7 +54,7 @@ namespace SdtdConnect
         internal static string StatusLine()
         {
             string src = _consoleOverride.HasValue ? "console" : (_envEnabled ? "env" : "default");
-            return "[7dtd-fastconnect] diag " + (Enabled ? "ON" : "OFF") + " (" + src + ")";
+            return LogText.Tag + "diag " + (Enabled ? "ON" : "OFF") + " (" + src + ")";
         }
     }
 }

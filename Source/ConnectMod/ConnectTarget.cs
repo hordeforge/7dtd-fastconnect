@@ -62,7 +62,7 @@ namespace SdtdConnect
         {
             if (!_badTargetWarned || _acceptedAfterRejectionLogged) return;
             _acceptedAfterRejectionLogged = true;
-            Log.Out("[7dtd-fastconnect] auto-join target accepted from " + source
+            Log.Out(LogText.Tag + "auto-join target accepted from " + source
                 + "; the rejected launch-context value above was ignored, not fatal");
         }
 
@@ -74,7 +74,7 @@ namespace SdtdConnect
             // echo with no length cap, and a clicked steam://run URL chooses the
             // text, so an arbitrary-length value would land whole in the client
             // log the join harnesses scan.
-            Log.Warning("[7dtd-fastconnect] " + LogText.SanitizeForLog(sourceLabel) + "='"
+            Log.Warning(LogText.Tag + LogText.SanitizeForLog(sourceLabel) + "='"
                 + LogText.EchoForMessage(raw) + "' ignored: "
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
@@ -160,7 +160,7 @@ namespace SdtdConnect
         {
             if (_droppedPortArgWarned) return;
             _droppedPortArgWarned = true;
-            Log.Warning("[7dtd-fastconnect] port argument '" + LogText.EchoForMessage(portArg)
+            Log.Warning(LogText.Tag + "port argument '" + LogText.EchoForMessage(portArg)
                 + "' ignored: '" + LogText.EchoForMessage(host) + "' already carries a port");
         }
 
@@ -478,13 +478,13 @@ namespace SdtdConnect
             if (_request == ConnectRequest.Connected)
             {
                 _consoleRequestTarget = null;
-                ConsoleOutput.Out("[7dtd-fastconnect] connected to " + target);
+                ConsoleOutput.Out(LogText.Tag + "connected to " + target);
                 return;
             }
             if (_request == ConnectRequest.InFlight) return;
 
             _consoleRequestTarget = null;
-            ConsoleOutput.Fail("[7dtd-fastconnect] connect to " + target
+            ConsoleOutput.Fail(LogText.Tag + "connect to " + target
                 + " did not connect within " + (int)ConnectRequestWindowSec
                 + "s; check the server is listening on that address, then run `connect <host> [port]` again");
         }
@@ -569,7 +569,7 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
 
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={LogText.EchoForMessage(host)})");
+                Log.Out($"{LogText.Tag}Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={LogText.EchoForMessage(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 // Armed only once the attempt is under way: a Connect that
