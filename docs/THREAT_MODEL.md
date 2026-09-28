@@ -74,16 +74,16 @@ Every entry point reads data from outside the process boundary:
 
 | Entry point | Where parsed | Notes |
 |---|---|---|
-| Env `7DTD_CONNECT` | Source/ConnectMod/ConnectTarget.cs:199-215; scripts read it too (scripts/launch_client.sh:75, scripts/one_shot_join.sh:205,260, scripts/restart_pair.sh:119) | Attacker-shapable: a clicked `steam://run` URL chooses `-connect=` text (in-code rationale at ConnectTarget.cs:38-44) |
-| argv `-connect=` / `+connect=` / `+connect_lobby` | ConnectTarget.cs:216-250 | Same threat model as the env var |
+| Env `7DTD_CONNECT` | Source/ConnectMod/ConnectTarget.cs:272-287; scripts read it too (scripts/one_shot_join.sh:76,272) | Attacker-shapable: a clicked `steam://run` URL chooses `-connect=` text (in-code rationale at LogText.cs:12-18) |
+| argv `-connect=` / `+connect=` / `+connect_lobby` | ConnectTarget.cs:289-327 | Same threat model as the env var |
 | F1 console `connect` / `7dtdconnect` / `joinip` | Source/ConnectMod/ConsoleCmdConnect.cs:8,27-51 | Local keyboard input; allowed in main menu (:23) |
 | F1 console `diag` / `7dtd_diag` / `zdiag` | Source/ConnectMod/ConsoleCmdDiag.cs:8,20-52 | Flips verbose traces at runtime; the console override outranks the env snapshot (Source/ConnectMod/DiagToggle.cs:19-47) |
 | Env `7DTD_PLAYER_NAME` | ModApi.cs:118-139 | Sets `GamePrefs.PlayerName`, persisted to the client profile |
 | Env `7DTD_CONNECT_AUTOMATION`, `7DTD_CONNECT_DEBUG`, `7DTD_CONNECT_FORCE_LOAD_SYNC` | Source/ConnectMod/AutomationMode.cs:12-24, Source/ConnectMod/DiagToggle.cs:5, Source/ConnectMod/BootUnblock.cs | Boolean flags; truthiness shared in Source/ConnectMod/EnvFlags.cs:12-38 |
 | Script env: `GAME`, `PROTON`, `COMPAT`, `STEAM_ROOT`, `GFX_API`, `CLIENT_MUTE_TIMEOUT`, `CLIENT_PLATFORM`, `PORT`, `HOST`, `TIMEOUT_SEC`, `SETTLE_SEC`, `CYCLE`, `SCRATCH`, `ZDTD_BIN`, `START_SERVER`, `WINEDLLOVERRIDES` | scripts/launch_client.sh:20-130,254; scripts/one_shot_join.sh:19-90; scripts/restart_pair.sh:30-36; scripts/mute_client_audio.sh:40-52 | Several are validated before use (see Mitigations); `GAME`/`PROTON`/`COMPAT` select executables by design. `WINEDLLOVERRIDES` is appended to, not overwritten (launch_client.sh:254), so anything already in the operator's env also reaches the Wine process |
 | Hardcoded process args added by the launcher | scripts/launch_client.sh:77 (`-skipintro -SkipNewsScreen=true -disablenativeinput`) | Not operator input, but they change what the client loads; `-disablenativeinput` was added for Proton boot stability, not for a security control |
-| Client log file written by the game process | parsed by scripts/log_markers.sh:43-78 from one_shot_join.sh:271-308, copied at one_shot_join.sh:324, rescanned by zero_nre_join_loop.sh:129,194 | Process-to-harness boundary; content is semi-trusted |
-| Outbound network connect | ConnectTarget.cs:310-378 (`ConnectionManager.Connect`) after DNS resolution :258-307 | The only network traffic this repo initiates |
+| Client log file written by the game process | parsed by scripts/log_markers.sh:51-109 from one_shot_join.sh:281-320, copied at one_shot_join.sh:334, rescanned by zero_nre_join_loop.sh:78,159-164 | Process-to-harness boundary; content is semi-trusted |
+| Outbound network connect | ConnectTarget.cs:388-456 (`ConnectionManager.Connect` at :444) after DNS resolution :331-385 | The only network traffic this repo initiates |
 | Engine load pipeline (Local host) | Source/ConnectMod/LocalHostWorldLoadPatches.cs:414-430 patches `World.LoadWorld`, `GameManager.createWorld`, `GameManager.StartAsServer` | No external input; the wrapping coroutines read engine internals by reflection (:365-392) and change global load settings (:72-84,344-363) |
 
 Deployment surface: GitHub Actions workflows run `make test` / coverage /
@@ -99,7 +99,7 @@ The release zip itself is built locally and attached manually
    client connects and what identity name it presents. Crossing point: the
    parsers above; sanitization at the log echo points only.
 2. **Launch context → outbound network**: `TryParse` output feeds
-   `ConnectionManager.Connect` directly (ConnectTarget.cs:305-343). There is
+   `ConnectionManager.Connect` directly (ConnectTarget.cs:271-309). There is
    no allow-list; any resolvable host:port is joined. Server responses are
    handled entirely by stock engine code; this mod adds no listener and no
    S2C parsing (AGENTS.md rule 5).
@@ -147,11 +147,11 @@ no setuid, no elevated installer (`make install` copies files into the game's
   crafted control characters forge log lines and harness markers (R3).
 - *Repudiation*: weak. Launch echoes do record source labels ("auto-join from
   7DTD_CONNECT=...", ModApi.cs:188; "Connect by IP ... (requested host=...)",
-  ConnectTarget.cs:364), so the origin of a join is visible in the log.
+  ConnectTarget.cs:358), so the origin of a join is visible in the log.
 - *Information disclosure*: the join handshake reveals player identity to
   whichever host the target names. Nothing else leaves the process: the mod
   writes no files and opens no listener.
-- *DoS*: hostname resolution is bounded at 5 s (ConnectTarget.cs:268-277) and
+- *DoS*: hostname resolution is bounded at 5 s (ConnectTarget.cs:234-243) and
   the auto-join ready-wait at 45 s monotonic (ModApi.cs:228-237); a wedged
   resolver cannot freeze the menu thread indefinitely.
 - *Elevation of privilege*: none available; the mod runs entirely inside the
@@ -217,10 +217,10 @@ no setuid, no elevated installer (`make install` copies files into the game's
 
 | Control | Covers | Location |
 |---|---|---|
-| Control-character flattening of echoed env/argv (log-forging defense) | R3 | C#: ConnectTarget.SanitizeForLog (ConnectTarget.cs:45-57), used at :64-65,210,243-244,274,280,304,364,375 and ModApi.cs:147-153; shell twin `sanitize_log_text` (scripts/log_sanitize.sh:11-13) used at launch_client.sh:128,256,278 and one_shot_join.sh:205,260; pinned by scripts/test_log_sanitize.sh and behavioral tests in scripts/test_connect_target_parse.sh |
-| Port range validation 1..65535 | malformed targets falling back to default port | ConnectTarget.cs:14-16,82-85 |
-| Grammar normalization (scheme strip, bracketed IPv6, dangling colons) shared by console/env/argv paths | parser drift between entry points | ConnectTarget.cs:69-80,90-120,122-190; console reuses it (ConsoleCmdConnect.cs:36-41) |
-| DNS timeout bound (5 s) | menu-thread freeze via wedged resolver | ConnectTarget.cs:258-299 |
+| Control-character flattening of echoed env/argv (log-forging defense) | R3 | C#: LogText.SanitizeForLog (LogText.cs:19-32), called from ConnectTarget.cs:98-99,128,283,316-317,347,353,382,442,453 and EnvFlags.cs:63; ConnectTarget.SanitizeForLog (ConnectTarget.cs:66-83) covers the invisible-format characters the control-only leaf leaves alone and is used at :189-190 and by PlayerNames.cs:28; shell twin `sanitize_log_text` (scripts/log_sanitize.sh:22-30) used at launch_client.sh:157,326,348 and one_shot_join.sh:215,270; pinned by scripts/test_log_sanitize.sh and behavioral tests in scripts/test_connect_target_parse.sh |
+| Port range validation 1..65535 | malformed targets falling back to default port | ConnectTarget.cs:15-16,118-120 |
+| Grammar normalization (scheme strip, bracketed IPv6, dangling colons) shared by console/env/argv paths | parser drift between entry points | ConnectTarget.cs:109-115,147-178,193-269; console reuses it (ConsoleCmdConnect.cs:36-41) |
+| DNS timeout bound (5 s) | menu-thread freeze via wedged resolver | ConnectTarget.cs:331-385 |
 | Connect-ready gate capped at 45 s monotonic | unbounded wait on a never-settling platform login | ModApi.cs:217-258; Source/ConnectMod/ConnectReady.cs |
 | Automation gating of identity/auth Harmony patches | limits R1 to automation launches | `[AutomationPatch]` attribute (AutomationMode.cs:5-8) skipped unless enabled (ModApi.cs:70-72); gate auto-on only with a launch target or explicit env (AutomationMode.cs:17-24) |
 | Local-host load patches scoped to non-automation Local sessions | R1-style identity/auth changes must not reach ordinary host play; the load wrapper is the one engine change that does (boundary 6) | LocalHostWorldLoadPatches.cs:51-53 |
@@ -280,7 +280,7 @@ These are recorded, not fixed, here. Fixes belong to sec-review.
 - **A1 - Redirected join**: a launcher shortcut or URL handler plants
   `-connect=<attacker>:<port>`; the operator sees the game boot normally and
   the mod auto-joins the attacker's host. Enabling path:
-  `TryFromLaunchContext` (ConnectTarget.cs:199-250) → `OnMainMenuOpened`
+  `TryFromLaunchContext` (ConnectTarget.cs:193-250) → `OnMainMenuOpened`
   auto-join (ModApi.cs:161-214) → `TryConnect`. The log does name the source
   (ModApi.cs:188), which is the only tripwire.
 - **A2 - Harness result forgery**: any local process able to append

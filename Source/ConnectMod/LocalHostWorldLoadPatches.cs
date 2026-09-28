@@ -94,7 +94,7 @@ namespace SdtdConnect
                     if (!MoveNext("StartAsServer", iterator, out object current))
                     {
                         stack.Pop();
-                        Trace("completed depth " + stack.Count + " after step " + step);
+                        PerfTrace.Trace("completed depth " + stack.Count + " after step " + step);
                         continue;
                     }
                     if (current is IEnumerator nested)
@@ -106,11 +106,11 @@ namespace SdtdConnect
                     // Frame counter on both sides of the yield separates a step that
                     // never returns (a "->" with no matching "<-") from Unity dropping
                     // the coroutine (matching "<-", then nothing).
-                    Trace("-> step " + step + " depth " + stack.Count
+                    PerfTrace.Trace("-> step " + step + " depth " + stack.Count
                         + " yield " + (current == null ? "null" : current.GetType().Name)
                         + " frame " + Time.frameCount);
                     yield return current;
-                    Trace("<- step " + step + " frame " + Time.frameCount);
+                    PerfTrace.Trace("<- step " + step + " frame " + Time.frameCount);
                 }
             }
             finally
@@ -127,7 +127,7 @@ namespace SdtdConnect
                 }
             }
             Log.Out("[7dtd-fastconnect] Local-host startup completed");
-            StartHitchMonitor();
+            PerfTrace.StartHitchMonitor();
         }
 
         // EntityFactory.CreateEntity loads Prefabs/prefabEntityPlayerLocal with
@@ -167,73 +167,6 @@ namespace SdtdConnect
             }
             if (playerPrefab.IsDone)
                 Log.Out("[7dtd-fastconnect] Local-host local player prefab ready");
-        }
-
-        // Flatten completes once per local-host StartAsServer, so an
-        // unconditional start would stack one more eternal coroutine on every
-        // host session for the rest of the process. The monitor is meant to
-        // run for the whole lifetime ("diag on" mid-session must still see
-        // hitches), so keep exactly one instead of adding a stop path.
-        static bool _hitchMonitorStarted;
-
-        static void StartHitchMonitor()
-        {
-            if (_hitchMonitorStarted) return;
-            _hitchMonitorStarted = true;
-            ThreadManager.StartCoroutine(HitchMonitor());
-        }
-
-        // Frame time above which a frame is reported as a hitch. Well past any
-        // ordinary frame at playable rates, so the log names stalls a player
-        // would actually feel rather than jitter.
-        const float HitchThresholdSec = 0.2f;
-        // GC.GetTotalMemory returns bytes; report megabytes.
-        const int BytesToMegabytesShift = 20;
-
-        /// <summary>
-        /// In-world frame-hitch attribution for the Local host, `diag on` only:
-        /// every frame over HitchThresholdSec with GC deltas, LoadManager
-        /// backlog and heap, plus the live frame cap / vsync, so a "GPU always
-        /// busy, seconds-long hangs" report can be checked against what the
-        /// renderer is told. The coroutine runs either way so `diag on`
-        /// mid-session starts logging.
-        /// </summary>
-        static IEnumerator HitchMonitor()
-        {
-            int gc0 = GC.CollectionCount(0), gc1 = GC.CollectionCount(1), gc2 = GC.CollectionCount(2);
-            float last = Time.realtimeSinceStartup;
-            bool announced = false;
-            while (true)
-            {
-                yield return null;
-                float now = Time.realtimeSinceStartup;
-                float dt = now - last;
-                last = now;
-                if (dt < HitchThresholdSec || !DiagToggle.Enabled) continue;
-                int n0 = GC.CollectionCount(0), n1 = GC.CollectionCount(1), n2 = GC.CollectionCount(2);
-                if (!announced)
-                {
-                    announced = true;
-                    Log.Out("[7dtd-fastconnect] hitch monitor: limitFpsPref "
-                        + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxLimitFpsInGame)
-                        + " vsyncPref " + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxVsync)
-                        + " loadPriority " + Application.backgroundLoadingPriority);
-                }
-                Log.Out("[7dtd-fastconnect] hitch " + (int)(dt * 1000) + "ms frame " + Time.frameCount
-                    + " gc +" + (n0 - gc0) + "/+" + (n1 - gc1) + "/+" + (n2 - gc2)
-                    + " pendingLoads " + PendingLoadCount()
-                    + " heap " + (GC.GetTotalMemory(false) >> BytesToMegabytesShift) + "MB"
-                    + " targetFps " + Application.targetFrameRate
-                    + " vsync " + QualitySettings.vSyncCount);
-                gc0 = n0; gc1 = n1; gc2 = n2;
-            }
-        }
-
-        /// <summary>Startup trace, `diag on` / 7DTD_CONNECT_DEBUG=1 only (~330 steps).</summary>
-        static void Trace(string message)
-        {
-            if (DiagToggle.Enabled)
-                Log.Out("[7dtd-fastconnect] StartAsServer trace: " + message);
         }
 
         static IEnumerator DrainWorldLoad(IEnumerator root)
@@ -276,7 +209,7 @@ namespace SdtdConnect
             // or the instrument misses the failure it exists to catch.
             while (MoveNext("createWorld", root, out object current))
             {
-                Trace("createWorld step " + (++step)
+                PerfTrace.Trace("createWorld step " + (++step)
                     + " skipped " + skippedFrameBreaks
                     + " yield " + (current == null ? "null" : current.GetType().Name)
                     + " frame " + Time.frameCount);
@@ -367,7 +300,7 @@ namespace SdtdConnect
         static MethodInfo _workBatchCount;
         static bool _pendingResolved;
 
-        static int PendingLoadCount()
+        internal static int PendingLoadCount()
         {
             try
             {

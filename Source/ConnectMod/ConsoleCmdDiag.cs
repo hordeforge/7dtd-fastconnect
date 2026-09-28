@@ -51,7 +51,7 @@ namespace SdtdConnect
                 // A typo must not read as a status query: say which word was
                 // not understood, then the current state anyway.
                 outLine = "[7dtd-fastconnect] diag: unknown argument '"
-                    + ConnectTarget.EchoForMessage(_params[0])
+                    + LogText.EchoForMessage(_params[0])
                     + "'; expected on, off, toggle or status\n"
                     + DiagToggle.StatusLine();
             }

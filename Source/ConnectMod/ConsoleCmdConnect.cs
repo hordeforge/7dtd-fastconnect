@@ -43,7 +43,7 @@ namespace SdtdConnect
                 // Echo what was typed: the reason names the part that is
                 // wrong, the echo says which part the console read.
                 ConsoleOutput.Out("[7dtd-fastconnect] connect failed: " + err
-                    + " (got '" + ConnectTarget.EchoForMessage(raw) + "')");
+                    + " (got '" + LogText.EchoForMessage(raw) + "')");
                 return;
             }
 

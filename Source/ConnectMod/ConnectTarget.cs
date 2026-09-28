@@ -95,8 +95,8 @@ namespace SdtdConnect
         {
             if (_badTargetWarned) return;
             _badTargetWarned = true;
-            Log.Warning("[7dtd-fastconnect] " + SanitizeForLog(sourceLabel) + "='"
-                + SanitizeForLog(raw) + "' ignored: "
+            Log.Warning("[7dtd-fastconnect] " + LogText.SanitizeForLog(sourceLabel) + "='"
+                + LogText.SanitizeForLog(raw) + "' ignored: "
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
@@ -125,7 +125,7 @@ namespace SdtdConnect
         static string BadPortError(string text)
         {
             return "port must be a number from " + MinPort + " to " + MaxPort
-                + " (got '" + EchoForMessage(text) + "')";
+                + " (got '" + LogText.EchoForMessage(text) + "')";
         }
 
         // Same for a missing host: the expected shape is spelled out so the
@@ -280,7 +280,7 @@ namespace SdtdConnect
             {
                 if (TryParse(env, out host, out port, out string envError))
                 {
-                    source = EnvVar + "=" + SanitizeForLog(env.Trim());
+                    source = EnvVar + "=" + LogText.SanitizeForLog(env.Trim());
                     return true;
                 }
                 WarnIgnoredTarget(EnvVar, env.Trim(), envError);
@@ -313,8 +313,8 @@ namespace SdtdConnect
                 if (TryParse(val, out host, out port, out string argError))
                 {
                     source = a.Contains("=")
-                        ? SanitizeForLog(a)
-                        : SanitizeForLog(a) + " " + SanitizeForLog(val);
+                        ? LogText.SanitizeForLog(a)
+                        : LogText.SanitizeForLog(a) + " " + LogText.SanitizeForLog(val);
                     return true;
                 }
                 // Only the flag name; the value is already in the message.
@@ -344,13 +344,13 @@ namespace SdtdConnect
                 {
                     if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
                     {
-                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
+                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + LogText.SanitizeForLog(host);
                         return false;
                     }
                     var entry = Dns.EndGetHostEntry(pending);
                     if (entry.AddressList == null || entry.AddressList.Length == 0)
                     {
-                        message = "no IP for hostname " + SanitizeForLog(host);
+                        message = "no IP for hostname " + LogText.SanitizeForLog(host);
                         return false;
                     }
                     // First address is the default; only a later one can
@@ -379,7 +379,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                message = "DNS failed for " + SanitizeForLog(host) + ": " + ex.Message;
+                message = "DNS failed for " + LogText.SanitizeForLog(host) + ": " + ex.Message;
                 return false;
             }
         }
@@ -439,7 +439,7 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
 
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={SanitizeForLog(host)})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={LogText.SanitizeForLog(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";
@@ -450,7 +450,7 @@ namespace SdtdConnect
                 // Full stack: ProtocolManager.SetupProtocols NRE is otherwise silent.
                 // The message may echo the raw host, so only that part is flattened;
                 // the deliberate newline before the stack trace stays.
-                message = ex.GetType().Name + ": " + SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
+                message = ex.GetType().Name + ": " + LogText.SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
                 return false;
             }
         }

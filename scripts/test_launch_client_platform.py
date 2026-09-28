@@ -97,6 +97,18 @@ STREAMS_JSON = (
 # Shared pactl test double (same file the bash mute/unmute gates copy).
 PACTL_STUB = ROOT / "scripts" / "testdata" / "pactl_stub.sh"
 
+
+def stub_path(bin_dir: Path) -> str:
+    """PATH where the stubs in bin_dir shadow the real tools by name.
+
+    The host PATH stays behind them: the mute helper refuses every path when
+    either pactl or jq is missing, so a PATH of only bin_dir would turn a
+    "muted" assertion into a silent WARN on any machine whose jq lives
+    outside the stub directory.
+    """
+    return str(bin_dir) + os.pathsep + BASE_ENV["PATH"]
+
+
 STEAM_STUB = """printf '%s\\n' "$@" > "$STEAM_ARGV"
 printenv 7DTD_CONNECT > "$STEAM_ENV_CONNECT"
 """
@@ -494,7 +506,7 @@ def test_sigterm_does_not_orphan_mute_poller(tmp_path: Path) -> None:
         tmp_path,
         local_platform=False,
         mute=True,
-        extra_env={"PATH": str(bin_dir), "CLIENT_MUTE_TIMEOUT": "300"},
+        extra_env={"PATH": stub_path(bin_dir), "CLIENT_MUTE_TIMEOUT": "300"},
     )
     proc = subprocess.Popen(
         ["bash", str(LAUNCH)],
@@ -687,7 +699,7 @@ def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
         # This test IS the fallback: PROTON pinned to None skips the default
         # injection, and its recording stub shadows the guard on PATH.
         extra_env={
-            "PATH": str(bin_dir),
+            "PATH": stub_path(bin_dir),
             "STEAM_ARGV": str(steam_argv),
             "STEAM_ENV_CONNECT": str(steam_env),
             "PROTON": None,
@@ -738,7 +750,7 @@ def test_default_mute_mutes_game_stream_via_launch(tmp_path: Path) -> None:
         tmp_path,
         mute=True,
         extra_env={
-            "PATH": str(bin_dir),
+            "PATH": stub_path(bin_dir),
             "PACTL_JSON": str(streams),
             "PACTL_LOG": str(mute_log),
         },
@@ -763,7 +775,7 @@ def test_client_mute_opt_out_never_invokes_pactl(tmp_path: Path) -> None:
     )
     r = _launch(
         tmp_path,
-        extra_env={"PATH": str(bin_dir), "CLIENT_MUTE": "0"},
+        extra_env={"PATH": stub_path(bin_dir), "CLIENT_MUTE": "0"},
     )
     assert r.returncode == 0, r.stderr
     assert "Client mute" not in r.stdout
@@ -787,7 +799,7 @@ def test_client_mute_opt_out_tolerates_surrounding_whitespace(tmp_path: Path, va
     )
     r = _launch(
         tmp_path,
-        extra_env={"PATH": str(bin_dir), "CLIENT_MUTE": value},
+        extra_env={"PATH": stub_path(bin_dir), "CLIENT_MUTE": value},
     )
     assert r.returncode == 0, r.stderr
     assert "Client mute" not in r.stdout
@@ -809,7 +821,7 @@ def test_client_mute_opt_out_takes_the_alias_variable(tmp_path: Path) -> None:
     r = _launch(
         tmp_path,
         extra_env={
-            "PATH": str(bin_dir),
+            "PATH": stub_path(bin_dir),
             "CLIENT_MUTE": "",
             "SEVEN_DAYS_TO_DIE_CLIENT_MUTE": " off ",
         },
@@ -837,7 +849,7 @@ def test_blank_client_mute_keeps_the_mute_on_default(tmp_path: Path) -> None:
     r = _launch(
         tmp_path,
         extra_env={
-            "PATH": str(bin_dir),
+            "PATH": stub_path(bin_dir),
             "PACTL_JSON": str(streams),
             "PACTL_LOG": str(mute_log),
             "CLIENT_MUTE": " ",

@@ -15,6 +15,7 @@ harness_sources() {
 	local root="$1"
 	printf '%s\n' \
 		"$root/Source/ConnectMod/ConnectTarget.cs" \
+		"$root/Source/ConnectMod/LogText.cs" \
 		"$root/Source/ConnectMod/EnvFlags.cs" \
 		"$root/Source/ConnectMod/ConnectReady.cs" \
 		"$root/Source/ConnectMod/PlayerNames.cs" \

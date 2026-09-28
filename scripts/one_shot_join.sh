@@ -131,7 +131,7 @@ log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
 # scripts/monotonic_clock.sh for why $SECONDS must not bound these waits.
 source "$ROOT/scripts/monotonic_clock.sh"
 # Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
-# scripts/log_sanitize.sh; same contract as ConnectTarget.SanitizeForLog.
+# scripts/log_sanitize.sh; same contract as LogText.SanitizeForLog.
 source "$ROOT/scripts/log_sanitize.sh"
 
 # Join success signal; some checks accept extra partial-progress markers too.

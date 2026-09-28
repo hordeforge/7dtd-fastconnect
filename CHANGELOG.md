@@ -87,6 +87,19 @@ in the affected sections instead of being papered over.
   that cannot be read now falls back to the default instead of throwing out of
   a static initializer while the mod loads.
 
+### Changed
+
+- The log-line hygiene helpers moved out of `ConnectTarget` into their own
+  leaf module, `LogText`. `EnvFlags` (a low-level env reader) needed
+  `ConnectTarget.SanitizeForLog` to flatten a bad env value, so the leaf
+  depended on the join module above it; the two now meet at `LogText`, which
+  depends on neither. Behavior is unchanged and the same offline gates cover
+  it.
+- The local-host frame-hitch monitor and startup step trace moved from
+  `LocalHostWorldLoadPatches.cs` into `PerfTrace.cs`. They are diagnostics, not
+  part of the world-load workaround, and the other opt-in probes already live
+  in their own `*Trace.cs` files.
+
 ### Fixed
 
 - Probe failures are announced once per probe, not once per process. A single
@@ -99,6 +112,15 @@ in the affected sections instead of being papered over.
 - `connect <host> <port>` no longer discards the port argument in silence when
   the host already carries one: the dropped token is named in the log, since
   the join lands on the other port.
+- `launch_client.sh` mutes the client again for a blank `CLIENT_MUTE`. A
+  whitespace-only value trimmed to empty, which the opt-out `case` then read as
+  "leave audio on", the opposite of the documented contract and of what the
+  mod's `EnvFlags` twin does. `test_blank_client_mute_keeps_the_mute_on_default`
+  pins it.
+- The launcher tests that stub `pactl` keep the host `PATH` behind the stub
+  directory instead of replacing it, so a machine whose `jq` lives outside the
+  stub directory no longer fails the mute assertions with the helper's
+  "jq required" warning.
 - `make package` ships only the mod payload. The zip was built by copying the
   whole `dist/7dtd-fastconnect` build output, which MSBuild never prunes, so
   the release archive could carry `7dtd-fastconnect.pdb` and files a build had

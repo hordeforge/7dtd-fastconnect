@@ -416,14 +416,14 @@ static class TestMain
             // Log-forgery guard: env/argv values (a clicked steam://run URL
             // picks -connect= text) must never add lines to the client log,
             // because join harnesses grep it for fixed progress markers.
-            Check("null passthrough", ConnectTarget.SanitizeForLog(null) == null);
-            Check("empty passthrough", ConnectTarget.SanitizeForLog("") == "");
+            Check("null passthrough", LogText.SanitizeForLog(null) == null);
+            Check("empty passthrough", LogText.SanitizeForLog("") == "");
             Check("plain text unchanged",
-                ConnectTarget.SanitizeForLog("zdtd.lan:27025") == "zdtd.lan:27025");
+                LogText.SanitizeForLog("zdtd.lan:27025") == "zdtd.lan:27025");
             Check("newline flattened to space",
-                ConnectTarget.SanitizeForLog("h\nFAKE") == "h FAKE");
+                LogText.SanitizeForLog("h\nFAKE") == "h FAKE");
             Check("crlf flattened to spaces",
-                ConnectTarget.SanitizeForLog("h\r\nFAKE") == "h  FAKE");
+                LogText.SanitizeForLog("h\r\nFAKE") == "h  FAKE");
             Check("tab flattened to space",
                 ConnectTarget.SanitizeForLog("\t9.9.9.9") == " 9.9.9.9");
             // Invisible-format characters (Cf) are not C0 controls, so a value

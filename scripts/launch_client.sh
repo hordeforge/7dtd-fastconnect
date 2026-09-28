@@ -42,7 +42,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MUTE_HELPER="$SCRIPT_DIR/mute_client_audio.sh"
 source "$SCRIPT_DIR/proton_paths.sh"
 # Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
-# scripts/log_sanitize.sh; same contract as ConnectTarget.SanitizeForLog.
+# scripts/log_sanitize.sh; same contract as LogText.SanitizeForLog.
 source "$SCRIPT_DIR/log_sanitize.sh"
 
 # Echo $1 without leading or trailing whitespace. Both opt-out flags below

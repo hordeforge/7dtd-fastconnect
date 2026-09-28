@@ -2,6 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PATCHES="$ROOT/Source/ConnectMod/LocalHostWorldLoadPatches.cs"
+TRACE="$ROOT/Source/ConnectMod/PerfTrace.cs"
 API="$ROOT/Source/ConnectMod/ModApi.cs"
 source "$ROOT/scripts/test_common.sh"
 
@@ -34,11 +35,14 @@ assert "leaves vsync and the frame cap to the player" lacks 'BootUnblock.ApplyFr
 # NullReferenceExceptions it chased are preferable to that.
 assert "never touches PlayerMoveController" lacks 'PlayerMoveController'
 # Traces and the hitch monitor are opt-in; the fix itself is the async drain.
-assert "gates the startup trace behind diag" grep -q 'if (DiagToggle.Enabled)' "$PATCHES"
-assert "gates hitch logging behind diag" grep -q '!DiagToggle.Enabled) continue' "$PATCHES"
+# Both live in PerfTrace.cs, the diagnostic half of the local-host work.
+assert "gates the startup trace behind diag" grep -q 'if (DiagToggle.Enabled)' "$TRACE"
+assert "gates hitch logging behind diag" grep -q '!DiagToggle.Enabled) continue' "$TRACE"
 # Flatten completes once per local-host session; the eternal hitch monitor
 # must therefore be started once per process, not once per session.
-assert "starts only one eternal hitch monitor" grep -q 'if (_hitchMonitorStarted) return' "$PATCHES"
+assert "starts only one eternal hitch monitor" grep -q 'if (_hitchMonitorStarted) return' "$TRACE"
+# The workaround drives the diagnostics, so the start call stays with it.
+assert "starts the hitch monitor from startup" grep -q 'PerfTrace.StartHitchMonitor()' "$PATCHES"
 assert "documents the fix" \
 	grep -q 'offline Local-platform world initialization' "$ROOT/README.md"
 assert "documents that ordinary play needs no sync-load opt-out" \

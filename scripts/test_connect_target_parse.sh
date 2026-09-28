@@ -8,7 +8,7 @@
 #     bracketed/bare IPv6, port bounds
 #   - MergePortArg: optional second console token merged only into a portless
 #     host, steam:// scheme stripped first
-#   - SanitizeForLog: control characters flattened so a crafted target value
+#   - LogText.SanitizeForLog: control characters flattened so a crafted target value
 #     cannot forge extra client-log lines (join harnesses grep those markers)
 #   - TryFromLaunchContext: 7DTD_CONNECT resolution, invalid-env rejection,
 #     -connect=/-connect/+connect argv forms, +connect_lobby skip, and the
