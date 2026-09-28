@@ -22,7 +22,13 @@
 # which does not happen in game logs; the window also bounds the worst case
 # when polls arrive faster than bytes are appended. External truncation (size
 # shrinking below the largest size ever seen) drops every memoized verdict and
-# falls back to a full scan.
+# falls back to a full scan, and so does pointing LOG_MARK_FILE at a different
+# log: the pattern is the cache key, so the file is a dimension of it.
+#
+# A probe that cannot run at all is reported, never a silent miss. The size
+# probe and the grep are the two ways a verdict is produced, and each one
+# failing leaves the pattern answering "not seen" until it recovers, which a
+# reader cannot otherwise tell from a healthy quiet join.
 #
 # A poll that finds the file exactly the size this pattern last scanned to
 # skips the scan outright: the window is byte-identical, so the verdict cannot
@@ -59,6 +65,14 @@ LOG_MARK_OVERLAP=262144
 # Byte offset up to which each queried pattern has been scanned.
 declare -A MARK_OFFSET=()
 
+# The LOG_MARK_FILE the memoized verdicts and offsets were built against. The
+# pattern is the cache key, so the file is a dimension of that key and has to
+# be checked with it: a caller that repoints LOG_MARK_FILE at another log (the
+# harnesses name one path per cycle) would otherwise be answered from the
+# previous log's bytes, both by a positive memoized there and by resume offsets
+# pointing into them.
+MARK_FILE=
+
 # Largest size LOG_MARK_FILE has ever been seen at. A poll below it means the
 # log shrank, which append-only writing never does, so the file was truncated
 # or replaced and every memoized verdict refers to bytes that are gone.
@@ -68,7 +82,7 @@ MARK_MAX_SIZE=0
 # pattern every 2s cannot bury the log it is reporting on.
 declare -A MARK_ERROR_SEEN=()
 
-# A scan that could not be run at all (unreadable log, grep error) is not a
+# A scan that could not be run at all (unmeasurable log, grep error) is not a
 # miss: the pattern has to answer "not seen" until it recovers, and the
 # operator needs to know the verdict is missing rather than negative.
 log_mark_error() {
@@ -84,16 +98,25 @@ log_mark_error() {
 # LOG_MARK_FILE is truncated or replaced so a stale match or a stale offset
 # cannot leak into a new cycle. A shrink below MARK_MAX_SIZE does the same on
 # its own, so a truncation between two polls cannot leave a positive behind.
+# A different LOG_MARK_FILE does it too (see log_seen). The path the empty
+# memo now belongs to is recorded, so the next poll of that file is a cold
+# scan rather than a second reset.
 log_marks_reset() {
 	SEEN_MARK=()
 	MARK_OFFSET=()
 	MARK_ERROR_SEEN=()
 	MARK_MAX_SIZE=0
+	MARK_FILE="$LOG_MARK_FILE"
 }
 
 # Returns 0 when the ERE has ever matched LOG_MARK_FILE, 1 otherwise.
 log_seen() {
 	local re="$1"
+	# Ahead of the cached verdict, so a repointed log is never answered out of
+	# the cache of the log it replaced.
+	if [[ "$MARK_FILE" != "$LOG_MARK_FILE" ]]; then
+		log_marks_reset
+	fi
 	if [[ -n "${SEEN_MARK[$re]+x}" ]]; then
 		return "${SEEN_MARK[$re]}"
 	fi
@@ -106,11 +129,20 @@ log_seen() {
 	# actually joined. The existence test comes first: a redirected wc on a log
 	# the game has not created yet fails in the shell, and the discarded stderr
 	# on the command cannot silence that. Strip the padding some wc builds print
-	# before the count.
+	# before the count. A log that exists but cannot be measured is the same
+	# class of silent probe failure, so it reports the same way the grep status
+	# below does and leaves the offsets alone: the pattern has to answer "not
+	# seen" until the probe recovers, and a reader needs to see why.
 	[[ -f "$LOG_MARK_FILE" ]] || return 1
-	size="$(wc -c <"$LOG_MARK_FILE" 2>/dev/null)" || return 1
+	if ! size="$(wc -c <"$LOG_MARK_FILE" 2>/dev/null)"; then
+		log_mark_error "size probe failed for $LOG_MARK_FILE"
+		return 1
+	fi
 	size="${size//[[:space:]]/}"
-	[[ "$size" =~ ^[0-9]+$ ]] || return 1
+	if [[ ! "$size" =~ ^[0-9]+$ ]]; then
+		log_mark_error "size probe returned no byte count for $LOG_MARK_FILE"
+		return 1
+	fi
 	# Shorter than the log has ever been: truncated or replaced, so the
 	# positive another pattern memoized came from bytes that no longer exist
 	# and must not be reported as a match in the new file. Checked before the

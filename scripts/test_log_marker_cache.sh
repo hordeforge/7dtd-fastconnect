@@ -5,6 +5,8 @@
 #     append-only log), so later polls skip rescanning the file
 #   - misses are never cached: bytes appended after a miss must flip it
 #   - a missing log file counts as "not seen"
+#   - a repointed log file is not answered from the previous log's memo
+#   - a size probe that cannot run is reported, not a silent miss
 #   - scans resume from an offset (only new bytes plus the overlap window),
 #     so a match split across a poll boundary is still found
 set -euo pipefail
@@ -214,6 +216,61 @@ stat_without_gnu_flags_does_not_break_matching() {
 	)
 }
 
+# The memo is keyed by pattern, so the file has to be part of the key too: a
+# caller that points LOG_MARK_FILE at a second log must not be answered out of
+# the first log's cache. Without the check, a positive memoized here is
+# returned for a log that never contained the marker, and the second log's
+# resume offsets point into the first log's bytes.
+repointed_log_does_not_inherit_a_verdict() {
+	local other="$WORK/other.log"
+	log_marks_reset
+	: >"$LOG_MARK_FILE"
+	printf 'NET: PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
+	log_seen 'PlayerSpawnedInWorld' || return 1
+	# Shorter than the log above, so the size high-water mark cannot notice the
+	# switch on its own either.
+	printf 'NET: an entirely different log\n' >"$other"
+	LOG_MARK_FILE="$other"
+	# A miss here is the fix: the second log never contained the marker.
+	if log_seen 'PlayerSpawnedInWorld'; then
+		LOG_MARK_FILE="$WORK/client.log"
+		return 1
+	fi
+	# The new log is scanned from byte zero, so its own marker is found.
+	if ! log_seen 'an entirely different log'; then
+		LOG_MARK_FILE="$WORK/client.log"
+		return 1
+	fi
+	LOG_MARK_FILE="$WORK/client.log"
+}
+
+# A size probe that cannot run is the same class of failure the grep status is
+# handled for: the pattern has to answer "not seen" until it recovers, and the
+# reader needs to see that the verdict is missing rather than negative. Left
+# silent, one_shot_join.sh reports a timeout for the whole budget with nothing
+# in the log saying the probe never ran.
+unmeasurable_log_is_reported_not_silent() {
+	local bindir="$WORK/broken-wc" err="$WORK/wc-err"
+	mkdir -p "$bindir"
+	printf '#!/bin/sh\nexit 1\n' >"$bindir/wc"
+	chmod +x "$bindir/wc"
+	: >"$LOG_MARK_FILE"
+	printf 'NET: PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
+	(
+		PATH="$bindir:$PATH"
+		log_marks_reset
+		# The verdict stays a miss; the notice goes to stderr and only once,
+		# so a poll every 2s for the whole join budget cannot bury the log.
+		# 2> is on the block, so log_mark_error's notice is all that lands in
+		# the capture.
+		! log_seen 'PlayerSpawnedInWorld' || exit 1
+		! log_seen 'PlayerSpawnedInWorld' || exit 1
+	) 2>"$err"
+	[[ -s "$err" ]] || return 1
+	[[ "$(wc -l <"$err")" -eq 1 ]] || return 1
+	grep -q 'log marker scan failed' "$err"
+}
+
 assert "missing log is not seen" missing_log_is_not_seen
 assert "miss flips when matching bytes arrive" miss_flips_when_bytes_arrive
 assert "cached positive survives other-marker misses" positive_sticks_after_miss_on_other_marker
@@ -226,6 +283,8 @@ assert "conditionally queried pattern skips no bytes" conditionally_queried_patt
 assert "large-window match survives" match_in_a_large_window_is_not_lost_to_sigpipe
 assert "idle poll skips the rescan" idle_poll_skips_the_rescan
 assert "size probe survives a non-GNU stat" stat_without_gnu_flags_does_not_break_matching
+assert "a repointed log is not answered from the old log's cache" repointed_log_does_not_inherit_a_verdict
+assert "an unmeasurable log reports the failed probe" unmeasurable_log_is_reported_not_silent
 
 # The marker vocabulary lives with the marker cache because both join
 # harnesses read a joined cycle out of the same client log: one_shot_join.sh
