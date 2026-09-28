@@ -64,7 +64,7 @@ done
 
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
-# PORT feeds both --port argv and an ERE ("::${PORT}\b"), so it must be a real
+# PORT feeds both --port argv and an ERE (":${PORT}\b"), so it must be a real
 # TCP port like TIMEOUT_SEC below: metacharacters would skew the listener
 # probe, and a number outside 1..65535 could never match it at all.
 if ! is_tcp_port "$PORT"; then
@@ -147,8 +147,9 @@ list_client_pids() {
   pgrep -f '[/]7DaysToDie\.exe|wine64-preloader.*7DaysToDie' 2>/dev/null || true
 }
 
-# The client log is append-only for this whole cycle (truncated above, then
-# written by the game), so once a marker has matched it can never un-match.
+# The client log is append-only for this whole cycle (truncated when the run
+# starts, then only ever appended to by the game), so once a marker has
+# matched it can never un-match.
 # The join poll runs every 2s against a log that grows by megabytes;
 # re-grepping every already-decided marker from byte zero each poll is wasted
 # I/O competing with the loading client. See scripts/log_markers.sh.

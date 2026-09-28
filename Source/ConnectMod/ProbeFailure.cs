@@ -26,10 +26,8 @@ namespace SdtdConnect
             Announce(what, ex.ToString());
         }
 
-        // Reason-shaped variant for drift detected without an exception
-        // (a reflection target that resolved to null): same once-and-mute
-        // contract, so a renamed game member is named instead of degrading
-        // silently.
+        // Reason-shaped variant for a probe that has to report something other
+        // than an exception. Same once-and-mute contract.
         internal static void Once(string what, string reason)
         {
             if (string.IsNullOrEmpty(reason)) return;

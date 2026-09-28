@@ -15,8 +15,9 @@ is set; otherwise use F1 -> connect after the main menu opens.
 
     env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh
 
-Exit status: 0 client ran, 2 usage error, 1 setup failure (missing game,
-no usable Proton). Any extra args are forwarded to the game executable.
+Exit status: 2 usage error, 1 setup failure (missing game, no usable
+Proton), otherwise the game or Steam client's own exit status. Any extra
+args are forwarded to the game executable.
 
 Key env vars (full table: README "Environment variables"):
   7DTD_CONNECT         host[:port] auto-join target once the main menu opens
@@ -56,7 +57,7 @@ trim_ws() {
 
 GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 STEAM_APPID="${STEAM_APPID:-251570}"
-# Prefer Proton Experimental / GE if present; fall back to steam launch.
+# Prefer the Steam-built Proton runtimes if present; fall back to steam launch.
 STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 # Derive the Proton prefix from GAME, so a library on another disk works. A
 # hardcoded default path silently falls through to the `steam -applaunch`

@@ -43,7 +43,7 @@ namespace SdtdConnect
         }
     }
 
-    /// <summary>Steam-less Proton: client has no Steam/EOS identity, but stock dedi's PlayerIdAuthorizer kicks Empty name or player ID. Inject a synthetic local Steam id (derived from the machine name, so two Steam-less clients on different hosts never collide) so SendLogin succeeds on EAC-off LAN (loopback). With a real Steam login present, pass through so the server sees the real id and validates the real ticket.</summary>
+    /// <summary>Steam-less Proton: client has no Steam/EOS identity, but stock dedi's PlayerIdAuthorizer kicks Empty name or player ID. Inject a synthetic local Steam id (from the machine name, then the OS user name, then a fixed seedless value, so two Steam-less clients on different hosts rarely collide) so SendLogin succeeds on EAC-off LAN (loopback). With a real Steam login present, pass through so the server sees the real id and validates the real ticket.</summary>
     [AutomationPatch]
     [HarmonyPatch(typeof(Platform.Steam.User), nameof(Platform.Steam.User.PlatformUserId), MethodType.Getter)]
     static class Patch_SteamUserId_Synthetic

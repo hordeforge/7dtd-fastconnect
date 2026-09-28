@@ -11,9 +11,11 @@ namespace SdtdConnect
         // Monotonic (unscaled) time when the cross user was first seen without an id.
         static float _crossWaitStart = -1f;
 
-        // IsReady sits in a 10 Hz poll loop; log each expiry note once per
-        // episode so a permanently missing identity cannot flood the client
-        // log that join harnesses grep for fixed markers.
+        // IsReady sits in a 10 Hz poll loop; log each expiry note once so a
+        // permanently missing identity cannot flood the client log that join
+        // harnesses grep for fixed markers. The cross note is cleared when an
+        // episode ends, so a reconnect can announce again; the native note
+        // has no reset and fires at most once per process.
         static bool _crossProceedLogged;
         static bool _nativeProceedLogged;
 

@@ -3,10 +3,10 @@ using System;
 namespace SdtdConnect
 {
     /// <summary>
-    /// Client display-name resolution shared by the InitMod prefs override,
-    /// the ClientInfo.playerName guard, and the prefs fallback: stock dedi
-    /// kicks "Empty name or player ID" for loopback joins when Steam is
-    /// offline, so every path must produce a non-empty name.
+    /// Client display-name resolution, used by the InitMod prefs override and
+    /// by its no-env fallback: stock dedi kicks "Empty name or player ID" for
+    /// loopback joins when Steam is offline, so a stored PlayerName must
+    /// never end up empty.
     /// </summary>
     internal static class PlayerNames
     {

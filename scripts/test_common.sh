@@ -6,9 +6,10 @@
 FAILS=0
 
 # Disposable working dir for a gate, under the repo's gitignored .scratch/.
-# Deliberately not /tmp or $TMPDIR: those are tmpfs on this platform, so every
-# staged game tree and zip fixture a gate builds is charged to RAM and lost on
-# reboot. Callers own the cleanup trap, as they did with mktemp.
+# Deliberately not /tmp or $TMPDIR: the repo rule is that scratch stays in
+# .scratch/ and never on a tmpfs, and a worktree-local dir also keeps the
+# artifacts of a failed gate next to the tree that produced them. Callers own
+# the cleanup trap, as they did with mktemp.
 scratch_mktemp() {
 	local root="${1:?scratch_mktemp: repo root required}"
 	local prefix="${2:?scratch_mktemp: name prefix required}"

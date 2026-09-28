@@ -5,7 +5,8 @@ namespace SdtdConnect
 {
     /// <summary>
     /// Client-only join helper for local/dev servers (7dtd dedicated, zdtd).
-    /// Auto-join when 7DTD_CONNECT / -connect= is set; F1 connect command otherwise.
+    /// Auto-joins once the main menu opens when 7DTD_CONNECT / -connect= is
+    /// set; the F1 `connect` command is registered in every mode.
     /// Does not invent world/chunk/sign/spawn state for missing server packages.
     /// </summary>
     public class ModApi : IModApi
@@ -58,7 +59,7 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[7dtd-fastconnect] Discord/intro/eula prefs set failed: " + ex.Message);
+                    Log.Warning("[7dtd-fastconnect] player name / Discord / EULA prefs set failed: " + ex.Message);
                 }
             }
 
@@ -115,9 +116,12 @@ namespace SdtdConnect
         }
 
         /// <summary>
-        /// Selects a real stock Local-platform identity before auto-join.
-        /// The server still authenticates and persists this identity normally;
-        /// this only selects the stock player's configured display/name key.
+        /// Picks the value stored in the stock PlayerName pref before auto-join:
+        /// 7DTD_PLAYER_NAME when it normalizes to something non-empty, else
+        /// PlayerNames.Resolve(). A pref that already holds a name is left
+        /// alone unless the env asked for a different one. The server still
+        /// authenticates and persists whatever is stored; this only chooses
+        /// which identity the client presents.
         /// </summary>
         static void ApplyPlayerNameOverride()
         {
@@ -125,8 +129,8 @@ namespace SdtdConnect
             bool fromEnv = !string.IsNullOrWhiteSpace(requested);
             if (!fromEnv)
             {
-                // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline.
-                // Ensure ClientInfo.playerName is never empty even without env.
+                // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline,
+                // so store a non-empty PlayerName even without the env set.
                 // A prefs read that throws (store not loaded yet) carries the
                 // same signal as an empty stored name, and takes the same path.
                 try

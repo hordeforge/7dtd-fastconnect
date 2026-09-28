@@ -24,7 +24,7 @@ namespace SdtdConnect
         // chunk objects still in flight cannot hold the start bar forever.
         const int StartBarSlackChunks = 10;
 
-        // Stock updateLoadState's start bar.
+        // Stock updateLoadState's start bar, less the slack above.
         internal static int NeededChunkObjects(bool fixedSizeCache)
         {
             if (fixedSizeCache) return 0;

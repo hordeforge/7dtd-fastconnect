@@ -6,10 +6,11 @@ name: release
 # can reproduce.
 #
 # The mod archive is deliberately NOT built here. `make package` compiles
-# against the dedicated server's own assemblies, which a hosted runner does
-# not have; a maintainer with a game install runs `make package` and attaches
-# the zip. Gating the tag is the half that can be proven automatically, and
-# asserting the other half here would be a claim, not evidence.
+# against the shipped client install's Assembly-CSharp.dll, which a hosted
+# runner does not have; a maintainer with a game install runs `make package`
+# and attaches the zip. Gating the tag is the half that can be proven
+# automatically, and asserting the other half here would be a claim, not
+# evidence.
 
 on:
   push:
@@ -54,8 +55,9 @@ jobs:
       # build.
       - name: Check every version declaration agrees
         run: ./scripts/test_version_sync.sh
-      # Each section in CHANGELOG.md matches a release tag, so a release with
-      # no notes is a release nobody can find the changes of.
+      # Every released section in CHANGELOG.md matches a release tag (the
+      # untagged [Unreleased] section does not and is not gated), so a release
+      # with no notes is a release nobody can find the changes of.
       - name: Check the changelog has a section for the tag
         shell: bash
         run: |

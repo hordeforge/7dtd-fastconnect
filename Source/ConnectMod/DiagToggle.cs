@@ -1,6 +1,11 @@
 namespace SdtdConnect
 {
-    /// <summary>Runtime + persistent toggle for verbose 7dtd-fastconnect traces.</summary>
+    /// <summary>
+    /// Per-process toggle for verbose 7dtd-fastconnect traces: the env value is
+    /// snapshotted once at type init and the F1 `diag` command overrides it for
+    /// the rest of the process. Nothing is written to GamePrefs, so the state
+    /// does not survive a restart.
+    /// </summary>
     internal static class DiagToggle
     {
         internal const string EnvVar = "7DTD_CONNECT_DEBUG";
@@ -30,7 +35,11 @@ namespace SdtdConnect
             }
         }
 
-        /// <summary>Called on InitMod and on MainMenuOpened so reconnects see the env.</summary>
+        /// <summary>
+        /// Log the verbose-on notice once per process unless the console command
+        /// clears the latch. The env snapshot is fixed at type init, so this
+        /// cannot report a value that changed since InitMod.
+        /// </summary>
         internal static void AnnounceOnce()
         {
             if (_reported) return;
@@ -38,8 +47,9 @@ namespace SdtdConnect
             if (Enabled) Log.Out("[7dtd-fastconnect] diag verbose ON (7DTD_CONNECT_DEBUG=1 or `diag on`)");
         }
 
-        // Console command sets this; clearing _reported makes the next
-        // AnnounceOnce() (InitMod / MainMenuOpened) re-log the flipped state.
+        // Console command sets this; clearing _reported lets a later
+        // AnnounceOnce() (InitMod / MainMenuOpened) log again, though only
+        // while Enabled, so a `diag off` flip is not itself announced.
         internal static void Set(bool on)
         {
             _consoleHasOverride = true;

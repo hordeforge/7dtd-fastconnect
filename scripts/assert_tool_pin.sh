@@ -16,7 +16,7 @@
 # Env: PYPROJECT  manifest to read the pin from (default: the repo's)
 #
 # Exit status: 0 the tool reports the pinned version | 1 pin unreadable, the
-# version command failed, or the versions differ.
+# version command failed, or the versions differ | 2 wrong argument count.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

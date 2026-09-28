@@ -6,8 +6,9 @@
 # It holds the mod payload only (scripts/stage_mod.sh), never the build's
 # symbol file or leftovers from an earlier build.
 #
-# Version: taken from the newest git tag (vX.Y.Z -> X.Y.Z), or overridden
-# with VERSION=x.y.z. Requires a local client install: the build compiles
+# Version: the tag HEAD sits on (vX.Y.Z -> X.Y.Z), or overridden with
+# VERSION=x.y.z. A commit past the newest tag, or a dirty tree, has no usable
+# version and falls back to a short commit id. Requires a local client install: the build compiles
 # against the shipped Assembly-CSharp.dll, which this repo does not
 # redistribute (see AGENTS.md).
 #
@@ -29,9 +30,9 @@ come from SOURCE_DATE_EPOCH (default: the last commit's timestamp), never
 the wall clock. A sibling .buildinfo records the commit, the dotnet SDK, and
 the archive's sha256 so the zip can be reproduced later.
 
-The version comes from the newest git tag (vX.Y.Z -> X.Y.Z); VERSION=x.y.z
-overrides it, and a worktree with uncommitted tracked changes ships as
-<commit>-dirty instead of claiming a release. Requires a local client
+The version is the tag HEAD sits on (vX.Y.Z -> X.Y.Z); VERSION=x.y.z
+overrides it. Any commit past that tag ships as its short commit id rather
+than claiming a release. Requires a local client
 install (the build compiles against the shipped Assembly-CSharp.dll) and
 zip on PATH.
 

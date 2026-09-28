@@ -29,9 +29,10 @@ namespace SdtdConnect
                 var gm = GameManager.Instance;
                 if (gm == null) return;
                 var world = gm.World;
-                if (world == null) return; // menu phase; boot hb covers it
+                if (world == null) return; // menu phase; the boot hb covers it in automation mode
 
-                // One fetch per heartbeat feeds every dump below.
+                // One player fetch per heartbeat feeds the first three dumps; the
+                // window dumps re-resolve the UI they need.
                 var player = world.GetPrimaryPlayer();
                 LogLoadGate(gm, world, player);
                 if (player == null) return;

@@ -73,8 +73,9 @@ namespace SdtdConnect
     }
 
     /// <summary>
-    /// Steam Login can stall under Proton when unfocused. After static data is ready,
-    /// force main-menu open so auto-join runs (test harness only).
+    /// Steam Login can stall under Proton when unfocused. Force the main menu
+    /// open unconditionally so the auto-join runs; applied only in automation
+    /// mode, which a plain client launch does not enter.
     /// </summary>
     [AutomationPatch]
     [HarmonyPatch(typeof(MainMenuMono), "CheckLogin")]

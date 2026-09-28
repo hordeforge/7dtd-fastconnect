@@ -36,7 +36,7 @@ namespace SdtdConnect
 
         // Both the boot-mode probe and the menu-open auto-join read the same
         // launch context; warn once so an invalid value cannot sit in the log
-        // three times or, worse, look like "no target set".
+        // twice or, worse, look like "no target set".
         static bool _badTargetWarned;
 
         // Unicode format characters a terminal renders as nothing (or as a

@@ -2,8 +2,8 @@
 """Render the line-coverage badge SVG from a Cobertura XML report.
 
 Only product sources count: classes whose filename contains the FILTER
-substring (default "/Source/") are summed; harness, stub, and test-driver
-lines stay out of the denominator.
+substring (the Makefile passes "/Source/") are summed; harness, stub, and
+test-driver lines stay out of the denominator. FILTER is required.
 
 Usage: coverage_badge.py OUTPUT.svg FILTER COBERTIA_XML...
 """

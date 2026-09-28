@@ -26,9 +26,10 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                // Runs inside a stock packet handler on every alive-flags
-                // package: a throwing trace must not take the join down with
-                // it, but a permanently dead one must not read as a quiet
+                // Runs inside a stock packet handler, on every alive-flags
+                // package for the primary player once diag is on: a throwing
+                // trace must not take the join down with it, but a
+                // permanently dead one must not read as a quiet
                 // healthy join either. ProbeFailure announces once, then mutes.
                 ProbeFailure.Once("af hb", ex);
             }

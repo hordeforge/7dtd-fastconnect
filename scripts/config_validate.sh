@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Shared value checks for the harness knobs (PORT and friends).
+# Shared value check for the join harnesses' PORT knob.
 #
-# Every one of these values lands in a numeric comparison, an ERE, or a --port
-# argv, so a typo has to be caught where the value is read, before the run
-# starts a server or a client. The checks live here so the three join scripts
-# enforce the same rule; each caller words its own warn/fallback message.
+# PORT lands in a numeric comparison, an ERE, or a --port argv, so a typo has
+# to be caught where the value is read, before the run starts a server or a
+# client. The check lives here so the three join scripts enforce the same
+# rule; each caller words its own message, and chooses between falling back to
+# 27025 and calling it a usage error. The numeric knobs the loop harness also
+# reads (TIMEOUT_SEC, MAX_ATTEMPTS) are checked locally in that script.
 # Source this file; do not execute it.
 
 # True for 1..65535, the same range the client enforces on 7DTD_CONNECT

@@ -9,7 +9,7 @@ namespace SdtdConnect
         public override string getDescription() => "Toggle verbose 7dtd-fastconnect diagnostics (opt-in, off by default).";
 
         public override string getHelp() =>
-            "diag on|off|status\n" +
+            "diag on|off|toggle|status\n" +
             "  diag on      enable verbose traces\n" +
             "  diag off     disable verbose traces\n" +
             "  diag toggle  flip\n" +

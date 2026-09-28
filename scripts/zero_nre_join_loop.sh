@@ -177,7 +177,7 @@ fi
 log "start max_attempts=$MAX_ATTEMPTS"
 
 # Validate before start_zdtd: a bad value would abort after the server is up.
-# PORT lands in --port argv and an ERE ("::${PORT}\b"), so it must be a real
+# PORT lands in --port argv and an ERE (":${PORT}\b"), so it must be a real
 # TCP port; TIMEOUT_SEC/MAX_ATTEMPTS get the numeric guard below.
 if ! is_tcp_port "$PORT"; then
   log "WARN: PORT invalid ('$PORT'); using 27025"
