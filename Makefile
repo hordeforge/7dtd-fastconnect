@@ -55,7 +55,7 @@ help:
 	@echo "  clean      remove dist/ and the C# bin/ and obj/ trees"
 	@echo "python gate (not a shell gate):"
 	@echo "  uv run --frozen --group dev pytest scripts/test_launch_client_platform.py"
-	@echo "setup: uv sync --group dev (pinned ruff/mypy/pytest); dotnet SDK band in global.json"
+	@echo "setup: uv sync --group dev (pinned ruff/mypy/pytest/yamllint); dotnet SDK band in global.json"
 
 build:
 	dotnet build "$(ROOT)/Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
@@ -109,23 +109,26 @@ test:
 	else \
 	  echo "WARN: shellcheck not installed; shell lint skipped" >&2; \
 	fi
-	@if command -v yamllint >/dev/null; then \
-	  echo "yamllint:"; \
-	  cd "$(ROOT)" && yamllint .; \
-	else \
-	  echo "WARN: yamllint not installed; workflow lint skipped" >&2; \
-	fi
+	# yamllint joins the Python gates rather than staying a bare `command -v`
+	# probe: the hosted CI runner has no yamllint on PATH, so a probe-only gate
+	# printed a WARN and linted nothing there. Pinned in [dependency-groups]
+	# dev, so `uv run --frozen` gives CI the same version a maintainer gets.
 	@if command -v uv >/dev/null; then \
-	  cd "$(ROOT)" && uv run --frozen --group dev ruff check scripts && \
+	  echo "yamllint:"; \
+	  cd "$(ROOT)" && uv run --frozen --group dev yamllint . && \
+	  uv run --frozen --group dev ruff check scripts && \
 	  uv run --frozen --group dev ruff format --check scripts && \
 	  uv run --frozen --group dev mypy --strict $(PY_SOURCES); \
-	elif command -v ruff >/dev/null && command -v mypy >/dev/null; then \
-	  cd "$(ROOT)" && "$(ROOT)/scripts/assert_tool_pin.sh" ruff ruff && \
+	elif command -v ruff >/dev/null && command -v mypy >/dev/null && \
+	     command -v yamllint >/dev/null; then \
+	  cd "$(ROOT)" && "$(ROOT)/scripts/assert_tool_pin.sh" yamllint yamllint && \
+	  "$(ROOT)/scripts/assert_tool_pin.sh" ruff ruff && \
 	  "$(ROOT)/scripts/assert_tool_pin.sh" mypy mypy && \
+	  yamllint . && \
 	  ruff check scripts && ruff format --check scripts && \
 	  mypy --strict $(PY_SOURCES); \
 	else \
-	  echo "ERROR: neither uv nor ruff+mypy available; run 'uv sync --group dev' first" >&2; \
+	  echo "ERROR: neither uv nor ruff+mypy+yamllint available; run 'uv sync --group dev' first" >&2; \
 	  exit 1; \
 	fi
 	@if command -v uv >/dev/null; then \

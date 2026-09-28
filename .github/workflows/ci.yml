@@ -37,7 +37,14 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         # Version comes from global.json (same band as make build locally).
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
-      - run: dotnet tool install -g dotnet-coverage --version 17.14.1
+      # --tool-path into the runner tool dir that is put on PATH on the next
+      # line. A bare `-g` install lands in $DOTNET_ROOT/tools, which the hosted
+      # image does not export, and scripts/coverage-cs.sh answers a missing
+      # dotnet-coverage with SKIP + exit 0, so the job would have gone on to
+      # fail on a stale badge instead of naming the missing tool. The version
+      # is pinned, the one number that decides what the badge measures.
+      - run: dotnet tool install dotnet-coverage --tool-path "$HOME/.dotnet/tools" --version 17.14.1
+      - run: echo "$HOME/.dotnet/tools" >>"$GITHUB_PATH"
       - run: make coverage
       - name: Publish the badge to the badges branch
         env:

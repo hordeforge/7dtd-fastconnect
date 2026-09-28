@@ -19,6 +19,10 @@ Key env vars:
   ZDTD      zdtd binary (default ../zdtd-server/zig-out/bin/zdtd)
   GAME_SRV  dedicated server install dir
   LOGDIR    log dir (default ~/.cache/zdtd-scratch)
+  PLAYTEST / PLAYTEST_SUITE
+            passed through to the client's 7dtd-playtest mod; this script
+            only launches the pair, so prefer `make -C ../7dtd-playtest
+            playtest-smoke` for scored exit codes
 EOF
   exit 0
 fi

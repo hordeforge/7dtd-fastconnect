@@ -1,7 +1,7 @@
 [project]
 name = "7dtd-fastconnect-dev"
 version = "0.12.0"
-description = "Dev tooling for 7dtd-fastconnect offline gates (ruff/mypy/pytest)"
+description = "Dev tooling for 7dtd-fastconnect offline gates (ruff/mypy/pytest/yamllint)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
@@ -12,6 +12,7 @@ dev = [
   "ruff==0.16.6",
   "mypy==2.3.1",
   "pytest==9.1.1",
+  "yamllint==1.38.0",
 ]
 
 # Lint/typecheck settings live in ruff.toml and mypy.ini: those filenames
