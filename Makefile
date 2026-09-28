@@ -66,6 +66,12 @@ test:
 	else \
 	  echo "WARN: shellcheck not installed; shell lint skipped" >&2; \
 	fi
+	@if command -v yamllint >/dev/null; then \
+	  echo "yamllint:"; \
+	  cd "$(ROOT)" && yamllint .; \
+	else \
+	  echo "WARN: yamllint not installed; workflow lint skipped" >&2; \
+	fi
 	@if command -v uv >/dev/null; then \
 	  cd "$(ROOT)" && uv run --frozen --group dev ruff check scripts && \
 	  uv run --frozen --group dev ruff format --check scripts && \
@@ -76,7 +82,8 @@ test:
 	  ruff check scripts && ruff format --check scripts && \
 	  mypy --strict $(PY_SOURCES); \
 	else \
-	  echo "WARN: ruff/mypy not available; static analysis skipped" >&2; \
+	  echo "ERROR: neither uv nor ruff+mypy available; run 'uv sync --group dev' first" >&2; \
+	  exit 1; \
 	fi
 	@if command -v uv >/dev/null; then \
 	  cd "$(ROOT)" && uv run --frozen --group dev pytest scripts/test_launch_client_platform.py -q --tb=short; \

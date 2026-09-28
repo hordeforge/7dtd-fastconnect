@@ -27,6 +27,7 @@ so tests assert what actually reaches the game process.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shlex
@@ -51,7 +52,8 @@ def _repo_root() -> Path:
     for candidate in here.parents:
         if (candidate / marker).is_file():
             return candidate
-    raise RuntimeError(f"no {marker} above {here}")
+    missing = f"no {marker} above {here}"
+    raise RuntimeError(missing)
 
 
 ROOT = _repo_root()
@@ -380,10 +382,8 @@ def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
     finally:
         # Belt and braces: reap anything left in the session (e.g. an orphaned
         # sleep grandchild of the stub) so nothing outlives the test.
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
 
 
 @pytest.mark.skipif(os.getuid() == 0, reason="root ignores dir permissions")
@@ -452,7 +452,7 @@ def _mute_poller_pids(timeout_arg: str) -> list[str]:
     Anchored to this repo's scripts dir so a poller from another checkout (or
     another developer's parallel run) cannot satisfy or poison the wait."""
     return _pgrep_pids(
-        rf"{re.escape(str(ROOT / 'scripts'))}/mute_client_audio\.sh {re.escape(timeout_arg)}"
+        rf"{re.escape(str(ROOT / 'scripts'))}/mute_client_audio\.sh {re.escape(timeout_arg)}",
     )
 
 
@@ -497,10 +497,8 @@ def test_sigterm_does_not_orphan_mute_poller(tmp_path: Path) -> None:
             assert time.monotonic() < deadline, "mute poller survived TERM"
             time.sleep(0.1)
     finally:
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
 
 
 def test_connect_env_forwards_connect_arg(tmp_path: Path) -> None:

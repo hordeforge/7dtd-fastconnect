@@ -1,0 +1,20 @@
+# yamllint config for the workflow YAML. The two defaults that fight this
+# repo are relaxed on purpose; everything else stays at its default so real
+# defects (bad indentation, missing key spacing, unquoted colons) still fail.
+extends: default
+
+rules:
+  # Workflow files start with `name:`, matching the GitHub docs and the
+  # checkout-side tooling; GitHub accepts either and the `---` marker buys
+  # nothing here.
+  document-start: disable
+  # `on:` is the workflow trigger key. yamllint's truthy check wants it quoted,
+  # but GitHub's own examples and schema use the bare form.
+  truthy:
+    allowed-values: ["true", "false", "on"]
+  # 100 columns, same cap as ruff and the CI runner's shellcheck window.
+  line-length:
+    max: 100
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable

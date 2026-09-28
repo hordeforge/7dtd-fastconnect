@@ -11,7 +11,20 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+### Added
+
+- `make test` lints the workflow YAML with `yamllint`, configured by the new
+  `.yamllint` (100-column cap, bare `on:` trigger key, no document marker).
+
 ### Changed
+
+- ruff now runs the `S`, `SIM`, `EM`, `COM818/819`, `ISC`, `Q`, `TID`, `TCH`
+  and `ERA` groups alongside the existing ones, with the assert and
+  partial-path subprocess rules scoped off for `scripts/test_*.py` and the XML
+  parse rule for the Cobertura file the coverage lane just generated.
+- The ruff and mypy gates in `make test` are mandatory: without `uv` or
+  `ruff`+`mypy` on PATH the run fails instead of printing a warning and
+  reporting a green that analyzed nothing.
 
 - The player name applied at boot is no longer echoed to the client log. The
   line records only whether the name came from `7DTD_PLAYER_NAME` or from the

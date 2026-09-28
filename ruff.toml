@@ -24,4 +24,23 @@ select = [
     "PERF",# performance lints
     "RET", # return simplification
     "RSE", # unnecessary parens on raise
+    "S",   # flake8-bandit: security and dangerous-construct checks
+    "SIM", # flake8-simplify
+    "EM",  # flake8-errmsg: exception messages as named variables
+    "COM818", # missing trailing comma on bare tuple
+    "COM819", # prohibited trailing comma
+    "ISC", # flake8-implicit-str-concat
+    "Q",   # flake8-quotes
+    "TID", # flake8-tidy-imports
+    "TCH", # flake8-type-checking
+    "ERA", # eradicate: commented-out code
 ]
+
+[lint.per-file-ignores]
+# Tests assert with bare `assert` and drive the launcher through a stub Proton
+# on PATH by name, so the assert and partial-path subprocess findings that
+# matter in shipped code do not apply to them.
+"scripts/test_*.py" = ["S101", "S603", "S607"]
+# coverage_badge.py parses the Cobertura XML that make coverage just generated
+# in the same directory, not anything a third party can hand it.
+"scripts/coverage_badge.py" = ["S314"]
