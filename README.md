@@ -367,6 +367,8 @@ that hold for all of them:
 | `CLIENT_PLATFORM` | Steam mode | `1` / `local` / `lan` (case-insensitive) selects no-Steam Local mode; anything else warns and is ignored |
 
 Threat model and known gaps: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+Supported versions, EAC precondition, and how to check a release zip:
+[SECURITY.md](SECURITY.md).
 
 The join harnesses (`one_shot_join.sh`, `zero_nre_join_loop.sh`,
 `restart_pair.sh`) take their own knobs (`PORT`, `HOST`, `TIMEOUT_SEC`,
