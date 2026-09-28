@@ -32,6 +32,15 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         # No dotnet-version input on purpose: setup-dotnet reads the band
         # pinned by global.json, keeping one source of truth for local and CI.
+        # cache keys the uv cache dir (the four pinned dev tools, the wheels
+        # behind them, and the CPython that requires-python pulls) on uv.lock.
+        # The gates run `uv run --locked` five times, so without it every run
+        # re-downloaded all of it from PyPI. The key is the lockfile, not
+        # pyproject.toml: a pin edited without a re-lock fails the `--locked`
+        # run either way, and uv.lock is what the install is resolved from.
+        with:
+          cache: true
+          cache-dependency-glob: uv.lock
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       - run: make test
 
@@ -50,6 +59,11 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         # Version comes from global.json (same band as make build locally).
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        # Same cache key as the connect job: `make coverage` reaches uv for
+        # coverage_badge.py, and uv re-resolves the dev group to run it.
+        with:
+          cache: true
+          cache-dependency-glob: uv.lock
       # dotnet-coverage is declared in .config/dotnet-tools.json, so the
       # version that decides what the badge measures is stated in one file and
       # this step installs exactly that. --tool-path into the runner tool dir

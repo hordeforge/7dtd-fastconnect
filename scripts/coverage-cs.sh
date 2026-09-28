@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Line coverage for the ConnectTarget offline gate, compiled with the dotnet
 # SDK instead of mcs so coverlet/dotnet-coverage can instrument it. Mirrors
-# scripts/test_connect_target_parse.sh: the same eight production sources plus
+# scripts/test_connect_target_parse.sh: the same nine production sources plus
 # the compiler-only stubs and the harness driver, run once per harness mode
 # except the fuzz mode, which the behavioural gate owns and which contributes
 # no coverage here. Output: coverage.cobertura.xml at the repo root (product sources are

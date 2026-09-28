@@ -104,6 +104,17 @@ build: check-game-root
 # the badge filters to /Source/ so stub and harness lines stay out.
 coverage:
 	$(ROOT)/scripts/coverage-cs.sh
+	# coverage-cs.sh skips with status 0 when dotnet or dotnet-coverage is
+	# absent, so a missing report is the skip reaching the badge step, and the
+	# renderer's own answer names a missing coverage report instead of the
+	# missing tool. Check here so the run says which, and so the badge is never
+	# rendered from a report an earlier run left behind.
+	@test -f "$(ROOT)/coverage.cobertura.xml" || { \
+	  echo "ERROR: scripts/coverage-cs.sh wrote no report; it skips with status 0" \
+	    "when dotnet or dotnet-coverage is absent. Run 'dotnet tool restore" \
+	    "--tool-path <dir>' (version pinned in .config/dotnet-tools.json)." >&2; \
+	  exit 1; \
+	}
 	cd "$(ROOT)" && uv run --locked --group dev python scripts/coverage_badge.py \
 		coverage.svg "/Source/" coverage.cobertura.xml
 
