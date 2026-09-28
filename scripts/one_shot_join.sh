@@ -175,6 +175,26 @@ list_client_pids() {
 LOG_MARK_FILE="$CLIENT_LOG_SRC"
 source "$ROOT/scripts/log_markers.sh"
 
+# Signals a tracked child, and the whole process group when that child leads
+# one. The launcher is started with setsid, so its pgid is its pid: stopping
+# it on the pid alone left the mute poller and the Proton stack it forked
+# running after this cycle returned, and the launcher's own EXIT trap (the one
+# that restores platform.cfg) never ran. A child that is not a group leader
+# (the zdtd server, a plain background job) is signalled on its own, so a
+# negative group id never names an unrelated process group.
+signal_owned() {
+  local pid="$1" sig="$2" pgid
+  [[ -n "$pid" ]] || return 0
+  # Liveness first: by the time the KILL step runs, the TERM may already have
+  # taken the child and the pid may name a process this run does not own.
+  kill -0 "$pid" 2>/dev/null || return 0
+  pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d '[:space:]')" || pgid=""
+  if [[ -n "$pgid" && "$pgid" == "$pid" ]]; then
+    kill "-$sig" -- "-$pid" 2>/dev/null && return 0
+  fi
+  kill "-$sig" "$pid" 2>/dev/null || true
+}
+
 kill_clients() {
   local pids
   pids="$(list_client_pids)"
@@ -212,20 +232,23 @@ cleanup() {
   # The launcher runs detached (setsid) and normally exits when its waited
   # game dies. If the game never appeared (wedged Proton) it would block in
   # wait forever, stacking one orphaned launcher per cycle. TERM lets its own
-  # trap restore platform.cfg and stop the mute poller. The log calls carry
+  # trap restore platform.cfg and stop the mute poller, and the group signal
+  # reaches the poller and the Proton children even when the launcher takes
+  # that trap with it. The log calls carry
   # || true so a failed log write can never abort this trap (set -e) before
   # the processes below are stopped.
   if [[ -n "$launch_pid" ]] && kill -0 "$launch_pid" 2>/dev/null; then
     log "stopping launcher pid=$launch_pid" || true
-    kill "$launch_pid" 2>/dev/null || true
+    signal_owned "$launch_pid" TERM
     sleep 1
-    kill -9 "$launch_pid" 2>/dev/null || true
+    signal_owned "$launch_pid" KILL
+    wait "$launch_pid" 2>/dev/null || true
   fi
   if [[ -n "$server_pid" ]] && kill -0 "$server_pid" 2>/dev/null; then
     log "stopping server pid=$server_pid" || true
-    kill "$server_pid" 2>/dev/null || true
+    signal_owned "$server_pid" TERM
     sleep 1
-    kill -9 "$server_pid" 2>/dev/null || true
+    signal_owned "$server_pid" KILL
   fi
   exit "$ec"
 }

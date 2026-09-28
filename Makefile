@@ -107,6 +107,7 @@ GATES := \
 	scripts/test_version_sync.sh \
 	scripts/test_changelog_gate.sh \
 	scripts/test_cycle_filename_guard.sh \
+	scripts/test_one_shot_launcher_group.sh \
 	scripts/test_zero_nre_log_dir_guard.sh \
 	scripts/test_zero_nre_server_stop.sh \
 	scripts/test_make_tool_pin.sh

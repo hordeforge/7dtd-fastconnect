@@ -222,7 +222,25 @@ swap_local_platform() {
     return 1
   fi
   PLATFORM_SWAPPED=1
-  printf 'platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n' >"$PLATFORM_CFG"
+  # Through a temp file in the same directory and a rename, for the reason the
+  # backup above gives: a bare redirect truncates the live config before a
+  # single byte is written, so a crash, a signal, or a full disk in between
+  # leaves platform.cfg empty for the client that reads it moments later. The
+  # rename puts the Steam config or the Local one in the file, never a partial
+  # one, and a swap that cannot be written leaves the original in place.
+  local cfg_tmp="$PLATFORM_CFG.tmp.$$"
+  if ! printf 'platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n' >"$cfg_tmp"; then
+    rm -f "$cfg_tmp" 2>/dev/null || true
+    PLATFORM_SWAPPED=0
+    echo "WARN: could not write $PLATFORM_CFG; the Local-platform swap is abandoned (Steam config left in place, backup at $PLATFORM_BAK)" >&2
+    return 1
+  fi
+  if ! mv "$cfg_tmp" "$PLATFORM_CFG"; then
+    rm -f "$cfg_tmp" 2>/dev/null || true
+    PLATFORM_SWAPPED=0
+    echo "WARN: could not install $PLATFORM_CFG; the Local-platform swap is abandoned (backup kept at $PLATFORM_BAK)" >&2
+    return 1
+  fi
   echo "Client platform: Local (no Steam auth; restored on exit)"
 }
 

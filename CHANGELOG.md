@@ -59,7 +59,22 @@ and enum handling, so a patch bump would claim none of that.
   `MODS_DIR`. Either value collapses `INSTALL_DIR` to a top-level path
   that `uninstall` deletes recursively; the guard fails before anything
   touches disk.
-
+- `one_shot_join.sh` stops the detached launcher as a process group. It runs
+  under `setsid`, and the cleanup trap signalled only the launcher's own pid,
+  so the mute poller and the Proton stack it forked survived the cycle, and
+  the launcher's EXIT trap (the one that restores `platform.cfg`) never ran
+  for a launcher that took the KILL. The stop goes through a helper that
+  signals the group when the pid leads one and falls back to the plain pid
+  otherwise, re-checks liveness before the KILL so a recycled pid is never
+  signalled, and reaps the child. Gate:
+  `scripts/test_one_shot_launcher_group.sh`.
+- The `CLIENT_PLATFORM=local` swap no longer truncates `platform.cfg` in
+  place. The bare redirect emptied the file before a byte of the Local
+  config was written, so a crash, a signal, or a full disk left the client
+  reading an empty platform selection. The Local config is now written to a
+  temp file in the same directory and renamed, the same rule the backup
+  already used; a swap that cannot be written leaves the Steam config in
+  place and says so.
 - Client-log evidence copied into the join control log is sanitized and
   prefixed. `one_shot_join.sh` appended the client log's join lines to
   `client-lifecycle-<cycle>.txt` verbatim, and the client log carries
