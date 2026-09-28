@@ -43,7 +43,7 @@ if ! command -v dotnet >/dev/null 2>&1; then
 	exit 0
 fi
 if ! command -v dotnet-coverage >/dev/null 2>&1; then
-	echo "SKIP: dotnet-coverage not found (dotnet tool install -g dotnet-coverage)" >&2
+	echo "SKIP: dotnet-coverage not found (dotnet tool restore --tool-path <dir>, version pinned in .config/dotnet-tools.json)" >&2
 	exit 0
 fi
 

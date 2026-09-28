@@ -102,6 +102,13 @@ and enum handling, so a patch bump would claim none of that.
 - The release zip and `make install` now ship `LICENSE` alongside the
   assembly and the manifest. The mod is redistributed as a zip, so its
   terms have to travel with the payload.
+- `dotnet-coverage`, the build dependency behind `make coverage`, is declared
+  in `.config/dotnet-tools.json` and installed with `dotnet tool restore`, the
+  way the SDK band lives in `global.json` and the Python gates live in
+  `pyproject.toml`. Its version was a `--version` argument in one workflow
+  file, and a local run was advised to `dotnet tool install -g
+  dotnet-coverage`, which resolves whatever the index serves that day.
+  `test_tool_manifest.sh` pins the invariant.
 
 ### Fixed
 

@@ -3,6 +3,8 @@ Source/ConnectMod/bin/
 Source/ConnectMod/obj/
 __pycache__/
 .venv/
+# A local dotnet tool with no --tool-path installs beside its manifest.
+.config/.store/
 # uv.lock is NOT ignored: make test runs uv with --frozen and dependabot's
 # "uv" ecosystem both require the lockfile to be committed.
 coverage.cobertura.xml

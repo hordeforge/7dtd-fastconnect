@@ -137,6 +137,7 @@ GATES := \
 	scripts/test_zero_nre_log_dir_guard.sh \
 	scripts/test_zero_nre_server_stop.sh \
 	scripts/test_make_tool_pin.sh \
+	scripts/test_tool_manifest.sh \
 	scripts/test_prereqs.sh
 
 # The toolchain the gates below need, before any of them runs: a gate that
