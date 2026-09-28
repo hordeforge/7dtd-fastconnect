@@ -12,6 +12,7 @@ METHOD="$(sed -n '/static void ApplyPlayerNameOverride()/,/^        }$/p' "$SOUR
 assert "ApplyPlayerNameOverride method exists" test -n "$METHOD"
 
 body_contains() { [[ "$METHOD" == *"$1"* ]]; }
+body_omits() { [[ "$METHOD" != *"$1"* ]]; }
 
 assert "names the opt-in environment variable" grep -q 'PlayerNameEnv = "7DTD_PLAYER_NAME"' "$SOURCE"
 assert "reads the requested name before auto-join" grep -q 'ApplyPlayerNameOverride();' "$SOURCE"
@@ -23,8 +24,10 @@ assert "uses the stock player-name preference inside the override" \
 	body_contains 'GamePrefs.Set(EnumGamePrefs.PlayerName, requested)'
 assert "persists the preference inside the override" \
 	body_contains 'GamePrefs.Instance?.Save();'
-assert "sanitizes the echoed name before logging (no log-marker forging via env)" \
-	body_contains 'ConnectTarget.SanitizeForLog(requested)'
+assert "keeps the applied name out of the log (the log ships in bug reports)" \
+	body_omits 'player name from " + PlayerNameEnv + "='
+assert "logs which source supplied the name instead" \
+	body_contains 'player name applied from'
 assert "documents the separate-client mechanism" grep -q 'Local player identity for an isolated test client' "$ROOT/README.md"
 
 finish

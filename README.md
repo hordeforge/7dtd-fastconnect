@@ -283,7 +283,7 @@ Or with client already running: F1 → `connect 127.0.0.1 27025`.
 
 ```text
 [7dtd-fastconnect] InitMod ...
-[7dtd-fastconnect] player name from 7DTD_PLAYER_NAME=atomic-peer
+[7dtd-fastconnect] player name applied from 7DTD_PLAYER_NAME
 [7dtd-fastconnect] auto-join from 7DTD_CONNECT=127.0.0.1:27025
 [7dtd-fastconnect] Connect by IP 127.0.0.1:27025 ...
 ```

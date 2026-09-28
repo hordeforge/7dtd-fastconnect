@@ -11,6 +11,14 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+### Changed
+
+- The player name applied at boot is no longer echoed to the client log. The
+  line records only whether the name came from `7DTD_PLAYER_NAME` or from the
+  `PlayerNames` fallback; the value itself (an OS account name, host name, or
+  operator-supplied label) no longer lands in a log that gets pasted into bug
+  reports.
+
 ## [0.12.0] - 2026-09-11
 
 ### Fixed

@@ -141,16 +141,17 @@ namespace SdtdConnect
             {
                 GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
                 GamePrefs.Instance?.Save();
-                // Same log rule as 7DTD_CONNECT/-connect: env values are
-                // attacker-shapable and harnesses grep fixed markers, so the
-                // echoed value must not carry control characters.
-                string logged = ConnectTarget.SanitizeForLog(requested);
-                // Name the real source: a fallback logged as "from 7DTD_PLAYER_NAME="
-                // would send someone debugging after an env value that is not set.
+                // The applied name is the player's own identity (OS account
+                // name, host name, or an operator-supplied label) and the
+                // client log is what gets pasted into bug reports, so the
+                // value never reaches it: only the source is recorded.
+                // Name the real source, since a fallback logged as "from
+                // 7DTD_PLAYER_NAME" would send someone debugging after an env
+                // value that is not set.
                 Log.Out(fromEnv
-                    ? "[7dtd-fastconnect] player name from " + PlayerNameEnv + "=" + logged
-                    : "[7dtd-fastconnect] player name fallback '" + logged
-                        + "' (" + PlayerNameEnv + " unset, stored PlayerName empty)");
+                    ? "[7dtd-fastconnect] player name applied from " + PlayerNameEnv
+                    : "[7dtd-fastconnect] player name applied from fallback ("
+                        + PlayerNameEnv + " unset, stored PlayerName empty)");
             }
             catch (Exception ex)
             {
