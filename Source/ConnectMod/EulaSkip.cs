@@ -54,7 +54,7 @@ namespace SdtdConnect
         internal static bool BlockGateWindow(GUIWindowManager wm, string logTag)
         {
             if (_gateHandled) return false;
-            bool accepted = true;
+            bool accepted = false;
             try
             {
                 Log.Out("[7dtd-fastconnect] blocking GUI " + logTag);

@@ -21,12 +21,8 @@ assert "launch passes 1 as the mute default" mute_default_is_one
 assert "README documents the CLIENT_MUTE=0 opt-out command" \
 	grep -qF 'CLIENT_MUTE=0 ./scripts/launch_client.sh' "$ROOT/README.md"
 assert "launch documents opt-out" grep -q 'CLIENT_MUTE=0' "$ROOT/scripts/launch_client.sh"
-if grep -qE 'exec "\$PROTON"' "$ROOT/scripts/launch_client.sh"; then
-	echo "FAIL launch does not exec proton (mute needs wait)" >&2
-	FAILS=$((FAILS + 1))
-else
-	echo "PASS launch does not exec proton (mute needs wait)"
-fi
+assert_fails "launch does not exec proton (mute needs wait)" \
+	grep -qE 'exec "\$PROTON"' "$ROOT/scripts/launch_client.sh"
 assert "launch backgrounds mute poll" grep -q 'start_mute_poll' "$ROOT/scripts/launch_client.sh"
 
 BEHAV=""

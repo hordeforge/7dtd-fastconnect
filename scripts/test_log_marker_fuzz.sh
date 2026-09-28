@@ -42,7 +42,6 @@ readonly STEPS=2
 # raise it for a long local soak. The seed is fixed, so a higher run explores
 # the same prefix plus more.
 readonly ITERATIONS=${MARKER_FUZZ_ITERATIONS:-60}
-readonly FUZZ_SEED=20260928
 
 # The exact marker set the join poll queries (one_shot_join.sh); a fuzz over
 # a different vocabulary would not exercise the shipped decision table. The
@@ -91,55 +90,6 @@ FRAGMENTS=(
 BYTES=(
 	$'\n' $'\n' $'\n' $'\r' $'\0' $'\t' $'\033[2J' $'\xc3' $'\xe2\x82' $'\\n' '\\'
 )
-
-# Deterministic 31-bit LCG: a failing seed must reproduce offline, and urandom
-# would make CI failures irreproducible. The result lands in RND rather than on
-# stdout, because a command substitution per draw is a subshell fork and the
-# generator draws hundreds of times per iteration.
-RAND_STATE=$FUZZ_SEED
-RND=0
-# Draw from bits 8..30, not the low bits. An LCG with a power-of-two modulus
-# cycles its low k bits with period 2^k, so `RAND_STATE % 4` walks 1,2,3,0
-# forever and `% 2` alternates 1,0: a bound that divides the modulus would
-# hand back the stream's period instead of the seed, and the generator would
-# walk one fixed schedule rather than the varied one the seed exists to give.
-# The high bits carry the full period; the residue is still a modulo draw, so
-# it stays biased, which is immaterial for picking a fixture and would not be
-# for anything security-shaped.
-readonly RAND_DRAW_SHIFT=8
-rnd() {
-	RAND_STATE=$(( (RAND_STATE * 1103515245 + 12345) & 0x7fffffff ))
-	RND=$(( (RAND_STATE >> RAND_DRAW_SHIFT) % $1 ))
-}
-
-# Pins the draw above: a low-bit draw would repeat draws 1..4 at 5..8, so the
-# run would explore one schedule per seed. Own copy of the state, so the run's
-# stream is the seed's and this check changes nothing it draws.
-rng_draw_not_short_cycle() {
-	local state=$FUZZ_SEED
-	local -a d=()
-	local i
-	for ((i = 0; i < 12; i++)); do
-		state=$(( (state * 1103515245 + 12345) & 0x7fffffff ))
-		d+=("$(( (state >> RAND_DRAW_SHIFT) % 4 ))")
-	done
-	for ((i = 0; i < 4; i++)); do
-		[[ "${d[i]}" != "${d[i + 4]}" ]] || return 1
-	done
-	return 0
-}
-assert "generator draws are not a low-bit cycle" rng_draw_not_short_cycle
-
-VIOLATIONS=0
-# Report once per distinct invariant: the same generator bug fires on every
-# iteration and a flood would bury the actual state.
-report() {
-	local key="$1" detail="$2"
-	if (( VIOLATIONS < 20 )); then
-		VIOLATIONS=$(( VIOLATIONS + 1 ))
-		echo "FAIL $key: $detail" >&2
-	fi
-}
 
 POLLS=0
 # Patterns that ever returned 0 in this run, so a generator that stopped

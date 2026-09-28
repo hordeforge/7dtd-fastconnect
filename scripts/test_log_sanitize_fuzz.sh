@@ -41,44 +41,6 @@ OUT="$WORK/out"
 OUT2="$WORK/out2"
 LIFE="$WORK/control.log"
 
-# Deterministic 31-bit LCG: a failing seed must reproduce offline, and urandom
-# would make CI failures irreproducible. The result lands in RND rather than on
-# stdout, because a command substitution per draw is a subshell fork and the
-# generator draws hundreds of times per iteration.
-RAND_STATE=20260928
-RND=0
-# Draw from bits 8..30, not the low bits. An LCG with a power-of-two modulus
-# cycles its low k bits with period 2^k, so `RAND_STATE % 4` walks 1,2,3,0
-# forever and `% 2` alternates 1,0: a bound that divides the modulus would
-# hand back the stream's period instead of the seed, and the generator would
-# walk one fixed schedule rather than the varied one the seed exists to give.
-# The high bits carry the full period; the residue is still a modulo draw, so
-# it stays biased, which is immaterial for picking a fixture and would not be
-# for anything security-shaped.
-readonly RAND_DRAW_SHIFT=8
-rnd() {
-	RAND_STATE=$(( (RAND_STATE * 1103515245 + 12345) & 0x7fffffff ))
-	RND=$(( (RAND_STATE >> RAND_DRAW_SHIFT) % $1 ))
-}
-
-# Pins the draw above: a low-bit draw would repeat draws 1..4 at 5..8, so the
-# run would explore one schedule per seed. Own copy of the state, so the run's
-# stream is the seed's and this check changes nothing it draws.
-rng_draw_not_short_cycle() {
-	local state=20260928
-	local -a d=()
-	local i
-	for ((i = 0; i < 12; i++)); do
-		state=$(( (state * 1103515245 + 12345) & 0x7fffffff ))
-		d+=("$(( (state >> RAND_DRAW_SHIFT) % 4 ))")
-	done
-	for ((i = 0; i < 4; i++)); do
-		[[ "${d[i]}" != "${d[i + 4]}" ]] || return 1
-	done
-	return 0
-}
-assert "generator draws are not a low-bit cycle" rng_draw_not_short_cycle
-
 # Plain values, the shape the helper is mostly handed.
 HOSTS=(
 	'127.0.0.1:27025'
@@ -131,17 +93,6 @@ RAW=(
 	$'\xff' $'\xfe' $'\xc3' $'\xe2\x82' $'\xed\xa0\x80' $'\xc0\x80'
 	$'\xf0\x9f' $'\xef\xbb' $'\x00'
 )
-
-VIOLATIONS=0
-# Report once per distinct invariant: the same harness bug fires on every
-# iteration and a flood would bury the actual value.
-report() {
-	local key="$1" detail="$2"
-	if (( VIOLATIONS < 20 )); then
-		VIOLATIONS=$(( VIOLATIONS + 1 ))
-		echo "FAIL $key: $detail" >&2
-	fi
-}
 
 # The families that ever reached a check in this run. A generator that stopped
 # emitting, say, an invisible format character would make the run vacuous
@@ -340,7 +291,7 @@ all_families_fired() {
 }
 no_violations() { (( VIOLATIONS == 0 )); }
 assert "generator reached every input family" all_families_fired
-echo "fuzz: seed=20260928 iterations=$ITERATIONS values=$ITERATIONS families_fired=$COVERED violations=$VIOLATIONS"
+echo "fuzz: seed=$FUZZ_SEED iterations=$ITERATIONS values=$ITERATIONS families_fired=$COVERED violations=$VIOLATIONS"
 assert "no invariant violation across the fuzz run" no_violations
 
 finish
