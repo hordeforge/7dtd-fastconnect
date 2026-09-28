@@ -153,7 +153,8 @@ namespace SdtdConnect
             {
                 foreach (var kv in wm.nameToWindowMap)
                 {
-                    if (kv.Value != null && kv.Value.isShowing) wins += " " + kv.Key;
+                    if (kv.Value != null && kv.Value.isShowing)
+                        wins += " " + LogText.SanitizeForLog(kv.Key);
                 }
             }
             Log.Out("[7dtd-fastconnect] win hb frame=" + Time.frameCount

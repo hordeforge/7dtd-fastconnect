@@ -55,6 +55,15 @@ source "$ROOT/scripts/config_validate.sh"
 # rejection lines carry a flattened value, not the raw one.
 source "$ROOT/scripts/log_sanitize.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
+# The prune below is a `find -delete` and a glob rm over whatever this names,
+# so a relative path or one climbing out with ".." would sweep files outside
+# the artifact dir. Same treatment CYCLE gets further down: warn and use the
+# default rather than act on the value. Sourced log_sanitize is what keeps the
+# warning to one line.
+if [[ "$SCRATCH" != /* || "$SCRATCH" == */.. || "$SCRATCH" == */../* ]]; then
+  echo "WARN: SCRATCH must be an absolute path with no '..' ('$(sanitize_log_text "$SCRATCH")'); using the default." >&2
+  SCRATCH="${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect"
+fi
 mkdir -p "$SCRATCH"
 # Every per-cycle artifact this script writes into SCRATCH. One list, two
 # prune rules below, so a new output cannot be added to one and missed by the
@@ -172,7 +181,13 @@ LAUNCH="$ROOT/scripts/launch_client.sh"
 server_pid=""
 launch_pid=""
 
-log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
+# Every line this writes lands in the control log the join tooling greps for
+# fixed markers ("result=", "==="), and several of the values interpolated here
+# (ZDTD_BIN, the prefix-derived log paths) are env overrides. Flattening in the
+# writer rather than at each call site is what makes that hold: a new log line
+# cannot forget the rule. Idempotent, so the call sites that already sanitize
+# are unaffected.
+log() { printf '%s\n' "$(sanitize_log_text "$*")" | tee -a "$LIFE_OUT"; }
 
 # Monotonic deadline source shared with mute_client_audio.sh: see
 # scripts/monotonic_clock.sh for why $SECONDS must not bound these waits.

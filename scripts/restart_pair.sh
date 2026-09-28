@@ -40,6 +40,10 @@ SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPTDIR/proton_paths.sh"
 # Shared value checks (is_tcp_port): see scripts/config_validate.sh.
 source "$SCRIPTDIR/config_validate.sh"
+# Flattening for the rejection lines below, which echo operator-supplied
+# values: a newline or a bidi override in one would forge a second terminal
+# line or read as something it is not. See scripts/log_sanitize.sh.
+source "$SCRIPTDIR/log_sanitize.sh"
 
 WORLD="$1"
 PORT="${2:-$DEFAULT_CONNECT_PORT}"
@@ -47,7 +51,7 @@ PORT="${2:-$DEFAULT_CONNECT_PORT}"
 # client could never join is a usage error (exit 2, same convention as
 # launch_client.sh GFX_API), not a fallback.
 if ! is_tcp_port "$PORT"; then
-  echo "ERROR: port must be 1-65535, got '$PORT'" >&2
+  echo "ERROR: port must be 1-65535, got '$(sanitize_log_text "$PORT")'" >&2
   exit 2
 fi
 # HOST joins the pair relaunch; the README lists it among the harness knobs and
@@ -57,7 +61,7 @@ fi
 # and empty mean the loopback default, as for every other knob.
 HOST="${HOST:-$DEFAULT_CONNECT_HOST}"
 if [[ "$HOST" =~ [[:space:]] ]]; then
-  echo "ERROR: host must be a single word, got '$HOST'" >&2
+  echo "ERROR: host must be a single word, got '$(sanitize_log_text "$HOST")'" >&2
   exit 2
 fi
 GAME_SRV="${GAME_SRV:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
@@ -73,7 +77,7 @@ ZDTD="${ZDTD:-${ZDTD_ROOT:+$ZDTD_ROOT/zig-out/bin/zdtd}}"
 # unwritable dir discovered after the pkill sweep would leave the previous
 # server/client pair dead with nothing relaunched.
 if [[ ! -x "$ZDTD" ]]; then
-  echo "ERROR: zdtd binary not found or not executable: ${ZDTD:-<unset>; set ZDTD=/path/to/zdtd}" >&2
+  echo "ERROR: zdtd binary not found or not executable: $(sanitize_log_text "${ZDTD:-<unset>}"); set ZDTD=/path/to/zdtd" >&2
   exit 1
 fi
 mkdir -p "$WORLD" "$LOGDIR"
@@ -109,8 +113,11 @@ trap on_exit EXIT
 # Sweep by the resolved binary, not by the default 'zig-out/bin/zdtd' layout:
 # ZDTD=/opt/zdtd would leave the running server in place, and the new one
 # would fail to bind while this script waited out its readiness probe.
-pkill -f 'zig-out/bin/zdtd' 2>/dev/null || true
-pkill -f "$ZDTD" 2>/dev/null || true
+# Literal-quoted, because -f takes an ERE matched against every process's
+# argv: an unescaped ZDTD is a pattern, and a path carrying '.' or '+' (or a
+# value chosen to match broadly) would sweep processes this run does not own.
+pkill -f "$(ere_quote_literal 'zig-out/bin/zdtd')" 2>/dev/null || true
+pkill -f "$(ere_quote_literal "$ZDTD")" 2>/dev/null || true
 # Kill the whole Proton/wine stack, not just the game exe. Leftover
 # pressure-vessel containers + wineservers leak threads across relaunches and
 # eventually hit RLIMIT_NPROC -> mono "Couldn't create thread" -> the client

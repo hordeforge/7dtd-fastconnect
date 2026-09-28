@@ -16,13 +16,19 @@ namespace SdtdConnect
         /// prefixes on stock window plumbing, so a throwing trace would take
         /// the UI down; ProbeFailure announces the first failure once so a
         /// permanently dead trace cannot read as "no windows opened".
+        ///
+        /// The subject is flattened: a window name is stock plumbing today, but
+        /// the rule every other echoed value in the mod follows is that nothing
+        /// reaches the client log unflattened, and this is the one string sink
+        /// that had no LogText call.
         /// </summary>
         internal static void Emit(string what, string subject)
         {
             if (!DiagToggle.Enabled) return;
             try
             {
-                Log.Out("[7dtd-fastconnect] wt " + what + " " + subject
+                Log.Out("[7dtd-fastconnect] wt " + what + " "
+                    + LogText.SanitizeForLog(subject)
                     + " t=" + Time.realtimeSinceStartup);
             }
             catch (Exception ex)

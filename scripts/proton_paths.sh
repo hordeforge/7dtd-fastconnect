@@ -48,6 +48,24 @@ resolve_prefix_user() {
   fi
 }
 
+# Quote a literal string for a pgrep/pkill -f pattern, which is an extended
+# regular expression matched against every process's argv. Unquoted, a path
+# carrying '.' or '+' matches more than itself, and an operator-supplied value
+# like ZDTD becomes a pattern that can sweep unrelated processes. Bash string
+# walking, not sed: this file is sourced by the launchers too, so the helper
+# cannot assume sed is on PATH.
+ere_quote_literal() {
+  local text="$1" out='' i c
+  for ((i = 0; i < ${#text}; i++)); do
+    c="${text:i:1}"
+    case "$c" in
+    '[' | ']' | '.' | '\' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '{' | '}' | '|') out+="\\$c" ;;
+    *) out+="$c" ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
 # Kill the leftover Proton/wine stack after the game exe itself is gone:
 # orphaned wineservers and pressure-vessel containers leak threads/NPROC
 # across cycles until the client wedges at "Initializing Steam", so every

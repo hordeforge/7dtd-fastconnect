@@ -380,7 +380,10 @@ The join harnesses (`one_shot_join.sh`, `zero_nre_join_loop.sh`,
 label knobs are checked at startup and name the fallback they use. `PORT`
 must be a real TCP port (1-65535, the same range the client accepts for
 `7DTD_CONNECT`); `restart_pair.sh` treats anything else as a usage error, the
-other two fall back to 27025. `START_SERVER` reads the boolean table above
+other two fall back to 27025. `SCRATCH` must be an absolute path with no
+`..`: the harnesses prune it by age and count, and a path that climbs out
+would have that prune reach files outside the artifact dir; a rejected value
+warns and the default is used. `START_SERVER` reads the boolean table above
 (`1` / `true` / `yes` / `on`, `0` / `false` / `no` / `off`), so
 `START_SERVER=true` starts the server instead of leaving the cycle to report
 "no listener on PORT". `HOST` is not pattern-checked: it is passed to the

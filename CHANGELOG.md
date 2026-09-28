@@ -229,6 +229,36 @@ and enum handling, so a patch bump would claim none of that.
   session and joining again inside that window was refused as a duplicate.
   The connect path now records the outcome from the live connection it sees,
   whoever started the attempt.
+- `restart_pair.sh` swept the previous server with `pkill -f "$ZDTD"`, an
+  unescaped extended regular expression matched against every process's argv:
+  a `ZDTD` carrying `.` or `+` matched more than the path, and one chosen to
+  match broadly killed unrelated processes. The pattern is now literal-quoted
+  by a shared `ere_quote_literal` helper in `proton_paths.sh`, used for both
+  the layout sweep and the `ZDTD` one.
+- The join harnesses' `log()` wrote its line unflattened, so an env override
+  carrying a newline (`ZDTD_BIN` and the prefix-derived log paths, which
+  reach the control log unvalidated) could forge a `result=` line that
+  `zero_nre_join_loop.sh` reads as a cycle verdict. Flattening moved into the
+  writer, so every current and future argument is covered; the call sites that
+  already flattened are unaffected.
+- `SCRATCH` was used for the age/count prune and the per-attempt `rm` with no
+  path check, so a relative value or one holding `..` had the prune reach files
+  outside the artifact dir. Both harnesses now require an absolute path with
+  no `..` and fall back to the default with a warning, the treatment `CYCLE`
+  already got.
+- The temp files the launcher, `package.sh`, and `zero_nre_join_loop.sh` write
+  through a redirect (`platform.cfg.tmp.$$`, the build record, the summary
+  trim) were not unlinked first, so a pre-created symlink at that predictable
+  pid-suffixed name was written through. They are removed before the write.
+- `ConnectTarget` echoed launch-context values through the character-only
+  sanitizer, so a `-connect=` value of any length chosen by a clicked
+  `steam://run` URL landed whole in the client log the join harnesses scan,
+  and a connect failure appended the exception's `StackTrace` unflattened to a
+  line that also reaches the on-screen F1 console. The echoes now use the
+  length-capping `EchoForMessage`, and the stack trace is flattened with the
+  rest of the message.
+- `WindowTrace.Emit` and the open-window heartbeat wrote window names straight
+  to the log, the only string sinks in the mod that bypassed `LogText`.
 - The console echo (`LogText.EchoForMessage`) cut a pasted value at 40 UTF-16
   code units, so a long paste of emoji or CJK could end in a lone surrogate
   and print as U+FFFD. It now counts code points, like `ConnectTarget`'s
@@ -249,6 +279,10 @@ and enum handling, so a patch bump would claim none of that.
   what the client advertises when its own version string cannot be read, and
   nothing in the tree recorded it, so a game update left the previous build
   on the wire.
+- `scripts/test_log_writer_sanitize.sh` pins the two rules the fixes above
+  rest on: a harness `log()` flattens an embedded newline so it cannot forge a
+  `result=` marker, and `ere_quote_literal` escapes the ERE metacharacters a
+  `pkill -f` pattern would otherwise read.
 - `docs/PRIVACY.md` maps the personal data the mod touches: the player display
   name (source, the pref it is stored in, the server it reaches, and the fact
   that it never reaches the client log), the synthetic platform id the

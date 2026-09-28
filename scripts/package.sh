@@ -171,6 +171,10 @@ fi
 # Written through a temp file and renamed, so an interrupted write cannot
 # leave a half record beside a good zip.
 BUILDINFO_TMP="$BUILDINFO.tmp.$$"
+# Unlinked first: the redirect below follows a symlink, and this is a
+# predictable pid-suffixed name in dist/ (same reason repro_zip.sh rm -fs its
+# temp archive before writing it).
+rm -f "$BUILDINFO_TMP"
 {
 	echo "version: $VERSION"
 	echo "commit: $(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"

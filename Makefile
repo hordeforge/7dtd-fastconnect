@@ -130,6 +130,7 @@ GATES := \
 	scripts/test_log_marker_fuzz.sh \
 	scripts/test_log_sanitize.sh \
 	scripts/test_log_sanitize_fuzz.sh \
+	scripts/test_log_writer_sanitize.sh \
 	scripts/test_join_evidence.sh \
 	scripts/test_version_sync.sh \
 	scripts/test_changelog_gate.sh \

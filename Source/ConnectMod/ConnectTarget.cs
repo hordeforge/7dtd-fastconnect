@@ -41,12 +41,14 @@ namespace SdtdConnect
         // twice or, worse, look like "no target set".
         static bool _badTargetWarned;
 
-        // Every launch-context value this module echoes goes through
-        // LogText.SanitizeForLog, the one implementation of the character
-        // rule. Env and argv values are attacker-shapable (a clicked
-        // steam://run URL chooses -connect= text), and join harnesses grep
-        // the client log for fixed markers, so the reported source has to be
-        // the line a reader and a grep both agree on.
+        // Every launch-context value this module echoes goes through LogText,
+        // the one implementation of the character rule. Env and argv values
+        // are attacker-shapable (a clicked steam://run URL chooses -connect=
+        // text), and join harnesses grep the client log for fixed markers, so
+        // the reported source has to be the line a reader and a grep both
+        // agree on. EchoForMessage rather than the bare sanitizer: the same
+        // value can carry any length, and the harness only ever needs enough
+        // of it to recognize what was tried.
         //
         // The rejection warning ends with "auto-join disabled", which is what a
         // rejected value means on its own. A rejected env var does not stop the
@@ -68,8 +70,12 @@ namespace SdtdConnect
         {
             if (_badTargetWarned) return;
             _badTargetWarned = true;
+            // EchoForMessage, not SanitizeForLog: this is the one launch-context
+            // echo with no length cap, and a clicked steam://run URL chooses the
+            // text, so an arbitrary-length value would land whole in the client
+            // log the join harnesses scan.
             Log.Warning("[7dtd-fastconnect] " + LogText.SanitizeForLog(sourceLabel) + "='"
-                + LogText.SanitizeForLog(raw) + "' ignored: "
+                + LogText.EchoForMessage(raw) + "' ignored: "
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
@@ -165,8 +171,8 @@ namespace SdtdConnect
         {
             if (_droppedPortArgWarned) return;
             _droppedPortArgWarned = true;
-            Log.Warning("[7dtd-fastconnect] port argument '" + LogText.SanitizeForLog(portArg)
-                + "' ignored: '" + LogText.SanitizeForLog(host) + "' already carries a port");
+            Log.Warning("[7dtd-fastconnect] port argument '" + LogText.EchoForMessage(portArg)
+                + "' ignored: '" + LogText.EchoForMessage(host) + "' already carries a port");
         }
 
         public static bool TryParse(string raw, out string host, out int port, out string error)
@@ -260,7 +266,7 @@ namespace SdtdConnect
             {
                 if (TryParse(env, out host, out port, out string envError))
                 {
-                    source = EnvVar + "=" + LogText.SanitizeForLog(env.Trim());
+                    source = EnvVar + "=" + LogText.EchoForMessage(env.Trim());
                     NoteAcceptedAfterRejection(source);
                     return true;
                 }
@@ -294,8 +300,8 @@ namespace SdtdConnect
                 if (TryParse(val, out host, out port, out string argError))
                 {
                     source = a.Contains("=")
-                        ? LogText.SanitizeForLog(a)
-                        : LogText.SanitizeForLog(a) + " " + LogText.SanitizeForLog(val);
+                        ? LogText.EchoForMessage(a)
+                        : LogText.EchoForMessage(a) + " " + LogText.EchoForMessage(val);
                     NoteAcceptedAfterRejection(source);
                     return true;
                 }
@@ -326,13 +332,13 @@ namespace SdtdConnect
                 {
                     if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
                     {
-                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + LogText.SanitizeForLog(host);
+                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + LogText.EchoForMessage(host);
                         return false;
                     }
                     var entry = Dns.EndGetHostEntry(pending);
                     if (entry.AddressList == null || entry.AddressList.Length == 0)
                     {
-                        message = "no IP for hostname " + LogText.SanitizeForLog(host);
+                        message = "no IP for hostname " + LogText.EchoForMessage(host);
                         return false;
                     }
                     // First address is the default; only a later one can
@@ -361,7 +367,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                message = "DNS failed for " + LogText.SanitizeForLog(host) + ": "
+                message = "DNS failed for " + LogText.EchoForMessage(host) + ": "
                     + ex.GetType().Name + ": " + ex.Message;
                 return false;
             }
@@ -480,7 +486,7 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
 
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={LogText.SanitizeForLog(host)})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={LogText.EchoForMessage(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 // Armed only once the attempt is under way: a Connect that
@@ -495,9 +501,13 @@ namespace SdtdConnect
             catch (Exception ex)
             {
                 // Full stack: ProtocolManager.SetupProtocols NRE is otherwise silent.
-                // The message may echo the raw host, so only that part is flattened;
-                // the deliberate newline before the stack trace stays.
-                message = ex.GetType().Name + ": " + LogText.SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
+                // Both parts are flattened, not just the message: a stack frame
+                // carries assembly and method names the exception built its
+                // own text from, and this line goes to the on-screen F1 console
+                // as well as the log. The deliberate newline before the stack
+                // trace stays, so the trace still reads as its own block.
+                message = ex.GetType().Name + ": " + LogText.SanitizeForLog(ex.Message)
+                    + "\n" + LogText.SanitizeForLog(ex.StackTrace);
                 return false;
             }
         }

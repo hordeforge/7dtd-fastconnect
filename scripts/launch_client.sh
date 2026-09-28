@@ -213,6 +213,10 @@ swap_local_platform() {
   # holds either the whole original or nothing, and "nothing" takes the
   # refuse-the-swap branch instead of destroying anything.
   local bak_tmp="$PLATFORM_BAK.tmp.$$"
+  # Removed first, so a pre-created name is unlinked rather than written
+  # through: cp and the redirect below both follow a symlink, and this one is
+  # a predictable pid-suffixed path in the game install dir.
+  rm -f "$bak_tmp"
   if ! cp "$PLATFORM_CFG" "$bak_tmp"; then
     rm -f "$bak_tmp" 2>/dev/null || true
     echo "WARN: could not back up $PLATFORM_CFG; refusing the Local-platform swap" >&2
@@ -231,6 +235,9 @@ swap_local_platform() {
   # rename puts the Steam config or the Local one in the file, never a partial
   # one, and a swap that cannot be written leaves the original in place.
   local cfg_tmp="$PLATFORM_CFG.tmp.$$"
+  # Same reason as the backup temp above: the redirect follows a symlink, so
+  # the name is unlinked first rather than written through.
+  rm -f "$cfg_tmp"
   if ! printf 'platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n' >"$cfg_tmp"; then
     rm -f "$cfg_tmp" 2>/dev/null || true
     PLATFORM_SWAPPED=0

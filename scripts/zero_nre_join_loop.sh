@@ -59,6 +59,13 @@ source "$ROOT/scripts/log_markers.sh"
 # above).
 source "$ROOT/scripts/join_evidence.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
+# The prune and the per-attempt rm below act over whatever this names, so a
+# relative path or one climbing out with ".." would touch files outside the
+# artifact dir. Warn and use the default rather than act on the value.
+if [[ "$SCRATCH" != /* || "$SCRATCH" == */.. || "$SCRATCH" == */../* ]]; then
+  echo "WARN: SCRATCH must be an absolute path with no '..' ('$(sanitize_log_text "$SCRATCH")'); using the default." >&2
+  SCRATCH="${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect"
+fi
 mkdir -p "$SCRATCH"
 # Bound accumulation: zero_nre creates per-attempt logs that would grow without
 # limit if the harness is run repeatedly (e.g. CI). Prune old cycles.
@@ -92,7 +99,11 @@ fi
 # truncation below would abort under set -e before any attempt starts.
 mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
 
-log() { printf '[zero_nre] %s\n' "$*" | tee -a "$SCRATCH/zero_nre_loop.log"; }
+# Flattening in the writer: every line here also reaches the per-attempt
+# transcript zero_nre_join_loop.sh greps for "^result=", and the values
+# interpolated below include env overrides (ZDTD_BIN, the prefix-derived log
+# paths). Idempotent, so call sites that already sanitize are unaffected.
+log() { printf '[zero_nre] %s\n' "$(sanitize_log_text "$*")" | tee -a "$SCRATCH/zero_nre_loop.log"; }
 
 # Count matching lines; "0" when the log is missing or has no matches.
 count_matches() {
@@ -224,6 +235,9 @@ rm -f "$SCRATCH/zero_nre_PASS.txt" "$SCRATCH/zero_nre_FAIL.txt"
 # newest lines once per run instead; per-run growth is a handful of lines.
 SUMMARY="$SCRATCH/zero_nre_summary.txt"
 if [[ -f "$SUMMARY" ]] && (( $(wc -l <"$SUMMARY") > 400 )); then
+  # Unlinked first: the redirect follows a symlink and the name is fixed in a
+  # directory the operator can point anywhere with SCRATCH.
+  rm -f "$SCRATCH/.zero_nre_summary.tmp"
   tail -n 200 "$SUMMARY" >"$SCRATCH/.zero_nre_summary.tmp" \
     && mv "$SCRATCH/.zero_nre_summary.tmp" "$SUMMARY"
 fi
