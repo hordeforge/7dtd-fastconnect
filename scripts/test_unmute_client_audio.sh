@@ -79,6 +79,36 @@ if command -v jq >/dev/null 2>&1; then
 	assert "refused unmute says the client may start silent" \
 		grep -q 'the client may start silent' "$BEHAV/err"
 	assert "refused unmute claims no success" not_grep 'Unmuted 7 Days To Die' "$BEHAV/out"
+
+	# The refusal above fails every index, so it cannot tell a helper that
+	# gives up on the first refusal from one that keeps going. Here only
+	# stream 7 is refused: the helper must still un mute 11 and still report
+	# the failure, because a helper that stopped at the first error would
+	# leave 11 muted and WirePlumber would persist that for the next launch.
+	cat >"$FAILBIN/pactl" <<-'STUB'
+		case "$1" in
+		-f) cat "${PACTL_JSON:?}" ;;
+		set-sink-input-mute)
+			[ "$2" = 7 ] && { echo 'pactl: stream not found' >&2; exit 1; }
+			printf '%s\n' "$*" >>"${PACTL_LOG:?}"
+			;;
+		*) echo "unexpected pactl call: $*" >&2; exit 1 ;;
+		esac
+	STUB
+	chmod +x "$FAILBIN/pactl"
+	: > "$BEHAV/unmute.log"
+	partial_rc=0
+	PATH="$FAILBIN:$PATH" PACTL_JSON="$BEHAV/streams.json" PACTL_LOG="$BEHAV/unmute.log" \
+		XDG_STATE_HOME="$BEHAV" \
+		"$ROOT/scripts/unmute_client_audio.sh" >"$BEHAV/out" 2>"$BEHAV/err" || partial_rc=$?
+	assert "a partly refused unmute still exits 1" test "$partial_rc" -eq 1
+	assert "a partly refused unmute keeps going past the refusal" \
+		grep -qx 'set-sink-input-mute 11 0' "$BEHAV/unmute.log"
+	assert "the refused stream is still named" \
+		grep -q 'could not unmute sink input 7' "$BEHAV/err"
+	assert "only the stream that changed is reported" \
+		grep -q 'Unmuted 7 Days To Die audio stream (sink input 11)' "$BEHAV/out" \
+		&& not_grep 'sink input 7' "$BEHAV/out"
 	# Back to no live stream for the branches below.
 	printf '%s\n' '[]' > "$BEHAV/streams.json"
 

@@ -44,8 +44,14 @@ throwing_resolution_is_retryable() {
 }
 
 # "no usable target" is a decision, not a failure, so it latches as well:
-# re-reading the env on every menu open would repeat the idle line.
-idle_latches() { grep -q '_autoTried = true;' "$API"; }
+# re-reading the env on every menu open would repeat the idle line. The arm
+# must sit above the idle branch, not merely exist somewhere in the file.
+idle_latches() {
+	local arm idle
+	arm="$(line_of '_autoTried = true;')" || return 1
+	idle="$(line_of 'auto-join idle (no usable')" || return 1
+	(( arm < idle ))
+}
 
 assert "arms the latch after the launch context resolves" latch_armed_after_resolution
 assert "arms the latch from one place" single_arming_site

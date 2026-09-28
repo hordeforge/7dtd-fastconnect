@@ -15,7 +15,7 @@ the stock client.
 | Field | Where it comes from | Where it is written | Who else sees it |
 |---|---|---|---|
 | Player display name | env `7DTD_PLAYER_NAME`, or in automation mode the OS user name, then the machine name, then `player` (`Source/ConnectMod/PlayerNames.cs:54`) | the stock `EnumGamePrefs.PlayerName` pref in the client profile, via `GamePrefs.Set` and `Save()` (`Source/ConnectMod/ModApi.cs:196`) | the server it joins: the name travels in the login and lands in that server's logs and player list, which this repo does not control |
-| Synthetic platform id | FNV-1a hash of the machine name, else the OS user name, else a fixed value (`Source/ConnectMod/AuthFallbackPatches.cs:74`) | not stored by the mod; sent as the platform user id at join | the same server, which persists player data against it |
+| Synthetic platform id | FNV-1a hash of the machine name, else the OS user name, else a fixed value (`Source/ConnectMod/AuthFallbackPatches.cs:73`) | not stored by the mod; sent as the platform user id at join | the same server, which persists player data against it |
 | Harness artifacts | the client's own log file | `SCRATCH` (`~/.cache/7dtd-fastconnect` by default), pruned by age and count (`scripts/one_shot_join.sh:59`) | nobody; the files stay on the machine that ran the harness |
 
 The auth ticket is not on this list: with no Steam or EOS login the mod

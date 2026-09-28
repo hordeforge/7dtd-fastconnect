@@ -11,15 +11,22 @@ source "$ROOT/scripts/test_common.sh"
 METHOD="$(sed -n '/static void ApplyPlayerNameOverride()/,/^        }$/p' "$SOURCE")"
 assert "ApplyPlayerNameOverride method exists" test -n "$METHOD"
 
+# Scoped to InitMod, not the file: a whole-file grep for the name is satisfied
+# by a call from any other method, so it would pass with the override moved
+# out of the init path, which is the one thing this gate has to pin.
+INITMOD="$(sed -n '/public void InitMod(Mod _modInstance)/,/^        }$/p' "$SOURCE")"
+assert "InitMod method exists" test -n "$INITMOD"
+
 body_contains() { [[ "$METHOD" == *"$1"* ]]; }
 body_omits() { [[ "$METHOD" != *"$1"* ]]; }
+initmod_contains() { [[ "$INITMOD" == *"$1"* ]]; }
 
 assert "names the opt-in environment variable" grep -q 'PlayerNameEnv = "7DTD_PLAYER_NAME"' "$SOURCE"
 # The call is a method group passed to the guarded-step helper, so accept both
 # that form and a plain call; what is asserted is that InitMod runs the
 # override, not how the call is spelled.
-assert "reads the requested name before auto-join" \
-	grep -qE 'ApplyPlayerNameOverride(\(\))?[;)]' "$SOURCE"
+assert "InitMod runs the player-name override" \
+	initmod_contains 'ApplyPlayerNameOverride'
 assert "falls back to a generated name when the variable is unset" \
 	body_contains 'PlayerNames.Resolve()'
 assert "normalizes an env-supplied name through the shared helper" \
@@ -55,9 +62,18 @@ assert "the page names the pref the name is stored in" \
 	grep -q 'EnumGamePrefs.PlayerName' "$PRIVACY"
 assert "the page says the name never reaches the client log" \
 	grep -q 'Never in the client log' "$PRIVACY"
+doc_link_lands() {
+	local file="$1" ref="$2" needle="$3"
+	grep -q "$file:$ref" "$PRIVACY" || return 1
+	[[ "$(sed -n "${ref}p" "$ROOT/Source/ConnectMod/$file")" == *"$needle"* ]]
+}
+
+# A line reference that no longer points at what the page claims is worse than
+# a missing one, so the reference is resolved and the named line is read: the
+# page cannot drift onto an unrelated statement unnoticed.
 assert "the page links the name path back to the code" \
-	grep -q 'Source/ConnectMod/ModApi.cs:196' "$PRIVACY"
+	doc_link_lands ModApi.cs 196 'player name applied from'
 assert "the page covers the synthetic id the Steam-less path sends" \
-	grep -q 'Source/ConnectMod/AuthFallbackPatches.cs:74' "$PRIVACY"
+	doc_link_lands AuthFallbackPatches.cs 73 'static PlatformUserIdentifierAbs SyntheticId()'
 
 finish

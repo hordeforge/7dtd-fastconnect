@@ -28,10 +28,22 @@ assert() {
 # check that must reject a missing input, a validator that must exit 2. Same
 # PASS/FAIL accounting, opposite expectation.
 assert_fails() {
-	local name="$1"
+	local name="$1" rc=0
 	shift
-	if "$@"; then echo "FAIL $name" >&2; FAILS=$((FAILS + 1))
-	else echo "PASS $name"; fi
+	"$@" || rc=$?
+	# 126/127 mean the command under test never ran (not executable, or not
+	# found), which is not a refusal. Reading those as a pass would let a
+	# renamed or deleted script report green for every case that gates on it.
+	if ((rc == 126 || rc == 127)); then
+		echo "FAIL $name" >&2
+		echo "FAIL: '$1' did not run (status $rc), so nothing was refused" >&2
+		FAILS=$((FAILS + 1))
+	elif ((rc == 0)); then
+		echo "FAIL $name" >&2
+		FAILS=$((FAILS + 1))
+	else
+		echo "PASS $name"
+	fi
 }
 
 # assert can only test success, so "this text must NOT appear in this file"
