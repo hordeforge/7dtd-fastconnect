@@ -114,6 +114,7 @@ GATES := \
 	scripts/test_automation_mode.sh \
 	scripts/test_local_host_world_load.sh \
 	scripts/test_eula_gate_once.sh \
+	scripts/test_auto_join_latch.sh \
 	scripts/test_mute_client_audio.sh \
 	scripts/test_config_validate.sh \
 	scripts/test_unmute_client_audio.sh \

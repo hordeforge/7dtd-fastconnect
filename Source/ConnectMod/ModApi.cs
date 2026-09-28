@@ -208,9 +208,29 @@ namespace SdtdConnect
             }
 
             if (_autoTried) return;
+
+            // Latched after the launch context resolves, not on entry: the
+            // latch is the one auto-join attempt for the session, and a
+            // resolution that threw (env read or logger blocked) had not spent
+            // it. Left armed on a throw, the next main-menu open returns
+            // immediately and the client never auto-joins, with nothing in the
+            // log but the probe's first-failure notice.
+            string host;
+            int port;
+            string source;
+            bool haveTarget;
+            try
+            {
+                haveTarget = ConnectTarget.TryFromLaunchContext(out host, out port, out source);
+            }
+            catch (Exception ex)
+            {
+                ProbeFailure.Once("auto-join target", ex);
+                return;
+            }
             _autoTried = true;
 
-            if (!ConnectTarget.TryFromLaunchContext(out string host, out int port, out string source))
+            if (!haveTarget)
             {
                 // "no usable" covers both unset and set-but-rejected: the
                 // rejection already warned with its own reason, and claiming

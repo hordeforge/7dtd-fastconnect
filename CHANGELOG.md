@@ -130,6 +130,21 @@ and enum handling, so a patch bump would claim none of that.
   dropping them. `connect 127.0.0.1 27025 9999` joined 27025 silently, the
   same shape as the dropped-port-argument warning `MergePortArg` already
   emits.
+- A failed EULA-accept is no longer latched as a resolved gate.
+  `EulaSkip.BlockGateWindow` set its once-per-process latch after every
+  attempt, so a `GamePrefs` write that threw left the latch armed with the
+  profile unwritten: the gate window stayed blocked, no later request retried
+  the write, and the next launch opened the EULA window again. The latch is
+  now armed by the accept; the `MainMenuOpened` dispatch still runs on the
+  failure path so a client is never left on a gate window.
+- Auto-join no longer spends its one attempt before making it. `ModApi`
+  armed `_autoTried` on entry to the `MainMenuOpened` handler, so a launch
+  context that threw (blocked env read or logger) left the latch armed with
+  no join attempted, and every later main-menu open returned at the latch: the
+  client never auto-joined for the rest of the session. The latch is armed
+  after the target resolves, and a throwing resolution announces once through
+  `ProbeFailure` and retries on the next menu open. Pinned by
+  `scripts/test_auto_join_latch.sh`.
 - Client-log evidence copied into the join control log is sanitized and
   prefixed. `one_shot_join.sh` appended the client log's join lines to
   `client-lifecycle-<cycle>.txt` verbatim, and the client log carries

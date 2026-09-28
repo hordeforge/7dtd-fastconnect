@@ -42,12 +42,19 @@ namespace SdtdConnect
         /// second request in the same session would save GamePrefs to disk
         /// again and re-fire MainMenuOpened at every mod, for a gate that is
         /// already resolved. A repeat answers what the first one did, blocked,
-        /// with no second write and no second event. An attempt that threw
-        /// leaves the latch unset, so the next request retries it.
+        /// with no second write and no second event. The latch is armed by the
+        /// accept, not by the attempt: a prefs write that threw is not a
+        /// resolved gate, and latching it would leave the profile unwritten
+        /// (the EULA window again on the next launch) with no path left to
+        /// retry inside this session. An accept that threw therefore leaves the
+        /// latch unset, so the next request retries it. The dispatch runs either
+        /// way: a failed accept still has to unblock the menu, or the client
+        /// sits on a gate window whose prefs never landed.
         /// </summary>
         internal static bool BlockGateWindow(GUIWindowManager wm, string logTag)
         {
             if (_gateHandled) return false;
+            bool accepted = true;
             try
             {
                 Log.Out("[7dtd-fastconnect] blocking GUI " + logTag);
@@ -55,6 +62,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
+                accepted = false;
                 Log.Warning("[7dtd-fastconnect] windowEula accept failed (" + logTag + "): " + ex.GetType().Name + ": " + ex.Message);
             }
             try
@@ -69,7 +77,7 @@ namespace SdtdConnect
             {
                 Log.Warning("[7dtd-fastconnect] MainMenuOpened dispatch failed (" + logTag + "): " + ex.GetType().Name + ": " + ex.Message);
             }
-            _gateHandled = true;
+            _gateHandled = accepted;
             return false;
         }
     }

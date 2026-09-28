@@ -29,8 +29,21 @@ latch_precedes_work() {
 latch_follows_dispatch() {
 	local dispatch latch
 	dispatch="$(line_of 'ModEvents.MainMenuOpened.Invoke(ref data);')" || return 1
-	latch="$(line_of '_gateHandled = true;')" || return 1
+	latch="$(line_of '_gateHandled = accepted;')" || return 1
 	(( dispatch < latch ))
+}
+
+# Armed by the accept, not by the attempt: a prefs write that threw leaves the
+# profile unwritten, so latching it would strand the EULA gate on the next
+# launch with no retry left. The accept's own catch must set the flag false,
+# and the dispatch must stay outside it, or a failed write also silences the
+# unblocking path.
+latch_armed_by_accept() {
+	local catchStart catchEnd latch
+	catchStart="$(line_of 'accepted = false;')" || return 1
+	catchEnd="$(line_of 'windowEula accept failed')" || return 1
+	latch="$(line_of '_gateHandled = accepted;')" || return 1
+	(( catchStart < catchEnd && catchEnd < latch ))
 }
 
 # A repeat returns false, the same verdict as the first request: the window
@@ -48,6 +61,7 @@ single_latched_entry() {
 
 assert "reads the latch before accepting the EULA" latch_precedes_work
 assert "latches after the MainMenuOpened dispatch" latch_follows_dispatch
+assert "arms the latch from the accept, not the attempt" latch_armed_by_accept
 assert "a repeat request still blocks the window" repeat_still_blocks
 assert "both Open arities share the latched body" single_latched_entry
 
