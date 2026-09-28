@@ -20,6 +20,14 @@ namespace SdtdConnect
         // hitches), so keep exactly one instead of adding a stop path.
         static bool _hitchMonitorStarted;
 
+        /// <summary>
+        /// Whether a trace line would be emitted. Call sites on the startup
+        /// coroutines must test this before building their line: the argument
+        /// is concatenated by the caller, so gating inside Trace alone still
+        /// pays for the string on every step of a world load that logs nothing.
+        /// </summary>
+        internal static bool Enabled => DiagToggle.Enabled;
+
         /// <summary>Startup trace, `diag on` / 7DTD_CONNECT_DEBUG=1 only (~330 steps).</summary>
         internal static void Trace(string message)
         {

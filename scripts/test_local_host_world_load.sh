@@ -38,6 +38,15 @@ assert "never touches PlayerMoveController" lacks 'PlayerMoveController'
 # Both live in PerfTrace.cs, the diagnostic half of the local-host work.
 assert "gates the startup trace behind diag" grep -q 'if (DiagToggle.Enabled)' "$TRACE"
 assert "gates hitch logging behind diag" grep -q '!DiagToggle.Enabled) continue' "$TRACE"
+# A Trace line is concatenated by its caller, so gating inside Trace alone
+# still builds the string on every step of a world load that traces nothing.
+# Each call site must open with the toggle check on the line above it.
+unguarded_trace() {
+	awk '/PerfTrace\.Trace\(/ {
+		if (prev !~ /if \((PerfTrace\.Enabled|tracing)\)$/) { print; bad = 1 }
+	} { prev = $0 } END { exit bad }' "$PATCHES"
+}
+assert "gates every startup trace line at its call site" unguarded_trace
 # Flatten completes once per local-host session; the eternal hitch monitor
 # must therefore be started once per process, not once per session.
 assert "starts only one eternal hitch monitor" grep -q 'if (_hitchMonitorStarted) return' "$TRACE"

@@ -94,7 +94,8 @@ namespace SdtdConnect
                     if (!MoveNext("StartAsServer", iterator, out object current))
                     {
                         stack.Pop();
-                        PerfTrace.Trace("completed depth " + stack.Count + " after step " + step);
+                        if (PerfTrace.Enabled)
+                            PerfTrace.Trace("completed depth " + stack.Count + " after step " + step);
                         continue;
                     }
                     if (current is IEnumerator nested)
@@ -106,11 +107,17 @@ namespace SdtdConnect
                     // Frame counter on both sides of the yield separates a step that
                     // never returns (a "->" with no matching "<-") from Unity dropping
                     // the coroutine (matching "<-", then nothing).
-                    PerfTrace.Trace("-> step " + step + " depth " + stack.Count
-                        + " yield " + (current == null ? "null" : current.GetType().Name)
-                        + " frame " + Time.frameCount);
+                    // The lines are built here, not inside Trace, so each one is
+                    // gated on the toggle: a world load runs hundreds of steps
+                    // with diag off and must not concatenate a line per step.
+                    bool tracing = PerfTrace.Enabled;
+                    if (tracing)
+                        PerfTrace.Trace("-> step " + step + " depth " + stack.Count
+                            + " yield " + (current == null ? "null" : current.GetType().Name)
+                            + " frame " + Time.frameCount);
                     yield return current;
-                    PerfTrace.Trace("<- step " + step + " frame " + Time.frameCount);
+                    if (tracing)
+                        PerfTrace.Trace("<- step " + step + " frame " + Time.frameCount);
                 }
             }
             finally
@@ -209,10 +216,14 @@ namespace SdtdConnect
             // or the instrument misses the failure it exists to catch.
             while (MoveNext("createWorld", root, out object current))
             {
-                PerfTrace.Trace("createWorld step " + (++step)
-                    + " skipped " + skippedFrameBreaks
-                    + " yield " + (current == null ? "null" : current.GetType().Name)
-                    + " frame " + Time.frameCount);
+                step++;
+                // Same gate as the step lines in Flatten: the line is built at
+                // the call site, so an untested Trace would still concatenate it.
+                if (PerfTrace.Enabled)
+                    PerfTrace.Trace("createWorld step " + step
+                        + " skipped " + skippedFrameBreaks
+                        + " yield " + (current == null ? "null" : current.GetType().Name)
+                        + " frame " + Time.frameCount);
                 if (current is IEnumerator nested)
                 {
                     if (skippedFrameBreaks >= CreateWorldUnsafeFrameBreaks)

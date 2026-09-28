@@ -155,6 +155,11 @@ in the affected sections instead of being papered over.
 
 ### Changed
 
+- The local-host startup trace no longer builds its line when verbose tracing
+  is off. `PerfTrace.Trace` gates the log write, but the caller concatenated
+  the line first, so every step of a world load allocated a string that was
+  dropped. The call sites now test `PerfTrace.Enabled` before building one;
+  the trace output is unchanged when diag is on.
 - A rejected target or a failed connect from the F1 console is logged at error
   severity, matching what the auto-join path already did for the same outcome.
   The console still shows the message; only the log level changed, so a
