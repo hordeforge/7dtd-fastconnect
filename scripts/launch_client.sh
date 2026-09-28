@@ -45,6 +45,15 @@ source "$SCRIPT_DIR/proton_paths.sh"
 # scripts/log_sanitize.sh; same contract as ConnectTarget.SanitizeForLog.
 source "$SCRIPT_DIR/log_sanitize.sh"
 
+# Echo $1 without leading or trailing whitespace. Both opt-out flags below
+# (CLIENT_MUTE, CLIENT_PLATFORM) trim before matching, the shell twin of the
+# EnvFlags trim the mod applies to the 7DTD_CONNECT_* flags.
+trim_ws() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  printf '%s' "${value%"${value##*[![:space:]]}"}"
+}
+
 GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 STEAM_APPID="${STEAM_APPID:-251570}"
 # Prefer Proton Experimental / GE if present; fall back to steam launch.
@@ -113,8 +122,9 @@ fi
 # 7DTD_CONNECT_* flags). A blank value is not an opt-out: it trims to empty and
 # keeps the unset default, mute on, which is what EnvFlags.IsSetOn does with a
 # whitespace-only value.
-MUTE_CLIENT="$(lower "$(trim "${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}")")"
-case "$MUTE_CLIENT" in
+MUTE_CLIENT="${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}"
+MUTE_MODE="$(trim_ws "$MUTE_CLIENT")"
+case "${MUTE_MODE,,}" in
   0 | false | no | off) MUTE_CLIENT="" ;;
 esac
 MUTE_WAIT="$(trim "${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}")"
@@ -136,8 +146,8 @@ LOCAL_PLATFORM=0
 # documented value (same shape as the MUTE_CLIENT opt-out above). An
 # unrecognized non-empty value warns instead of silently launching with Steam
 # auth: the join would then fail much later with opaque auth errors.
-PLATFORM_MODE="$(lower "$(trim "${CLIENT_PLATFORM:-}")")"
-case "$PLATFORM_MODE" in
+PLATFORM_MODE="$(trim_ws "${CLIENT_PLATFORM:-}")"
+case "${PLATFORM_MODE,,}" in
   "") ;;
   1 | local | lan) LOCAL_PLATFORM=1 ;;
   *)

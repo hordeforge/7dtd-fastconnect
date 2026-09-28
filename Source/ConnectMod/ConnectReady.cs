@@ -48,60 +48,10 @@ namespace SdtdConnect
                     return false;
                 }
 
-                // EOS login must finish before connecting on Steam clients:
-                // ProtocolManager.SetupProtocols builds Platform.EOS.NetworkServerEos
-                // and NREs when the cross user has no id yet (observed racing the
-                // [EOS] Login at ~8 s of boot). Wait for the cross user (bounded),
-                // then proceed anyway so a broken or absent EOS login cannot block
-                // the join forever. Local-mode clients have no cross platform, so
-                // this gate never engages there.
-                const float crossUserWaitMaxSec = 30f;
-                try
+                if (!TryCrossUserReady(out string crossReason))
                 {
-                    var cross = Platform.PlatformManager.CrossplatformPlatform;
-                    if (cross != null)
-                    {
-                        var user = cross.User;
-                        if (user != null && user.PlatformUserId == null)
-                        {
-                            if (_crossWaitStart < 0f)
-                                _crossWaitStart = UnityEngine.Time.unscaledTime;
-                            if (UnityEngine.Time.unscaledTime - _crossWaitStart < crossUserWaitMaxSec)
-                            {
-                                reason = "cross user not logged in yet";
-                                return false;
-                            }
-                            if (!_crossProceedLogged)
-                            {
-                                _crossProceedLogged = true;
-                                Log.Out("[7dtd-fastconnect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
-                            }
-                        }
-                        else
-                        {
-                            // The wait is only armed while the id is actually
-                            // missing, so anything else (logged in, or the
-                            // platform/user torn down) ends the episode: a
-                            // deadline from an earlier episode kept across the
-                            // gap would already be past, and the next wait
-                            // would skip its whole window and join into the
-                            // NRE it exists to avoid.
-                            _crossWaitStart = -1f;
-                            _crossProceedLogged = false;
-                        }
-                    }
-                    else
-                    {
-                        // Local-mode client, or a cross platform torn down
-                        // before this check ran: same reset, for the same
-                        // reason.
-                        _crossWaitStart = -1f;
-                        _crossProceedLogged = false;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Out("[7dtd-fastconnect] cross-user note: " + ex.Message);
+                    reason = crossReason;
+                    return false;
                 }
 
                 // Native steam user is optional when EAC off: block only during the
@@ -151,6 +101,57 @@ namespace SdtdConnect
             {
                 reason = "IsReady ex: " + ex.Message;
                 return false;
+            }
+        }
+
+        // EOS login must finish before connecting on Steam clients:
+        // ProtocolManager.SetupProtocols builds Platform.EOS.NetworkServerEos
+        // and NREs when the cross user has no id yet (observed racing the
+        // [EOS] Login at ~8 s of boot). Wait for the cross user (bounded),
+        // then proceed anyway so a broken or absent EOS login cannot block
+        // the join forever. Local-mode clients have no cross platform, so
+        // this gate never engages there.
+        static bool TryCrossUserReady(out string reason)
+        {
+            reason = null;
+            const float crossUserWaitMaxSec = 30f;
+            try
+            {
+                var cross = Platform.PlatformManager.CrossplatformPlatform;
+                // A null platform is a Local-mode client, or a cross platform
+                // torn down before this check ran: same reset, same reason.
+                var user = cross?.User;
+                if (user == null || user.PlatformUserId != null)
+                {
+                    // The wait is only armed while the id is actually missing,
+                    // so anything else (logged in, or the platform/user torn
+                    // down) ends the episode: a deadline from an earlier
+                    // episode kept across the gap would already be past, and
+                    // the next wait would skip its whole window and join into
+                    // the NRE it exists to avoid.
+                    _crossWaitStart = -1f;
+                    _crossProceedLogged = false;
+                    return true;
+                }
+
+                if (_crossWaitStart < 0f)
+                    _crossWaitStart = UnityEngine.Time.unscaledTime;
+                if (UnityEngine.Time.unscaledTime - _crossWaitStart < crossUserWaitMaxSec)
+                {
+                    reason = "cross user not logged in yet";
+                    return false;
+                }
+                if (!_crossProceedLogged)
+                {
+                    _crossProceedLogged = true;
+                    Log.Out("[7dtd-fastconnect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Out("[7dtd-fastconnect] cross-user note: " + ex.Message);
+                return true;
             }
         }
     }

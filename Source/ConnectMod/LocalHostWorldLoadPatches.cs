@@ -351,7 +351,14 @@ namespace SdtdConnect
         static void ReleaseForceLoadSync()
         {
             if (!_forceSyncHeld) return;
-            try { BootUnblock.ForceLoadSyncField().SetValue(null, _forceSyncPrevious); }
+            try
+            {
+                // ForceSyncField() is nullable on a renamed field; a null here
+                // would throw inside the finally that owns the restore, so it is
+                // handled the same way HoldForceLoadSync refuses to hold.
+                FieldInfo field = BootUnblock.ForceLoadSyncField();
+                if (field != null) field.SetValue(null, _forceSyncPrevious);
+            }
             catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync release failed: " + ex.Message); }
             _forceSyncHeld = false;
         }

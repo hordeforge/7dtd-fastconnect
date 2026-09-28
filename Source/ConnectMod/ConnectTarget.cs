@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 
 namespace SdtdConnect
@@ -352,10 +353,13 @@ namespace SdtdConnect
                         message = "no IP for hostname " + SanitizeForLog(host);
                         return false;
                     }
+                    // First address is the default; only a later one can
+                    // replace it, and only with IPv4. Starting at 1 keeps the
+                    // scan from re-testing the entry already used.
                     ip = entry.AddressList[0].ToString();
-                    for (int i = 0; i < entry.AddressList.Length; i++)
+                    for (int i = 1; i < entry.AddressList.Length; i++)
                     {
-                        if (entry.AddressList[i].AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        if (entry.AddressList[i].AddressFamily == AddressFamily.InterNetwork)
                         {
                             ip = entry.AddressList[i].ToString();
                             break;
@@ -364,10 +368,12 @@ namespace SdtdConnect
                 }
                 finally
                 {
-                    // Close on an already-disposed wait handle throws; the
-                    // handle is unreachable either way and this runs on the
-                    // success path of a resolve the caller is about to use.
-                    try { pending.AsyncWaitHandle.Close(); } catch (Exception) { }
+                    // Close on an already-disposed wait handle throws
+                    // ObjectDisposedException; the handle is unreachable
+                    // either way and this runs on the success path of a
+                    // resolve the caller is about to use.
+                    try { pending.AsyncWaitHandle.Close(); }
+                    catch (ObjectDisposedException) { }
                 }
                 return true;
             }

@@ -35,28 +35,31 @@ namespace SdtdConnect
                 Log.Warning("[7dtd-fastconnect] intro movie disable failed: " + ex.Message);
             }
 
-            if (AutomationMode.Enabled) try
+            if (AutomationMode.Enabled)
             {
-                // Stock only enables RIB in editor; async addressables starve at ~1 FPS under Proton.
-                BootUnblock.ApplyFrameUncap("InitMod");
-                BootUnblock.ApplyForceLoadSync();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] boot unblock failed: " + ex.Message);
-            }
+                try
+                {
+                    // Stock only enables RIB in editor; async addressables starve at ~1 FPS under Proton.
+                    BootUnblock.ApplyFrameUncap("InitMod");
+                    BootUnblock.ApplyForceLoadSync();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[7dtd-fastconnect] boot unblock failed: " + ex.Message);
+                }
 
-            if (AutomationMode.Enabled) try
-            {
-                ApplyPlayerNameOverride();
-                GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
-                GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
-                // EULA gate blocks MainMenu (scroll+accept); force accepted for automation.
-                Log.Out("[7dtd-fastconnect] EULA prefs accepted=" + EulaSkip.AcceptLatest());
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] Discord/intro/eula prefs set failed: " + ex.Message);
+                try
+                {
+                    ApplyPlayerNameOverride();
+                    GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
+                    GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
+                    // EULA gate blocks MainMenu (scroll+accept); force accepted for automation.
+                    Log.Out("[7dtd-fastconnect] EULA prefs accepted=" + EulaSkip.AcceptLatest());
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[7dtd-fastconnect] Discord/intro/eula prefs set failed: " + ex.Message);
+                }
             }
 
             try
@@ -89,13 +92,16 @@ namespace SdtdConnect
                 Log.Error("[7dtd-fastconnect] Harmony failed: " + ex.Message);
             }
 
-            if (AutomationMode.Enabled) try
+            if (AutomationMode.Enabled)
             {
-                XUiC_MainMenu.shownNewsScreenOnce = true;
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] InitMod news-screen skip failed: " + ex.Message);
+                try
+                {
+                    XUiC_MainMenu.shownNewsScreenOnce = true;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[7dtd-fastconnect] InitMod news-screen skip failed: " + ex.Message);
+                }
             }
 
             try
@@ -165,15 +171,18 @@ namespace SdtdConnect
         static void OnMainMenuOpened(ref ModEvents.SMainMenuOpenedData _data)
         {
             DiagToggle.AnnounceOnce();
-            if (AutomationMode.Enabled) try
+            if (AutomationMode.Enabled)
             {
-                XUiC_MainMenu.shownNewsScreenOnce = true;
-                if (GameManager.Instance != null)
-                    GameManager.Instance.showOpenerMovieOnLoad = false;
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] MainMenuOpened news/intro skip failed: " + ex.Message);
+                try
+                {
+                    XUiC_MainMenu.shownNewsScreenOnce = true;
+                    if (GameManager.Instance != null)
+                        GameManager.Instance.showOpenerMovieOnLoad = false;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[7dtd-fastconnect] MainMenuOpened news/intro skip failed: " + ex.Message);
+                }
             }
 
             if (_autoTried) return;
