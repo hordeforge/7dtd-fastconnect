@@ -76,6 +76,13 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Added
 
+- `docs/PRIVACY.md` maps the personal data the mod touches: the player display
+  name (source, the pref it is stored in, the server it reaches, and the fact
+  that it never reaches the client log), the synthetic platform id the
+  Steam-less path sends, and the harness artifacts with their pruning. It also
+  states the erasure path, since a stored name is stock preference state a
+  user may want cleared. `test_player_name_override.sh` pins the claims that
+  name this code, so the page cannot drift from the flow it describes.
 - `ruff` selects the correctness groups the tree already passes: `BLE`,
   `TRY`, `C90`, `N`, `PIE`, `FLY`, `G`, `LOG`, `SLF`, `ASYNC`, `FA`, `TD`,
   `FIX` and `ANN`. A blind except or a swallowed error had no enabled rule

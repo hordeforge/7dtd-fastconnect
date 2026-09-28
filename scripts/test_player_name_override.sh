@@ -41,5 +41,19 @@ assert "keeps the applied name out of the log (the log ships in bug reports)" \
 assert "logs which source supplied the name instead" \
 	body_contains 'player name applied from'
 assert "documents the separate-client mechanism" grep -q 'Local player identity for an isolated test client' "$ROOT/README.md"
+# docs/PRIVACY.md states where the name goes (the stored pref, the server, its
+# logs) and that it never reaches the client log. Both halves are claims about
+# this code, so a change to the name path that leaves the page describing the
+# old flow fails here rather than shipping a doc that misstates it.
+PRIVACY="$ROOT/docs/PRIVACY.md"
+assert "the data-handling page exists" test -f "$PRIVACY"
+assert "the page names the pref the name is stored in" \
+	grep -q 'EnumGamePrefs.PlayerName' "$PRIVACY"
+assert "the page says the name never reaches the client log" \
+	grep -q 'Never in the client log' "$PRIVACY"
+assert "the page links the name path back to the code" \
+	grep -q 'Source/ConnectMod/ModApi.cs:196' "$PRIVACY"
+assert "the page covers the synthetic id the Steam-less path sends" \
+	grep -q 'Source/ConnectMod/AuthFallbackPatches.cs:74' "$PRIVACY"
 
 finish

@@ -228,7 +228,10 @@ the player's everyday profile.
 The name is normalized before it is stored: control and invisible-format
 characters become spaces, and anything past 24 characters is dropped (never
 mid-surrogate-pair). The name reaches the server and its logs, so a value
-carrying a newline or a bidi override would forge a line there.
+carrying a newline or a bidi override would forge a line there. It is never
+written to the client log: only the line naming which source supplied it. What
+the mod stores, where it goes, and how to change or clear it is in
+[docs/PRIVACY.md](docs/PRIVACY.md).
 
 Launch a peer named `atomic-peer`:
 
