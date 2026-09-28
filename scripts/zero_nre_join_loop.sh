@@ -78,10 +78,30 @@ kill_zdtd() {
   sleep 1
 }
 
-# start_zdtd kills any pre-existing zdtd before spawning its own, so any
-# zdtd alive at exit belongs to this run. Stop it on every exit path
-# (PASS/FAIL/set -e abort): an abandoned server keeps ticking a world at
-# 20 Hz until someone notices.
+# PID of the server this run started, empty when none is owned. Ownership is
+# by pid, not by process name: ZDTD_BIN is a documented override, and a
+# binary whose argv[0] basename is not exactly "zdtd" (a renamed or
+# out-of-tree build) is invisible to the pkill sweep, so a name-only stop
+# strands this run's server ticking its world at 20 Hz and holding PORT, and
+# the next run then waits on the stale listener instead of its own.
+server_pid=""
+
+stop_owned_server() {
+  [[ -n "$server_pid" ]] || return 0
+  if kill -0 "$server_pid" 2>/dev/null; then
+    kill -TERM "$server_pid" 2>/dev/null || true
+    sleep 1
+    kill -KILL "$server_pid" 2>/dev/null || true
+  fi
+  # Reap: the server is this shell's child, so a killed one that is never
+  # waited for lingers as a zombie for the rest of the run.
+  wait "$server_pid" 2>/dev/null || true
+  server_pid=""
+}
+
+# Runs on every exit path (PASS/FAIL/set -e abort): a server started by this
+# run is stopped by pid, and any other zdtd (a previous run, a manual launch)
+# is swept by name.
 stop_zdtd() {
   if pgrep -x zdtd >/dev/null 2>&1; then
     # || true: this runs in the EXIT trap, and a failed log write must not
@@ -90,19 +110,26 @@ stop_zdtd() {
     kill_zdtd
     pkill -KILL -x zdtd 2>/dev/null || true
   fi
+  stop_owned_server
 }
 
 start_zdtd() {
-  kill_zdtd
+  # Stop whatever a previous call or an earlier run left behind, by pid and by
+  # name, so this run starts against a free PORT.
+  stop_zdtd
   mkdir -p "$WORLD_DIR"
   : >"$SCRATCH/zdtd-server-zero-nre.log"
-  (cd "$(dirname "$ZDTD_BIN")/.." && stdbuf -oL -eL "$ZDTD_BIN" \
+  # exec: the subshell becomes the server, so the pid recorded below is the
+  # server itself on every run rather than a shell that may or may not have
+  # been collapsed by the exec optimization.
+  (cd "$(dirname "$ZDTD_BIN")/.." && exec stdbuf -oL -eL "$ZDTD_BIN" \
     --port "$PORT" \
     --world "$WORLD_DIR" \
     --map "$MAP_DIR" \
     --game-dir "$GAME_DIR" \
     --world-name Navezgane \
     >"$SCRATCH/zdtd-server-zero-nre.log" 2>&1) &
+  server_pid=$!
   for _ in $(seq 1 40); do
     if ss -tln | grep -Eq ":${PORT}\\b"; then
       log "server up on $PORT"

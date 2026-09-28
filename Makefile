@@ -59,6 +59,7 @@ test:
 	$(ROOT)/scripts/test_version_sync.sh
 	$(ROOT)/scripts/test_cycle_filename_guard.sh
 	$(ROOT)/scripts/test_zero_nre_log_dir_guard.sh
+	$(ROOT)/scripts/test_zero_nre_server_stop.sh
 	$(ROOT)/scripts/test_make_tool_pin.sh
 	# Without uv the Python gates below run a binary from PATH, so
 	# assert_tool_pin.sh checks each one against its == pin in pyproject.toml

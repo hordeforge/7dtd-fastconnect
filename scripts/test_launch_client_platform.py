@@ -427,10 +427,8 @@ def test_concurrent_launcher_does_not_steal_the_platform_backup(tmp_path: Path) 
         assert (game / "platform.cfg").read_text(encoding="utf-8") == LOCAL_CFG
         assert (game / "platform.cfg.re-localbak").read_text(encoding="utf-8") == STEAM_CFG
     finally:
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(first.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
         first.wait(timeout=15)
     # Hard-killed owner: the backup of the Steam config survives intact, which
     # is what the next launch self-heals from (see the leftover-backup test).

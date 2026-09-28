@@ -11,6 +11,14 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+### Fixed
+
+- `zero_nre_join_loop.sh` stops the server it started by pid and reaps it,
+  instead of only sweeping processes named `zdtd`. A server launched through
+  the `ZDTD_BIN` override whose binary is not named `zdtd` was invisible to
+  the sweep, so the run left it ticking its world and holding the port, and
+  the next run waited on that stale listener.
+
 ### Added
 
 - `make test` lints the workflow YAML with `yamllint`, configured by the new
