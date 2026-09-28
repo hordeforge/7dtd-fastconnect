@@ -31,6 +31,24 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Changed
 
+- The local-host startup trace prefix is `startup trace:` and each step line
+  names its stage (`StartAsServer -> step ...` / `createWorld step ...`).
+  The old prefix said `StartAsServer trace:` on createWorld lines too, so a
+  reader could not tell which stage a line came from. Nothing greps that
+  prefix.
+- `CLIENT_MUTE` (and its `SEVEN_DAYS_TO_DIE_CLIENT_MUTE` alias) warns on an
+  undocumented value and mutes, instead of reading it as a plain opt-in. The
+  README's rule was that no documented boolean is silently accepted; the
+  launcher did that while `CLIENT_PLATFORM` right below it warned.
+- The launcher's and the join harnesses' rejection messages run the rejected
+  value through `sanitize_log_text`, so a newline or bidi override in
+  `CLIENT_MUTE_TIMEOUT`, `MUTE_POLL_STOP_GRACE_SEC`, `PORT`, `TIMEOUT_SEC`,
+  `SETTLE_SEC`, `CYCLE` and `MAX_ATTEMPTS` cannot forge a second log line.
+  `sanitize_log_text` no longer needs `tr`, so it also works in the
+  stripped-PATH runs the degradation gates use.
+- `diag` help lists the argument spellings `Execute` accepts (`1`, `0`,
+  `enable`, `disable`, `true`, `false`, `flip`) and that a bare `diag` is
+  `status`.
 - `make test` fails when `shellcheck` is missing instead of printing a WARN
   and continuing. A run that reported green had linted no shell source at
   all. `yamllint`, `ruff` and `mypy` already failed loud for the same reason;
@@ -41,6 +59,20 @@ and enum handling, so a patch bump would claim none of that.
   `AnalysisLevel=latest` and `TreatWarningsAsErrors`. Both lanes previously
   printed compiler and analyzer warnings and passed anyway, so the nine
   production sources this gate compiles reached CI unanalyzed.
+
+### Fixed
+
+- The console echo (`LogText.EchoForMessage`) cut a pasted value at 40 UTF-16
+  code units, so a long paste of emoji or CJK could end in a lone surrogate
+  and print as U+FFFD. It now counts code points, like `ConnectTarget`'s
+  stricter twin, so the module's claim that every cap is code-point based
+  holds.
+- `PlayerNames.CapToMaxLength` capped at 24 UTF-16 units and had no caller in
+  the mod; the code-point cap next to it is the one in use. The dead method is
+  gone and its harness assertions target the real cap.
+- The EULA row in the README named a `HasAcceptedLatestEula=true` write that
+  the mod does not do: the prefs written are `EulaLatestVersion` and
+  `EulaVersionAccepted`, and only the getter is patched.
 
 ### Added
 

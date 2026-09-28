@@ -740,6 +740,12 @@ static class TestMain
                 "abcdefghijklmnopqrstuvw" + char.ConvertFromUtf32(0x1F600));
             Check("capped astral name fits the cap",
                 TextUtil.CodePointCount(astral) <= PlayerNames.MaxLength);
+            // One character over, the astral character is the 25th and drops
+            // whole rather than splitting.
+            Check("an astral name one past the cap loses the whole character",
+                PlayerNames.Cap(
+                    "abcdefghijklmnopqrstuvwx" + char.ConvertFromUtf32(0x1F600))
+                    == "abcdefghijklmnopqrstuvwx");
             Check("capped astral name keeps whole characters",
                 !HasLoneSurrogate(astral));
             Check("an overlong astral name is cut on a code-point boundary",

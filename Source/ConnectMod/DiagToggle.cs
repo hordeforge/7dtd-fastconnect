@@ -10,10 +10,12 @@ namespace SdtdConnect
     {
         internal const string EnvVar = "7DTD_CONNECT_DEBUG";
 
-        // Shared cadence for every gated heartbeat (boot / spawn / load). One
-        // value so the probes stay comparable in a single log: staggered
-        // intervals make two heartbeats describing the same stall look like
-        // different stalls.
+        // Shared cadence for the three join heartbeats (boot / spawn / load),
+        // so the probes stay comparable in a single log: staggered intervals
+        // make two heartbeats describing the same stall look like different
+        // stalls. The boot heartbeat is not gated on DiagToggle (an
+        // automation boot is a stall the harness is waiting out, so it logs
+        // every run); spawn and load check the toggle before logging.
         internal const float HeartbeatIntervalSec = 5f;
 
         // Snapshot once: Enabled sits first in per-frame/per-package hooks, and

@@ -16,8 +16,8 @@ namespace SdtdConnect
 
         static bool _forceSyncSet;
         static bool _forceSyncOptOutLogged;
-        // Snapshot once: hooks call this every frame and the process env
-        // cannot change at runtime.
+        // Snapshot once: the process env cannot change at runtime, and this is
+        // read on the local-host hold/release path, which runs per stage.
         static bool? _forceSyncEnabled;
 
         // Reflection target for LoadManager.forceLoadSync, resolved once and

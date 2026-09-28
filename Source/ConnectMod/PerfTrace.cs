@@ -28,11 +28,16 @@ namespace SdtdConnect
         /// </summary>
         internal static bool Enabled => DiagToggle.Enabled;
 
-        /// <summary>Startup trace, `diag on` / 7DTD_CONNECT_DEBUG=1 only (~330 steps).</summary>
+        /// <summary>
+        /// Local-host startup trace, `diag on` / 7DTD_CONNECT_DEBUG=1 only
+        /// (~330 steps). Both local-host startup stages report through it, the
+        /// createWorld step walk and the StartAsServer step walk, and each
+        /// message names its stage.
+        /// </summary>
         internal static void Trace(string message)
         {
             if (DiagToggle.Enabled)
-                Log.Out("[7dtd-fastconnect] StartAsServer trace: " + message);
+                Log.Out("[7dtd-fastconnect] startup trace: " + message);
         }
 
         internal static void StartHitchMonitor()

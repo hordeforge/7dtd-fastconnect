@@ -32,6 +32,9 @@ namespace SdtdConnect
             return viewDist * viewDist - StartBarSlackChunks;
         }
 
+        // Absent terrain counts as ready: the instance is missing before the
+        // world builds and after it unloads, and a probe that waited for one
+        // there would report a stall that cannot end.
         internal static bool TerrainReady
             => DistantTerrain.Instance == null || DistantTerrain.Instance.IsTerrainReady;
     }

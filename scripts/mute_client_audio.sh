@@ -39,14 +39,21 @@ fi
 
 WAIT_SECONDS="${1:-${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}}"
 
+# Flattening for the rejection line below: the value can come from the caller's
+# environment, and a newline or a bidi override in it would forge a second log
+# line. See scripts/log_sanitize.sh. The path comes from BASH_SOURCE, not
+# `dirname`, because the degradation tests run this helper with only bash on
+# PATH.
+source "${BASH_SOURCE[0]%/*}/log_sanitize.sh"
+
 if ! [[ "$WAIT_SECONDS" =~ ^[0-9]+$ ]] || ((WAIT_SECONDS < 1)); then
 	# Name where the value came from: naming only CLIENT_MUTE_TIMEOUT sent the
 	# reader looking at an env var that was never set when the bad value was the
 	# positional argument.
 	if (( $# == 1 )); then
-		echo "WARN: wait-seconds must be a positive integer (got '$WAIT_SECONDS'); using 60." >&2
+		echo "WARN: wait-seconds must be a positive integer (got '$(sanitize_log_text "$WAIT_SECONDS")'); using 60." >&2
 	else
-		echo "WARN: CLIENT_MUTE_TIMEOUT must be a positive integer (got '$WAIT_SECONDS'); using 60." >&2
+		echo "WARN: CLIENT_MUTE_TIMEOUT must be a positive integer (got '$(sanitize_log_text "$WAIT_SECONDS")'); using 60." >&2
 	fi
 	WAIT_SECONDS=60
 fi

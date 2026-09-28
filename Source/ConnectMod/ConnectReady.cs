@@ -19,6 +19,15 @@ namespace SdtdConnect
         static bool _crossProceedLogged;
         static bool _nativeProceedLogged;
 
+        /// <summary>
+        /// True once stock platform networking can SetupProtocols without NRE.
+        /// On false, <paramref name="reason"/> carries the gate that is still
+        /// closed (a stable slug such as staticData=false,
+        /// already-connected or NativePlatform=null, or a cross-user wait note
+        /// with its deadline), and on a throw it carries the exception. Callers
+        /// log that string, so the vocabulary is part of what join harnesses
+        /// grep for.
+        /// </summary>
         public static bool IsReady(out string reason)
         {
             reason = null;

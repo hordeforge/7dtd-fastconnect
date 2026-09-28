@@ -79,7 +79,7 @@ commit, SDK version, epoch, and sha256.
 | News “click to continue” | **`-SkipNewsScreen=true`** + Harmony forces `shownNewsScreenOnce` / blocks `XUiC_NewsScreen.Open` |
 | InControl native input | Process arg **`-disablenativeinput`**. V 3.2.0 turns native input on by default; that plugin crashes Proton before mods load |
 | Proton XInput | `WINEDLLOVERRIDES` disables `xinput1_3.dll`, `xinput1_4.dll`, `xinput9_1_0.dll`. InControl still calls `XInputGetState` after `-disablenativeinput`; Proton's stub crashes a Steam-free Local client |
-| EULA accept gate | Harmony forces `HasAcceptedLatestEula=true` and blocks the `windowEula` window: accepts latest and reopens the main menu |
+| EULA accept gate | Harmony forces the `HasAcceptedLatestEula` getter true and blocks the `windowEula` window: `EulaLatestVersion` / `EulaVersionAccepted` are written and saved, then the main menu is reopened |
 | Opener movie on world load | `showOpenerMovieOnLoad = false`, `OptionsIntroMovieEnabled = false` |
 | Discord login / SDK | `GamePrefs.DiscordDisabled=true` + Harmony skips `DiscordManager.Init` and Discord first-time menu |
 
@@ -318,12 +318,17 @@ that hold for all of them:
   `true` / `yes` / `on`; any other non-empty value still opts in but logs a
   warning naming the variable and the value, so a typo cannot look like a
   deliberate setting.
-- Values echoed to logs are flattened to one line: control characters become
-  spaces, and the invisible Unicode format characters (bidi overrides, LRM/RLM,
-  zero-width joiners, BOM) become spaces too, so a terminal cannot be made to
-  render a line differently from the text a harness greps for.
+- Values echoed to logs are neutralized first, so a terminal cannot be made to
+  render a line differently from the text a harness greps for: control
+  characters (newline, the C1 block, U+2028/U+2029) become spaces, and the
+  invisible Unicode format characters (bidi overrides, LRM/RLM, zero-width
+  joiners, BOM) are dropped by `scripts/log_sanitize.sh`, which is why a value
+  echoed there is shorter than the one set. The mod's own echoes
+  (`Source/ConnectMod/LogText.cs`) blank each of those instead, keeping offsets
+  and lengths intact.
 - Invalid enum values either abort with the valid set (`GFX_API`) or warn and
-  fall back (`CLIENT_PLATFORM`, numeric timeouts); nothing is silently ignored.
+  fall back (`CLIENT_MUTE`, `CLIENT_PLATFORM`, numeric timeouts); nothing is
+  silently ignored.
 
 | Variable | Default | Controls |
 |---|---|---|
@@ -335,7 +340,7 @@ that hold for all of them:
 | `GAME` | stock Steam client path | Client install dir (launcher, harnesses, `make build/install`) |
 | `PROTON` / `COMPAT` / `STEAM_ROOT` / `STEAM_APPID` | auto-detected | Proton binary, compatdata prefix, Steam root, app id overrides for the launcher |
 | `GFX_API` | `d3d11` | Forced backend: `d3d11`, `d3d12`, `vulkan`, `glcore`, or `none`; an invalid value aborts before launch |
-| `CLIENT_MUTE` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE`) | `1` | OS-level mute of the game audio stream at launch |
+| `CLIENT_MUTE` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE`) | `1` | OS-level mute of the game audio stream at launch; an undocumented value warns and mutes |
 | `CLIENT_MUTE_TIMEOUT` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT`) | `60` | Seconds the launcher polls for that stream |
 | `MUTE_POLL_STOP_GRACE_SEC` | `5` | Seconds the launcher waits for the mute poller to exit before killing it |
 | `CLIENT_PLATFORM` | Steam mode | `1` / `local` / `lan` (case-insensitive) selects no-Steam Local mode; anything else warns and is ignored |
@@ -344,20 +349,29 @@ Threat model and known gaps: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 The join harnesses (`one_shot_join.sh`, `zero_nre_join_loop.sh`,
 `restart_pair.sh`) take their own knobs (`PORT`, `HOST`, `TIMEOUT_SEC`,
-`CYCLE`, `START_SERVER`, `ZDTD_BIN`, ...): each validates its value at startup
-and names the fallback it uses. `PORT` must be a real TCP port (1-65535, the
-same range the client accepts for `7DTD_CONNECT`); `restart_pair.sh` treats
-anything else as a usage error, the other two fall back to 27025. `START_SERVER`
-reads the boolean table above (`1` / `true` / `yes` / `on`, `0` / `false` /
-`no` / `off`), so `START_SERVER=true` starts the server instead of leaving the
-cycle to report "no listener on PORT".
+`CYCLE`, `SETTLE_SEC`, `START_SERVER`, `SCRATCH`, plus the zdtd binary path:
+`ZDTD_BIN` for the first two, `ZDTD` for `restart_pair.sh`). The numeric and
+label knobs are checked at startup and name the fallback they use. `PORT`
+must be a real TCP port (1-65535, the same range the client accepts for
+`7DTD_CONNECT`); `restart_pair.sh` treats anything else as a usage error, the
+other two fall back to 27025. `START_SERVER` reads the boolean table above
+(`1` / `true` / `yes` / `on`, `0` / `false` / `no` / `off`), so
+`START_SERVER=true` starts the server instead of leaving the cycle to report
+"no listener on PORT". `HOST` is not pattern-checked: it is passed to the
+client as `7DTD_CONNECT` and the client rejects it there. The zdtd binary is
+checked at the point of use, not at startup, so a `START_SERVER=0` loop runs
+without the server checked out.
 
-Every script in `scripts/` follows one contract: `-h` / `--help` prints the
-usage on stdout and exits 0 before touching disk or spawning a process, an
-argument a script cannot accept exits 2 with the usage on stderr, and a setup
-or runtime failure exits 1. The harnesses add their own statuses on top
+Every lifecycle entry point in `scripts/` (`launch_client.sh`, the three join
+harnesses, `mute_client_audio.sh`, `unmute_client_audio.sh`, `repro_zip.sh`,
+`package.sh`, `stage_mod.sh`, `assert_tool_pin.sh`; `scripts/test_cli_help.sh`
+enumerates them) follows one contract: `-h` / `--help` prints the usage on
+stdout and exits 0 before touching disk or spawning a process, an argument a
+script cannot accept exits 2 with the usage on stderr, and a setup or runtime
+failure exits 1. The harnesses add their own statuses on top
 (`one_shot_join.sh` also uses 3 for a server that never listened); `--help`
-lists them.
+lists them. The sourced libraries (`log_sanitize.sh`, `proton_paths.sh`, the
+`test_*.sh` gates) take no arguments and are not part of that contract.
 
 ## With zdtd
 

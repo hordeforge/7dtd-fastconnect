@@ -45,6 +45,10 @@ source "$ROOT/scripts/proton_paths.sh"
 # Shared value checks (is_tcp_port, is_bounded_uint): see
 # scripts/config_validate.sh.
 source "$ROOT/scripts/config_validate.sh"
+# Log-line flattening for operator-supplied values (PORT, the numeric knobs):
+# see scripts/log_sanitize.sh. Sourced before the value checks below so their
+# rejection lines carry a flattened value, not the raw one.
+source "$ROOT/scripts/log_sanitize.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 # Bound accumulation: zero_nre creates per-attempt logs that would grow without
@@ -189,15 +193,15 @@ log "start max_attempts=$MAX_ATTEMPTS"
 # PORT lands in --port argv and an ERE (":${PORT}\b"), so it must be a real
 # TCP port; TIMEOUT_SEC/MAX_ATTEMPTS get the numeric guard below.
 if ! is_tcp_port "$PORT"; then
-  log "WARN: PORT invalid ('$PORT'); using 27025"
+  log "WARN: PORT invalid ('$(sanitize_log_text "$PORT")'); using 27025"
   PORT=27025
 fi
 if ! is_bounded_uint "$MAX_ATTEMPTS"; then
-  log "WARN: MAX_ATTEMPTS invalid ('$MAX_ATTEMPTS'); using 6"
+  log "WARN: MAX_ATTEMPTS invalid ('$(sanitize_log_text "$MAX_ATTEMPTS")'); using 6"
   MAX_ATTEMPTS=6
 fi
 if ! is_bounded_uint "$TIMEOUT_SEC"; then
-  log "WARN: TIMEOUT_SEC invalid ('$TIMEOUT_SEC'); using 90"
+  log "WARN: TIMEOUT_SEC invalid ('$(sanitize_log_text "$TIMEOUT_SEC")'); using 90"
   TIMEOUT_SEC=90
 fi
 

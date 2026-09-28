@@ -49,6 +49,11 @@ source "$ROOT/scripts/proton_paths.sh"
 # Shared value checks (is_tcp_port, is_bounded_uint): see
 # scripts/config_validate.sh.
 source "$ROOT/scripts/config_validate.sh"
+# Log-line flattening for attacker-shapable values (7DTD_CONNECT, CYCLE, the
+# numeric knobs): see scripts/log_sanitize.sh; same contract as
+# LogText.SanitizeForLog. Sourced before the value checks below so their
+# rejection lines carry a flattened value, not the raw one.
+source "$ROOT/scripts/log_sanitize.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 # Every per-cycle artifact this script writes into SCRATCH. One list, two
@@ -80,7 +85,7 @@ HOST="${HOST:-127.0.0.1}"
 # TCP port like TIMEOUT_SEC below: metacharacters would skew the listener
 # probe, and a number outside 1..65535 could never match it at all.
 if ! is_tcp_port "$PORT"; then
-  echo "WARN: PORT invalid ('$PORT'); using 27025." >&2
+  echo "WARN: PORT invalid ('$(sanitize_log_text "$PORT")'); using 27025." >&2
   PORT=27025
 fi
 # Bash cannot expand/export names starting with a digit, so read the canonical
@@ -91,14 +96,14 @@ TIMEOUT_SEC="${TIMEOUT_SEC:-240}"
 # Validate before the client is launched; arithmetic on a bad value would
 # otherwise abort mid-cycle with a cryptic error.
 if ! is_bounded_uint "$TIMEOUT_SEC"; then
-  echo "WARN: TIMEOUT_SEC invalid ('$TIMEOUT_SEC'); using 240." >&2
+  echo "WARN: TIMEOUT_SEC invalid ('$(sanitize_log_text "$TIMEOUT_SEC")'); using 240." >&2
   TIMEOUT_SEC=240
 fi
 # Post-join settle window; same numeric guard as TIMEOUT_SEC so a typo cannot
 # silently skip the settle (or sleep on garbage).
 SETTLE_SEC="${SETTLE_SEC:-0}"
 if ! is_bounded_uint "$SETTLE_SEC"; then
-  echo "WARN: SETTLE_SEC invalid ('$SETTLE_SEC'); using 0." >&2
+  echo "WARN: SETTLE_SEC invalid ('$(sanitize_log_text "$SETTLE_SEC")'); using 0." >&2
   SETTLE_SEC=0
 fi
 CYCLE="${CYCLE:-1}"
@@ -107,7 +112,7 @@ CYCLE="${CYCLE:-1}"
 # a '/' or '..' would aim this cycle's writes outside SCRATCH. Keep it to
 # filename-safe characters and reject a leading dot (".." and hidden files).
 if ! [[ "$CYCLE" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$CYCLE" == .* ]]; then
-  echo "WARN: CYCLE invalid ('$CYCLE'); using 1." >&2
+  echo "WARN: CYCLE invalid ('$(sanitize_log_text "$CYCLE")'); using 1." >&2
   CYCLE=1
 fi
 # START_SERVER reads the same boolean table as every other knob (and as the
@@ -149,7 +154,6 @@ log() { printf '%s\n' "$*" | tee -a "$LIFE_OUT"; }
 source "$ROOT/scripts/monotonic_clock.sh"
 # Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
 # scripts/log_sanitize.sh; same contract as LogText.SanitizeForLog.
-source "$ROOT/scripts/log_sanitize.sh"
 # Copying client-log evidence into the control log: see
 # scripts/join_evidence.sh (needs sanitize_log_text from the line above).
 source "$ROOT/scripts/join_evidence.sh"

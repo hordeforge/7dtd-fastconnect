@@ -234,7 +234,12 @@ namespace SdtdConnect
             return true;
         }
 
-        /// <summary>Env (7DTD_CONNECT), then -connect= / +connect from argv.</summary>
+        /// <summary>
+        /// Env (7DTD_CONNECT) first, then argv: -connect= / +connect= and the
+        /// space-separated -connect / +connect, with a +connect_lobby argument
+        /// and its token skipped. An unparseable value is warned about and the
+        /// scan continues, so one bad flag does not hide a good later one.
+        /// </summary>
         public static bool TryFromLaunchContext(out string host, out int port, out string source)
         {
             host = null;

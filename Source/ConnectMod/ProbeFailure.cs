@@ -5,7 +5,8 @@ namespace SdtdConnect
 {
     /// <summary>
     /// Announce-once channel for the guarded diagnostic probes (boot/spawn/load
-    /// heartbeats, the window/spawn/flags traces, and the identity fallbacks):
+    /// heartbeats, the window/spawn/flags traces, and the native/cross-user and
+    /// synthetic-id identity probes):
     /// silence is indistinguishable from a healthy quiet join, but a
     /// persistently dead probe also must not flood the client log that join
     /// harnesses grep for fixed markers. The latch is keyed by probe name, so

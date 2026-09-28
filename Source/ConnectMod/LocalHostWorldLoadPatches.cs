@@ -95,7 +95,7 @@ namespace SdtdConnect
                     {
                         stack.Pop();
                         if (PerfTrace.Enabled)
-                            PerfTrace.Trace("completed depth " + stack.Count + " after step " + step);
+                            PerfTrace.Trace("StartAsServer completed depth " + stack.Count + " after step " + step);
                         continue;
                     }
                     if (current is IEnumerator nested)
@@ -112,12 +112,12 @@ namespace SdtdConnect
                     // with diag off and must not concatenate a line per step.
                     bool tracing = PerfTrace.Enabled;
                     if (tracing)
-                        PerfTrace.Trace("-> step " + step + " depth " + stack.Count
+                        PerfTrace.Trace("StartAsServer -> step " + step + " depth " + stack.Count
                             + " yield " + (current == null ? "null" : current.GetType().Name)
                             + " frame " + Time.frameCount);
                     yield return current;
                     if (tracing)
-                        PerfTrace.Trace("<- step " + step + " frame " + Time.frameCount);
+                        PerfTrace.Trace("StartAsServer <- step " + step + " frame " + Time.frameCount);
                 }
             }
             finally

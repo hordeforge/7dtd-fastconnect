@@ -9,11 +9,11 @@ namespace SdtdConnect
         public override string getDescription() => "Toggle verbose 7dtd-fastconnect diagnostics (opt-in, off by default).";
 
         public override string getHelp() =>
-            "diag on|off|toggle|status\n" +
-            "  diag on      enable verbose traces\n" +
-            "  diag off     disable verbose traces\n" +
-            "  diag toggle  flip\n" +
-            "  diag status  show current\n" +
+            "diag [on|off|toggle|status]\n" +
+            "  diag on      enable verbose traces (also 1, enable, true)\n" +
+            "  diag off     disable verbose traces (also 0, disable, false)\n" +
+            "  diag toggle  flip (also flip)\n" +
+            "  diag status  show current, plus this help when no argument is given\n" +
             "Launch with 7DTD_CONNECT_DEBUG=1 for verbose on boot. Otherwise off by default.";
 
         public override bool AllowedInMainMenu => true;
@@ -52,7 +52,7 @@ namespace SdtdConnect
                 // not understood, then the current state anyway.
                 outLine = "[7dtd-fastconnect] diag: unknown argument '"
                     + LogText.EchoForMessage(_params[0])
-                    + "'; expected on, off, toggle or status\n"
+                    + "'; expected on, off, toggle or status (no argument means status)\n"
                     + DiagToggle.StatusLine();
             }
             ConsoleOutput.Out(outLine);

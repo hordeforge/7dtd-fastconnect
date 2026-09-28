@@ -26,7 +26,8 @@ Key env vars (full table: README "Environment variables"):
   GFX_API              d3d11 (default) | d3d12 | vulkan | glcore | none;
                        an invalid value aborts before launch
   CLIENT_MUTE          1 (default) mutes the game audio stream at the OS
-                       audio layer; 0/false/no/off keeps sound on
+                       audio level; 0/false/no/off keeps sound on, and any
+                       other non-empty value warns and mutes
   CLIENT_MUTE_TIMEOUT  seconds to poll for that stream (default 60)
   MUTE_POLL_STOP_GRACE_SEC
                        seconds the mute poller gets to exit on shutdown
@@ -122,7 +123,7 @@ MUTE_WAIT="$(trim "${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOU
 # Validated here, not only in the helper: the launcher is what announces the
 # poll window it starts, and the helper's own guard is for standalone use.
 if ! [[ "$MUTE_WAIT" =~ ^[0-9]+$ ]] || ((MUTE_WAIT < 1)); then
-  echo "WARN: CLIENT_MUTE_TIMEOUT invalid ('$MUTE_WAIT'); using 60." >&2
+  echo "WARN: CLIENT_MUTE_TIMEOUT invalid ('$(sanitize_log_text "$MUTE_WAIT")'); using 60." >&2
   MUTE_WAIT=60
 fi
 
@@ -306,7 +307,7 @@ start_mute_poll() {
 # stack is slower to unwind is not reported as a wedged helper.
 MUTE_POLL_STOP_GRACE_SEC="$(trim "${MUTE_POLL_STOP_GRACE_SEC:-5}")"
 if ! [[ "$MUTE_POLL_STOP_GRACE_SEC" =~ ^[0-9]+$ ]] || ((MUTE_POLL_STOP_GRACE_SEC < 1)); then
-  echo "WARN: MUTE_POLL_STOP_GRACE_SEC invalid ('$MUTE_POLL_STOP_GRACE_SEC'); using 5." >&2
+  echo "WARN: MUTE_POLL_STOP_GRACE_SEC invalid ('$(sanitize_log_text "$MUTE_POLL_STOP_GRACE_SEC")'); using 5." >&2
   MUTE_POLL_STOP_GRACE_SEC=5
 fi
 
