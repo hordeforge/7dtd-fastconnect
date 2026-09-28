@@ -27,8 +27,12 @@ EOF
   exit 0
 fi
 
-if (( $# < 1 )); then
-  echo "usage: ${0##*/} <world-dir> [port]" >&2
+# Exact argc, not a lower bound: a third word (a mistyped flag, a pasted
+# command line) is dropped silently otherwise, and this script tears down a
+# running pair before it does anything else, so a swallowed argument restarts
+# a world the caller did not ask for.
+if (( $# < 1 || $# > 2 )); then
+  echo "usage: ${0##*/} <world-dir> [port] (got $# argument(s))" >&2
   exit 2
 fi
 SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"

@@ -33,7 +33,7 @@ EOF
 fi
 
 if (( $# > 1 )); then
-	echo "usage: ${0##*/} [wait-seconds] (got $# arguments)" >&2
+	echo "usage: ${0##*/} [wait-seconds] (got $# argument(s))" >&2
 	exit 2
 fi
 

@@ -72,6 +72,14 @@ assert "restart_pair.sh prints usage on missing arg" \
 	grep -q 'usage:' <(usage_err "$ROOT/scripts/restart_pair.sh")
 assert "restart_pair.sh non-numeric port exits 2" \
 	usage_rc "$ROOT/scripts/restart_pair.sh" "$SCRATCH_PROBE/not-created" not-a-port
+# A third argument is a usage error, not a silently dropped word: this script
+# tears the running pair down before anything else, so a swallowed word
+# restarts a world the caller did not ask for.
+assert "restart_pair.sh extra argument exits 2" \
+	usage_rc "$ROOT/scripts/restart_pair.sh" "$SCRATCH_PROBE/not-created" 27025 --verison
+assert "restart_pair.sh names the argument count it got" \
+	grep -q 'got 3 argument' <(usage_err "$ROOT/scripts/restart_pair.sh" \
+		"$SCRATCH_PROBE/not-created" 27025 --verison)
 # HOST is validated next to PORT, before the pkill sweep, so a bad one cannot
 # leave the previous pair dead with nothing relaunched.
 assert "restart_pair.sh whitespace host exits 2" \
@@ -92,7 +100,7 @@ assert "restart_pair.sh documents HOST in its help" \
 # points take no positional arguments, so swallowing one would start a client,
 # a server, or a multi-minute build nobody asked for.
 for script in package.sh one_shot_join.sh zero_nre_join_loop.sh \
-	unmute_client_audio.sh; do
+	unmute_client_audio.sh coverage-cs.sh; do
 	assert "$script rejects an unexpected argument" \
 		usage_rc "$ROOT/scripts/$script" --verison
 	assert "$script says it takes no arguments" \

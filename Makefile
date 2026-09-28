@@ -57,6 +57,7 @@ help:
 	@echo "  package    build and zip dist/7dtd-fastconnect-<tag>.zip"
 	@echo "  coverage   line coverage of ConnectTarget plus the rendered badge"
 	@echo "  clean      remove dist/ and the C# bin/ and obj/ trees"
+	@echo "  dotnet-version  print the dotnet SDK version the build would use"
 	@echo "python gate (not a shell gate):"
 	@echo "  uv run --frozen --group dev pytest scripts/test_launch_client_platform.py"
 	@echo "setup: uv sync --group dev (pinned ruff/mypy/pytest/yamllint); dotnet SDK band in global.json"

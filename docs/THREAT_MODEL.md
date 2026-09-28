@@ -74,13 +74,13 @@ Every entry point reads data from outside the process boundary:
 
 | Entry point | Where parsed | Notes |
 |---|---|---|
-| Env `7DTD_CONNECT` | Source/ConnectMod/ConnectTarget.cs:294-303; scripts read it too (scripts/launch_client.sh:90,326,348; scripts/one_shot_join.sh:76,215,270; scripts/restart_pair.sh:134) | Attacker-shapable: a clicked `steam://run` URL chooses `-connect=` text (in-code rationale at ConnectTarget.cs:56-69 and LogText.cs:12-18) |
+| Env `7DTD_CONNECT` | Source/ConnectMod/ConnectTarget.cs:294-303; scripts read it too (scripts/launch_client.sh:90,326,348; scripts/one_shot_join.sh:76,215,270; scripts/restart_pair.sh:142) | Attacker-shapable: a clicked `steam://run` URL chooses `-connect=` text (in-code rationale at ConnectTarget.cs:56-69 and LogText.cs:12-18) |
 | argv `-connect=` / `+connect=` / `+connect_lobby` | ConnectTarget.cs:305-338 | Same threat model as the env var |
 | F1 console `connect` / `7dtdconnect` / `joinip` | Source/ConnectMod/ConsoleCmdConnect.cs:8,27-51 | Local keyboard input; allowed in main menu (:23) |
 | F1 console `diag` / `7dtd_diag` / `zdiag` | Source/ConnectMod/ConsoleCmdDiag.cs:8,20-52 | Flips verbose traces at runtime; the console override outranks the env snapshot (Source/ConnectMod/DiagToggle.cs:19-47) |
 | Env `7DTD_PLAYER_NAME` | ModApi.cs:118-135 | Sets `GamePrefs.PlayerName`, persisted to the client profile |
 | Env `7DTD_CONNECT_AUTOMATION`, `7DTD_CONNECT_DEBUG`, `7DTD_CONNECT_FORCE_LOAD_SYNC` | Source/ConnectMod/AutomationMode.cs:12-24, Source/ConnectMod/DiagToggle.cs:5, Source/ConnectMod/BootUnblock.cs | Boolean flags; truthiness shared in Source/ConnectMod/EnvFlags.cs:12-38 |
-| Script env: `GAME`, `PROTON`, `COMPAT`, `STEAM_ROOT`, `GFX_API`, `CLIENT_MUTE_TIMEOUT`, `CLIENT_PLATFORM`, `PORT`, `HOST`, `TIMEOUT_SEC`, `SETTLE_SEC`, `CYCLE`, `SCRATCH`, `ZDTD_BIN`, `START_SERVER`, `WINEDLLOVERRIDES` | scripts/launch_client.sh:57-157,324; scripts/one_shot_join.sh:65-98; scripts/restart_pair.sh:36-52; scripts/mute_client_audio.sh:40-52 | Several are validated before use (see Mitigations); `GAME`/`PROTON`/`COMPAT` select executables by design. `WINEDLLOVERRIDES` is appended to, not overwritten (launch_client.sh:324), so anything already in the operator's env also reaches the Wine process |
+| Script env: `GAME`, `PROTON`, `COMPAT`, `STEAM_ROOT`, `GFX_API`, `CLIENT_MUTE_TIMEOUT`, `CLIENT_PLATFORM`, `PORT`, `HOST`, `TIMEOUT_SEC`, `SETTLE_SEC`, `CYCLE`, `SCRATCH`, `ZDTD_BIN`, `START_SERVER`, `WINEDLLOVERRIDES` | scripts/launch_client.sh:57-157,324; scripts/one_shot_join.sh:65-98; scripts/restart_pair.sh:40-56; scripts/mute_client_audio.sh:40-52 | Several are validated before use (see Mitigations); `GAME`/`PROTON`/`COMPAT` select executables by design. `WINEDLLOVERRIDES` is appended to, not overwritten (launch_client.sh:324), so anything already in the operator's env also reaches the Wine process |
 | Hardcoded process args added by the launcher | scripts/launch_client.sh:92 (`-skipintro -SkipNewsScreen=true -disablenativeinput`) | Not operator input, but they change what the client loads; `-disablenativeinput` was added for Proton boot stability, not for a security control |
 | Client log file written by the game process | parsed by scripts/log_markers.sh:60-130 from one_shot_join.sh:284-323, copied at one_shot_join.sh:337, rescanned by zero_nre_join_loop.sh:210,216-221 | Process-to-harness boundary; content is semi-trusted |
 | Outbound network connect | ConnectTarget.cs:404-469 (`ConnectionManager.Connect` at :460) after DNS resolution :347-399 | The only network traffic this repo initiates |
@@ -183,7 +183,7 @@ no setuid, no elevated installer (`make install` copies files into the game's
   across concurrent launchers via `flock`; residual risk is losing the user's
   platform selection if both copies die mid-run.
 - *Process targeting*: kill sweeps match substrings of any user's command line
-  (`pkill -9 -f '7DaysToDie'`, restart_pair.sh:91; `pgrep -f
+  (`pkill -9 -f '7DaysToDie'`, restart_pair.sh:114; `pgrep -f
   '[/]7DaysToDie.exe|wine64-preloader.*7DaysToDie'`, one_shot_join.sh:137),
   so an unrelated process whose argv mentions the string gets killed (R5).
 
@@ -233,7 +233,7 @@ no setuid, no elevated installer (`make install` copies files into the game's
 | Announce-once probe failures | a dead probe reading as a healthy quiet join | ProbeFailure.cs:15-43 |
 | Player-name cap (24 code points, NFC, never cutting a surrogate pair), control/invisible-format flattening, and never-empty fallback | oversized/injected names reaching prefs; one name in two spellings, or a cap that corrupts an emoji name into U+FFFD | PlayerNames.cs:16-81, TextUtil.cs:22-85, ModApi.cs:122-169 |
 | `CYCLE` filename guard (safe charset, no leading dot) | path traversal in cycle artifact filenames | one_shot_join.sh:92-100; pinned by scripts/test_cycle_filename_guard.sh |
-| Numeric guards on `PORT`/`TIMEOUT_SEC`/`SETTLE_SEC`/`WAIT_SECONDS` | regex/arithmetic skew from metacharacters | one_shot_join.sh:65-92, restart_pair.sh:36-52, mute_client_audio.sh:40-52 |
+| Numeric guards on `PORT`/`TIMEOUT_SEC`/`SETTLE_SEC`/`WAIT_SECONDS` | regex/arithmetic skew from metacharacters | one_shot_join.sh:65-92, restart_pair.sh:40-56, mute_client_audio.sh:40-52 |
 | Whitelists for `GFX_API` and `CLIENT_PLATFORM` | arbitrary strings becoming argv fragments or a config swap | launch_client.sh:105-113,152-159 |
 | Disk-growth bounds in scratch dir | availability across repeated cycles | one_shot_join.sh:45-60 |
 | Log-marker memoization contract (append-only assumption documented) | stale matches after truncation; repeated re-scan of a growing log | scripts/log_markers.sh:1-32 |
@@ -271,7 +271,7 @@ These are recorded, not fixed, here. Fixes belong to sec-review.
    (.github/workflows/release.yml:8-12 states this openly). Consumers install
    a DLL into their game (Makefile:84-90) on trust alone.
 5. **R5 - broad kill patterns**: substring process matching can terminate
-   unrelated processes (restart_pair.sh:86-91, one_shot_join.sh:133-138).
+   unrelated processes (restart_pair.sh:109-114, one_shot_join.sh:133-138).
 6. **No SECURITY.md**: the repository has no disclosure contact, supported-
    versions statement, or security-policy claims. Nothing here contradicts
    reality because nothing is claimed; creating one requires organizational

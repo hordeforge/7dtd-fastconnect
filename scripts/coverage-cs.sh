@@ -8,6 +8,31 @@
 # filtered to /Source/ when the badge renders).
 set -euo pipefail
 
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+	cat <<'EOF'
+Usage: coverage-cs.sh
+
+Build the ConnectTarget offline gate with the dotnet SDK and collect a
+Cobertura line-coverage report into coverage.cobertura.xml at the repo root.
+Runs every harness mode except fuzz; the Makefile's coverage target then
+renders the badge from it.
+
+Exit status: 0 report written | 1 build or collect failure
+             | 2 usage error.
+             Skips with status 0 when dotnet or dotnet-coverage is absent.
+
+Key env vars: none
+EOF
+	exit 0
+fi
+
+# Takes no arguments: an unknown word would otherwise fall through to a full
+# SDK build and profiler run under a name the caller did not ask for.
+if (( $# != 0 )); then
+	echo "usage: ${0##*/} (takes no arguments; got $#)" >&2
+	exit 2
+fi
+
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$root/scripts/test_common.sh"
 work="$(scratch_mktemp "$root" 7dtd-connect-cov)"

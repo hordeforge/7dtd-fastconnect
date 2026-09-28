@@ -12,6 +12,13 @@ assert "README documents unmute command" \
 assert "mute helper still exists (pair)" test -x "$ROOT/scripts/mute_client_audio.sh"
 
 BEHAV=""
+FAILBIN=""
+NO_PULSE_BIN=""
+# One cleanup list for the whole run, with each fixture dir appended to it as
+# it is created. Per-fixture traps cannot do that: the last one installed wins,
+# so a trap added for a later fixture silently dropped the earlier dirs from
+# the cleanup and every run leaked a scratch tree.
+trap 'rm -rf ${BEHAV:+"$BEHAV"} ${FAILBIN:+"$FAILBIN"} ${NO_PULSE_BIN:+"$NO_PULSE_BIN"}' EXIT
 if command -v jq >/dev/null 2>&1; then
 	BEHAV="$(scratch_mktemp "$ROOT" unmute-helper)"
 	install_pactl_stub "$BEHAV"
@@ -47,7 +54,6 @@ if command -v jq >/dev/null 2>&1; then
 	# helper must not report success: exiting 0 would send the user away
 	# believing the next launch has sound.
 	FAILBIN="$(scratch_mktemp "$ROOT" unmute-pactl-fail)"
-	trap 'rm -rf ${BEHAV:+"$BEHAV"} "$NO_PULSE_BIN" "$FAILBIN"' EXIT
 	install_pactl_stub "$FAILBIN"
 	# The previous case left the fixture empty; a refusal is only visible when
 	# there is a live stream to refuse.
@@ -103,7 +109,6 @@ else
 fi
 
 NO_PULSE_BIN="$(scratch_mktemp "$ROOT" unmute-nopulse)"
-trap 'rm -rf ${BEHAV:+"$BEHAV"} "$NO_PULSE_BIN"' EXIT
 ln -s "$(command -v bash)" "$NO_PULSE_BIN/bash"
 
 HELPER_RC=0
