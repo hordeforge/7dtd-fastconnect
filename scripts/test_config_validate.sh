@@ -12,6 +12,10 @@ valid_port() { is_tcp_port "$1"; }
 # assert takes a command whose status decides the check; a bare `! is_tcp_port
 # x` would trip set -e's own handling of the failing condition.
 rejects() { if is_tcp_port "$1"; then return 1; fi; }
+rejects_uint() { if is_uint "$1"; then return 1; fi; }
+rejects_wait() { if is_mute_wait "$1"; then return 1; fi; }
+# A digit regex in front of a $(( )) accepts a value that wraps in it.
+no_digit_regex() { if grep -q '=~ \^\[0-9\]' "$1"; then return 1; fi; }
 
 assert "accepts the default port" valid_port 27025
 assert "accepts the range bounds" valid_port 1
@@ -34,6 +38,40 @@ assert "accepts the longest value the arithmetic holds" valid_count 999999999999
 assert "rejects a value that wraps to a small one" rejects_count 18446744073709551617
 assert "rejects a non-ASCII digit" rejects_count '٢٧٠٢٥'
 assert "rejects a negative count" rejects_count -1
+
+# $(( )) is signed 64-bit and wraps, so a digit string long enough reaches a
+# value the caller never wrote: PORT=18446744073709551633 reads as 17 and
+# would be accepted, sending the run at port 17 with a --port the client
+# refuses. A length check has to come before the arithmetic.
+assert "rejects a port whose digits wrap into the range" rejects 18446744073709551633
+assert "rejects an overlong digit string" rejects 99999999999999999999
+assert "rejects a port written with 20 leading zeros" rejects 000000000000000270250
+assert "rejects intmax + 1" rejects 9223372036854775808
+assert "accepts intmax as an unsigned" is_uint 9223372036854775807
+assert "rejects a value past intmax" rejects_uint 9223372036854775808
+assert "rejects a 20-digit value" rejects_uint 10000000000000000000
+assert "accepts 0 as an unsigned" is_uint 0
+assert "accepts a leading zero as an unsigned" is_uint 007
+
+# The mute window is bounded at both ends, because the deadline it feeds is
+# signed 64-bit and a value near intmax wraps it into the past.
+assert "accepts the default mute window" is_mute_wait 60
+assert "accepts a leading zero in the mute window" is_mute_wait 060
+assert "accepts the mute ceiling" is_mute_wait 3600
+assert "rejects a mute window of 0" rejects_wait 0
+assert "rejects a mute window over the ceiling" rejects_wait 3601
+assert "rejects a wrapping mute window" rejects_wait 18446744073709551633
+assert "launch_client.sh reads the mute window through is_mute_wait" \
+	grep -q 'if ! is_mute_wait "$MUTE_WAIT"' "$ROOT/scripts/launch_client.sh"
+assert "mute_client_audio.sh reads the mute window through is_mute_wait" \
+	grep -q 'if ! is_mute_wait "$WAIT_SECONDS"' "$ROOT/scripts/mute_client_audio.sh"
+
+# The knobs that reach a $(( )) have to go through is_uint, not a bare digit
+# regex, or a wrapping value is still let into the arithmetic.
+for f in one_shot_join.sh zero_nre_join_loop.sh; do
+	assert "$f has no bare digit-regex guard left" \
+		no_digit_regex "$ROOT/scripts/$f"
+done
 
 for f in one_shot_join.sh zero_nre_join_loop.sh restart_pair.sh; do
 	assert "$f sources the shared checks" grep -q 'config_validate.sh' "$ROOT/scripts/$f"

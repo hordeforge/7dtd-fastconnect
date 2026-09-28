@@ -87,6 +87,21 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Fixed
 
+- A digit string too long for bash arithmetic no longer validates as a
+  numeric knob. `$(( ))` is signed 64-bit and wraps, so a value of
+  `18446744073709551633` (2^64 + 17) reached `PORT` as port 17, and a
+  `TIMEOUT_SEC` or `CLIENT_MUTE_TIMEOUT` of the same shape became a
+  deadline already in the past, ending the join or mute poll on its first
+  check. `is_uint` compares the text against the intmax ceiling before
+  any of it reaches `$(( ))`, and `is_tcp_port` and the mute window are
+  built on it. `TIMEOUT_SEC`, `SETTLE_SEC`, and `MAX_ATTEMPTS` read
+  through `is_uint` instead of a bare digit regex.
+
+- `CLIENT_MUTE_TIMEOUT` is capped at 3600 seconds, well above any real
+  poll window. The launcher and `mute_client_audio.sh` share one
+  `is_mute_wait` check, so a window the launcher announces is a window the
+  helper runs.
+
 - `make install` and `make uninstall` refuse an empty or root-level
   `MODS_DIR`. Either value collapses `INSTALL_DIR` to a top-level path
   that `uninstall` deletes recursively; the guard fails before anything

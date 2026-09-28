@@ -98,6 +98,19 @@ run_helper_without_pulse 0
 assert "non-positive positional timeout rejected as invalid" grep -q 'wait-seconds must be a positive integer' <<<"$out"
 assert "non-positive timeout still degrades to exit 0" test "$HELPER_RC" -eq 0
 
+# A digit string long enough wraps in the deadline arithmetic: 2^64+17 reads
+# as 17, so the poll's deadline is already in the past and the client is left
+# unmuted. The bound is a validation rule, so it has to reject, not clamp.
+run_helper_without_pulse 18446744073709551633
+assert "a wrapping positional timeout is rejected" grep -q 'wait-seconds must be a positive integer' <<<"$out"
+run_helper_without_pulse 9223372036854775807
+assert "an intmax positional timeout is rejected" grep -q 'wait-seconds must be a positive integer' <<<"$out"
+run_helper_without_pulse 3601
+assert "a timeout over the ceiling is rejected" grep -q 'wait-seconds must be a positive integer' <<<"$out"
+run_helper_without_pulse 3600
+no_wait_warning() { if grep -q 'wait-seconds must be a positive integer' <<<"$out"; then return 1; fi; }
+assert "a timeout at the ceiling is accepted" no_wait_warning
+
 set +e
 env_out="$(PATH="$NO_PULSE_BIN" CLIENT_MUTE_TIMEOUT=abc "$ROOT/scripts/mute_client_audio.sh" 2>&1)"
 set -e

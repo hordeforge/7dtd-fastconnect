@@ -23,6 +23,7 @@ Usage: mute_client_audio.sh [wait-seconds]
 Mute the 7 Days To Die audio stream (pactl sink-input) as soon as it
 appears, polling up to wait-seconds. The first argument overrides
 CLIENT_MUTE_TIMEOUT / SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT (default 60).
+wait-seconds is 1..3600; anything else warns and falls back to 60.
 
 Exit status: 0 muted, no stream within the window, or pactl/jq missing
 (the launch must not fail over audio); each of those warns on stderr.
@@ -39,14 +40,23 @@ fi
 
 WAIT_SECONDS="${1:-${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}}"
 
-# Flattening for the rejection line below: the value can come from the caller's
-# environment, and a newline or a bidi override in it would forge a second log
-# line. See scripts/log_sanitize.sh. The path comes from BASH_SOURCE, not
-# `dirname`, because the degradation tests run this helper with only bash on
-# PATH.
-source "${BASH_SOURCE[0]%/*}/log_sanitize.sh"
+# No dirname: this helper runs with a PATH that holds neither coreutils nor
+# pactl (the launch wiring degrades to leaving the audio alone), so the script
+# has to locate itself with builtins only.
+SCRIPT_DIR="${0%/*}"
+if [[ "$SCRIPT_DIR" == "$0" ]]; then SCRIPT_DIR=.; fi
+SCRIPT_DIR="$(cd -- "$SCRIPT_DIR" && pwd)"
+# Shared value checks (is_mute_wait): see scripts/config_validate.sh. The
+# bound is checked here, not left to the arithmetic: the deadline is mono_sec
+# + WAIT_SECONDS, which is signed 64-bit, so a value near intmax wraps it
+# negative and the poll finds the deadline already passed.
+source "$SCRIPT_DIR/config_validate.sh"
+# Flattening for the rejection lines below: the value can come from the
+# caller's environment, and a newline or a bidi override in it would forge a
+# second log line. See scripts/log_sanitize.sh.
+source "$SCRIPT_DIR/log_sanitize.sh"
 
-if ! [[ "$WAIT_SECONDS" =~ ^[0-9]+$ ]] || ((WAIT_SECONDS < 1)); then
+if ! is_mute_wait "$WAIT_SECONDS"; then
 	# Name where the value came from: naming only CLIENT_MUTE_TIMEOUT sent the
 	# reader looking at an env var that was never set when the bad value was the
 	# positional argument.
@@ -66,7 +76,6 @@ fi
 # Monotonic deadline source shared with one_shot_join.sh: see
 # scripts/monotonic_clock.sh for why $SECONDS must not bound this poll.
 # Stream matching comes from audio_streams.sh, shared with unmute_client_audio.sh.
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/monotonic_clock.sh"
 source "$SCRIPT_DIR/audio_streams.sh"
 

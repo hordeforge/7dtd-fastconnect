@@ -94,7 +94,8 @@ CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
 CONNECT="${CONNECT:-$HOST:$PORT}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-240}"
 # Validate before the client is launched; arithmetic on a bad value would
-# otherwise abort mid-cycle with a cryptic error.
+# otherwise abort mid-cycle with a cryptic error. is_bounded_uint, not a bare
+# regex: a value that wraps in $(( )) becomes a deadline already in the past.
 if ! is_bounded_uint "$TIMEOUT_SEC"; then
   echo "WARN: TIMEOUT_SEC invalid ('$(sanitize_log_text "$TIMEOUT_SEC")'); using 240." >&2
   TIMEOUT_SEC=240

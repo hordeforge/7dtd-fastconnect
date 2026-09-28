@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Shared value checks for the lifecycle scripts: the join harnesses' PORT
 # knob, the unbounded count knobs the loop harness also reads (TIMEOUT_SEC,
-# SETTLE_SEC, MAX_ATTEMPTS), and every boolean env knob (CLIENT_MUTE,
-# START_SERVER).
+# SETTLE_SEC, MAX_ATTEMPTS), the client-mute poll window, and every boolean
+# env knob (CLIENT_MUTE, START_SERVER).
 #
 # All of them land in something that only breaks later: PORT and the counts in
 # a numeric comparison, an ERE, a --port argv or $(( )) arithmetic, a boolean
@@ -46,20 +46,64 @@ is_bounded_uint() {
 	(( ${#digits} <= MAX_SIGNIFICANT_DIGITS ))
 }
 
+# Strip leading zeros, the way every decimal knob here is read (10#$v) and the
+# way ConnectTarget.TryParse reads a port. Prints the canonical digits; a
+# value that is all zeros prints nothing.
+canon_uint() { printf '%s' "${1#"${1%%[!0]*}"}"; }
+
+# True for a non-negative decimal integer bash arithmetic can hold exactly.
+# The numeric knobs that use this all reach a $(( ), which is signed 64-bit
+# and wraps rather than failing: TIMEOUT_SEC=18446744073709551633 reads as
+# 17, so a 240s join budget becomes a deadline already in the past and the
+# cycle gives up on the first poll. A digit regex cannot catch that, so the
+# length is checked against the intmax ceiling before the text ever reaches
+# arithmetic.
+is_uint() {
+	local LC_ALL=C
+	[[ "$1" =~ ^[0-9]+$ ]] || return 1
+	local d
+	d="$(canon_uint "$1")"
+	[[ -n "$d" ]] || return 0
+	(( ${#d} < 19 )) && return 0
+	(( ${#d} == 19 )) || return 1
+	# 19 digits: the leading 18 fit on their own, so the last one decides
+	# whether the whole value is over 9223372036854775807.
+	local p=$((10#${d:0:18}))
+	(( p < 922337203685477580 )) && return 0
+	(( p > 922337203685477580 )) && return 1
+	[[ "${d:18}" -le 7 ]]
+}
+
 # True for 1..65535, the same range the client enforces on 7DTD_CONNECT
 # (ConnectTarget.TryParse). A value outside it is not a port the client can
 # join: --port would be refused and the listener probe (":${PORT}\b") could
 # never match, so the run would fail much later as a listen or join timeout
 # instead of naming the bad value. Leading zeros are accepted as decimal.
 is_tcp_port() {
-	local LC_ALL=C
-	[[ "$1" =~ ^[0-9]+$ ]] || return 1
-	# Five significant digits is the top of the port range, rejected on the
-	# string so the length of PORT never reaches the arithmetic.
-	local digits="${1#"${1%%[!0]*}"}"
-	[[ -n "$digits" && ${#digits} -le 5 ]] || return 1
-	local n=$((10#$digits))
-	((n >= 1 && n <= 65535))
+	is_uint "$1" || return 1
+	local d
+	d="$(canon_uint "$1")"
+	# 0 has no canonical digits. The port range is 5 digits, so a longer
+	# value is out of range and never reaches the arithmetic below.
+	[[ -n "$d" ]] || return 1
+	(( ${#d} > 5 )) && return 1
+	((10#$d >= 1 && 10#$d <= 65535))
+}
+
+# Upper bound on the client-mute poll window, in seconds. Both the helper's
+# deadline (mono_sec + wait) and the value the launcher announces are signed
+# 64-bit, so a wait near intmax wraps the deadline into the past and the poll
+# gives up on its first check. An hour is far above any real window.
+MAX_MUTE_WAIT_SECONDS=3600
+
+# True for a mute poll window: 1..MAX_MUTE_WAIT_SECONDS. Shared so the
+# launcher and the helper it calls never disagree about what a value means.
+is_mute_wait() {
+	is_uint "$1" || return 1
+	local d
+	d="$(canon_uint "$1")"
+	[[ -n "$d" ]] || return 1
+	((10#$d >= 1 && 10#$d <= MAX_MUTE_WAIT_SECONDS))
 }
 
 # Read one boolean knob. Usage: env_bool "NAME=value" ["ALIAS=value" ...] DEFAULT

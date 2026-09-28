@@ -273,7 +273,7 @@ registry). Independent of master volume. Requires `pactl` and `jq`.
 | Env | Meaning |
 |---|---|
 | `CLIENT_MUTE` / `SEVEN_DAYS_TO_DIE_CLIENT_MUTE` | Default `1` (muted). Set `0` / `false` / `no` / `off` to leave audio on |
-| `CLIENT_MUTE_TIMEOUT` / `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT` | Seconds to wait for the audio stream after launch (default 60) |
+| `CLIENT_MUTE_TIMEOUT` / `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT` | Seconds to wait for the audio stream after launch, 1..3600 seconds (default 60) |
 | `MUTE_POLL_STOP_GRACE_SEC` | Seconds the mute poller gets to exit when the client stops before the launcher kills it (default 5) |
 | `CLIENT_PLATFORM=local` | No-Steam client mode: backs up the game's `platform.cfg`, selects the `Local` platform with EOS crossplay off, restores on exit. A second launcher on the same install reuses the running swap instead of taking the backup slot. Lets the real client join a test server without valid Steam auth and without a server-side bypass mod (loadgen bots already ride this path). See `../7dtd-loadgen/docs/STOCK_AUTH.md` |
 
@@ -341,7 +341,7 @@ that hold for all of them:
 | `PROTON` / `COMPAT` / `STEAM_ROOT` / `STEAM_APPID` | auto-detected | Proton binary, compatdata prefix, Steam root, app id overrides for the launcher |
 | `GFX_API` | `d3d11` | Forced backend: `d3d11`, `d3d12`, `vulkan`, `glcore`, or `none`; an invalid value aborts before launch |
 | `CLIENT_MUTE` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE`) | `1` | OS-level mute of the game audio stream at launch; an undocumented value warns and mutes |
-| `CLIENT_MUTE_TIMEOUT` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT`) | `60` | Seconds the launcher polls for that stream |
+| `CLIENT_MUTE_TIMEOUT` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT`) | `60` | Seconds the launcher polls for that stream (1..3600) |
 | `MUTE_POLL_STOP_GRACE_SEC` | `5` | Seconds the launcher waits for the mute poller to exit before killing it |
 | `CLIENT_PLATFORM` | Steam mode | `1` / `local` / `lan` (case-insensitive) selects no-Steam Local mode; anything else warns and is ignored |
 
