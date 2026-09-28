@@ -112,11 +112,17 @@ test:
 	# Without uv the Python gates below run a binary from PATH, so
 	# assert_tool_pin.sh checks each one against its == pin in pyproject.toml
 	# first: a fallback run must be the pinned tool, not merely a tool.
+	# shellcheck is a system binary, not a uv dependency, so it cannot be
+	# pinned the way yamllint below is. What it can do is fail loud: a missing
+	# shellcheck used to print a WARN and continue, so the run that reports
+	# "make test passed" proved nothing about the shell sources on a machine
+	# without it. Same reasoning as the yamllint comment below.
 	@if command -v shellcheck >/dev/null; then \
 	  echo "shellcheck:"; \
 	  shellcheck -S warning $(ROOT)/scripts/*.sh; \
 	else \
-	  echo "WARN: shellcheck not installed; shell lint skipped" >&2; \
+	  echo "ERROR: shellcheck not installed; shell sources went unlinted" >&2; \
+	  exit 1; \
 	fi
 	# yamllint joins the Python gates rather than staying a bare `command -v`
 	# probe: the hosted CI runner has no yamllint on PATH, so a probe-only gate

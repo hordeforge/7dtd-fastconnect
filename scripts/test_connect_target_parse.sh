@@ -42,7 +42,12 @@ if command -v mcs >/dev/null 2>&1 && command -v mono >/dev/null 2>&1; then
 	EXE="$WORK/connect_target_tests.exe"
 	sources=()
 	while IFS= read -r f; do sources+=("$f"); done < <(harness_sources "$ROOT")
-	mcs -out:"$EXE" -warn:1 "${sources[@]}" 1>&2
+	# -warn:4 is mcs' most verbose level, and -warnaserror+ turns whatever it
+	# prints into a build failure. At -warn:1 alone a compiler warning is
+	# printed and then ignored, so a real defect in a production source could
+	# merge with a green gate. The dotnet lane below gets the same guarantee
+	# from TreatWarningsAsErrors in the harness project.
+	mcs -out:"$EXE" -warn:4 -warnaserror+ "${sources[@]}" 1>&2
 	RUN=(mono "$EXE")
 elif command -v dotnet >/dev/null 2>&1; then
 	source "$ROOT/scripts/harness_csproj.sh"

@@ -11,6 +11,27 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+### Changed
+
+- `make test` fails when `shellcheck` is missing instead of printing a WARN
+  and continuing. A run that reported green had linted no shell source at
+  all. `yamllint`, `ruff` and `mypy` already failed loud for the same reason;
+  the README no longer claims the two shell/YAML gates are advisory.
+- The C# offline gate compiles under the same analysis posture as the
+  shipping project: the `mcs` lane builds at `-warn:4 -warnaserror+`, and
+  the generated harness csproj sets `EnableNETAnalyzers`,
+  `AnalysisLevel=latest` and `TreatWarningsAsErrors`. Both lanes previously
+  printed compiler and analyzer warnings and passed anyway, so the nine
+  production sources this gate compiles reached CI unanalyzed.
+
+### Added
+
+- `ruff` selects the correctness groups the tree already passes: `BLE`,
+  `TRY`, `C90`, `N`, `PIE`, `FLY`, `G`, `LOG`, `SLF`, `ASYNC`, `FA`, `TD`,
+  `FIX` and `ANN`. A blind except or a swallowed error had no enabled rule
+  naming it. `COM` stays at `COM818`/`COM819` because `COM812` contradicts
+  `ruff format`, and the two would rewrite the same line.
+
 ### Fixed
 
 - Client-log evidence copied into the join control log is sanitized and

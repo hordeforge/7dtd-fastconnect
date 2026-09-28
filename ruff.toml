@@ -27,6 +27,9 @@ select = [
     "S",   # flake8-bandit: security and dangerous-construct checks
     "SIM", # flake8-simplify
     "EM",  # flake8-errmsg: exception messages as named variables
+    # Only the two comma rules the formatter does not own. The rest of COM
+    # (COM812 in particular) contradicts `ruff format` and the two would
+    # fight over the same line.
     "COM818", # missing trailing comma on bare tuple
     "COM819", # prohibited trailing comma
     "ISC", # flake8-implicit-str-concat
@@ -34,6 +37,23 @@ select = [
     "TID", # flake8-tidy-imports
     "TCH", # flake8-type-checking
     "ERA", # eradicate: commented-out code
+    # Correctness groups the tree already passes. A defect that no enabled
+    # rule can name is a defect nothing else catches, so the defect groups
+    # below run even though the tree is clean today.
+    "BLE", # blind-except: except catching BaseException or bare Exception
+    "TRY", # tryceratops: error handling that hides the failure
+    "C90", # mccabe complexity
+    "N",   # pep8-naming
+    "PIE", # pylint subset: redundant parentheses, bad __all__, ...
+    "FLY", # flynt: static %-format and .format() into f-strings
+    "G",   # logging-format: wrong logging call arguments
+    "LOG", # flake8-logging: logger setup and misuse
+    "SLF", # private member access inside a single class
+    "ASYNC", # blocking calls inside async functions
+    "FA",  # future-annotations: missing __future__ import for PEP 585/604
+    "TD",  # flake8-todos: malformed TODO/FIXME markers
+    "FIX", # flake8-fixme: malformed FIXME/XXX markers
+    "ANN", # flake8-annotations: missing parameter and return annotations
 ]
 
 [lint.per-file-ignores]

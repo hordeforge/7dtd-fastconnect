@@ -94,8 +94,7 @@ back to the dotnet SDK pinned by `global.json`) against compiler-only game-API
 stubs (`scripts/testdata/`) and runs target parsing and launch-context
 resolution for real. It skips itself only when neither toolchain is present.
 `test_repro_zip.sh` pins the byte-reproducibility contract of packaging.
-The shellcheck / yamllint / ruff / mypy / pytest gates run last. shellcheck
-and yamllint warn when the tool is missing; the ruff and mypy gates are
+The shellcheck / yamllint / ruff / mypy / pytest gates run last. All five are
 mandatory, so a missing toolchain fails the run instead of reporting a green
 that never analyzed anything. With `uv` on PATH the Python gates run the
 versions pinned in `pyproject.toml` and hash-checked in `uv.lock`; without it

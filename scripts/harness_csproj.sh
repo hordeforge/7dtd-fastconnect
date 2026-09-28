@@ -35,6 +35,13 @@ emit_harness_csproj() {
 		echo '    <OutputType>Exe</OutputType>'
 		echo '    <TargetFramework>net8.0</TargetFramework>'
 		echo '    <Nullable>disable</Nullable>'
+		# Same analysis posture as the shipping Source/ConnectMod/ConnectMod.csproj.
+		# Without these the nine production sources this gate compiles reach CI
+		# with the .NET analyzers at their default severity and warnings that
+		# only print, so a defect in them is what a green gate would report.
+		echo '    <EnableNETAnalyzers>true</EnableNETAnalyzers>'
+		echo '    <AnalysisLevel>latest</AnalysisLevel>'
+		echo '    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>'
 		echo '    <ImplicitUsings>disable</ImplicitUsings>'
 		echo '    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>'
 		echo '  </PropertyGroup>'
