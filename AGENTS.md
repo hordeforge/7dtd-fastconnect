@@ -46,7 +46,9 @@ Canonical modding guide: [MODDING_BEST_PRACTICES.md](https://github.com/hordefor
 ## Commands
 
 ```bash
+make help     # list every target
 make test     # offline gates (env naming, mute helper, platform swap/restore)
+make gate GATE=scripts/test_<name>.sh   # one gate, for the edit-test loop
 make build    # requires local client install (game Assembly-CSharp)
 make package  # build + zip dist/7dtd-fastconnect-<tag>.zip (needs a client install)
 make install

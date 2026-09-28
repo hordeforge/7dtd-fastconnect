@@ -24,13 +24,38 @@ ifneq ($(DOTNET_ROOT),)
   export PATH := $(DOTNET_ROOT):$(PATH)
 endif
 
-.PHONY: build install uninstall clean test coverage package dotnet-version
+.PHONY: build install uninstall clean test gate coverage package help dotnet-version
 
 # The SDK the build actually resolved under the DOTNET_ROOT search above, so
 # the package build record names the compiler instead of whatever dotnet the
 # caller's PATH happens to hold.
 dotnet-version:
 	@dotnet --version
+
+# One gate on its own, so an edit to one script is checked in seconds instead
+# of a full `make test` run. The Python gate is a pytest module rather than a
+# shell gate; run it with
+#   uv run --frozen --group dev pytest scripts/test_launch_client_platform.py
+GATE ?=
+gate:
+	@test -n "$(GATE)" || { echo "usage: make gate GATE=scripts/test_<name>.sh" >&2; exit 2; }
+	@test -f "$(ROOT)/$(GATE)" || { echo "no such gate: $(GATE)" >&2; exit 2; }
+	@echo "gate: $(GATE)"
+	"$(ROOT)/$(GATE)"
+
+help:
+	@echo "targets:"
+	@echo "  test       every gate CI runs (offline; the full local verification)"
+	@echo "  gate       one shell gate: make gate GATE=scripts/test_<name>.sh"
+	@echo "  build      build the mod DLL into dist/ (needs the game install)"
+	@echo "  install    build, then copy into \$$GAME/Mods/7dtd-fastconnect"
+	@echo "  uninstall  remove that installed copy"
+	@echo "  package    build and zip dist/7dtd-fastconnect-<tag>.zip"
+	@echo "  coverage   line coverage of ConnectTarget plus the rendered badge"
+	@echo "  clean      remove dist/ and the C# bin/ and obj/ trees"
+	@echo "python gate (not a shell gate):"
+	@echo "  uv run --frozen --group dev pytest scripts/test_launch_client_platform.py"
+	@echo "setup: uv sync --group dev (pinned ruff/mypy/pytest); dotnet SDK band in global.json"
 
 build:
 	dotnet build "$(ROOT)/Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
@@ -47,27 +72,33 @@ coverage:
 	cd "$(ROOT)" && uv run --frozen --group dev python scripts/coverage_badge.py \
 		coverage.svg "/Source/" coverage.cobertura.xml
 
+# The offline gate scripts, in run order. Explicit rather than a
+# scripts/test_*.sh wildcard: test_common.sh matches that glob but is sourced
+# plumbing, not a gate, and a wildcard would run it as one.
+GATES := \
+	scripts/test_connect_target_parse.sh \
+	scripts/test_repro_zip.sh \
+	scripts/test_stage_mod.sh \
+	scripts/test_player_name_override.sh \
+	scripts/test_force_load_sync_override.sh \
+	scripts/test_automation_mode.sh \
+	scripts/test_local_host_world_load.sh \
+	scripts/test_mute_client_audio.sh \
+	scripts/test_config_validate.sh \
+	scripts/test_unmute_client_audio.sh \
+	scripts/test_cli_help.sh \
+	scripts/test_monotonic_deadlines.sh \
+	scripts/test_log_marker_cache.sh \
+	scripts/test_log_marker_fuzz.sh \
+	scripts/test_log_sanitize.sh \
+	scripts/test_version_sync.sh \
+	scripts/test_cycle_filename_guard.sh \
+	scripts/test_zero_nre_log_dir_guard.sh \
+	scripts/test_zero_nre_server_stop.sh \
+	scripts/test_make_tool_pin.sh
+
 test:
-	$(ROOT)/scripts/test_connect_target_parse.sh
-	$(ROOT)/scripts/test_repro_zip.sh
-	$(ROOT)/scripts/test_stage_mod.sh
-	$(ROOT)/scripts/test_player_name_override.sh
-	$(ROOT)/scripts/test_force_load_sync_override.sh
-	$(ROOT)/scripts/test_automation_mode.sh
-	$(ROOT)/scripts/test_local_host_world_load.sh
-	$(ROOT)/scripts/test_mute_client_audio.sh
-	$(ROOT)/scripts/test_config_validate.sh
-	$(ROOT)/scripts/test_unmute_client_audio.sh
-	$(ROOT)/scripts/test_cli_help.sh
-	$(ROOT)/scripts/test_monotonic_deadlines.sh
-	$(ROOT)/scripts/test_log_marker_cache.sh
-	$(ROOT)/scripts/test_log_marker_fuzz.sh
-	$(ROOT)/scripts/test_log_sanitize.sh
-	$(ROOT)/scripts/test_version_sync.sh
-	$(ROOT)/scripts/test_cycle_filename_guard.sh
-	$(ROOT)/scripts/test_zero_nre_log_dir_guard.sh
-	$(ROOT)/scripts/test_zero_nre_server_stop.sh
-	$(ROOT)/scripts/test_make_tool_pin.sh
+	@for gate in $(GATES); do "$(ROOT)/$$gate" || exit $$?; done
 	# Without uv the Python gates below run a binary from PATH, so
 	# assert_tool_pin.sh checks each one against its == pin in pyproject.toml
 	# first: a fallback run must be the pinned tool, not merely a tool.

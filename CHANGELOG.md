@@ -33,6 +33,9 @@ in the affected sections instead of being papered over.
 
 ### Added
 
+- `make help` lists the targets, and `make gate GATE=scripts/test_<name>.sh`
+  runs a single shell gate. Checking one script used to mean running all
+  twenty.
 - `make test` lints the workflow YAML with `yamllint`, configured by the new
   `.yamllint` (100-column cap, bare `on:` trigger key, no document marker).
 - `restart_pair.sh` takes `HOST` (default `127.0.0.1`) for the join target it

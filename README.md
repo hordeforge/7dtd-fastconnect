@@ -73,7 +73,15 @@ looks for mods.
 ## Tests
 
 ```bash
-make test
+make help    # list the targets
+make test    # every gate CI runs: the full local verification
+```
+
+One gate at a time, for the edit-test loop:
+
+```bash
+make gate GATE=scripts/test_log_sanitize.sh
+uv run --frozen --group dev pytest scripts/test_launch_client_platform.py
 ```
 
 The whole suite is offline: no game install, no server, no audio daemon.
