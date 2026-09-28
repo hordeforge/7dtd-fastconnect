@@ -29,6 +29,62 @@ and enum handling, so a patch bump would claim none of that.
   where a value the client could never join used to run the harness to a listen
   or join timeout.
 
+### Added
+
+- `docs/PRIVACY.md` maps the personal data the mod touches: the player display
+  name (source, the pref it is stored in, the server it reaches, and the fact
+  that it never reaches the client log), the synthetic platform id the
+  Steam-less path sends, and the harness artifacts with their pruning. It also
+  states the erasure path, since a stored name is stock preference state a
+  user may want cleared. `test_player_name_override.sh` pins the claims that
+  name this code, so the page cannot drift from the flow it describes.
+- `ruff` selects the correctness groups the tree already passes: `BLE`,
+  `TRY`, `C90`, `N`, `PIE`, `FLY`, `G`, `LOG`, `SLF`, `ASYNC`, `FA`, `TD`,
+  `FIX` and `ANN`. A blind except or a swallowed error had no enabled rule
+  naming it. `COM` stays at `COM818`/`COM819` because `COM812` contradicts
+  `ruff format`, and the two would rewrite the same line.
+- The release zip and `make install` now ship `LICENSE` alongside the
+  assembly and the manifest. The mod is redistributed as a zip, so its
+  terms have to travel with the payload.
+
+
+- `make help` lists the targets, and `make gate GATE=scripts/test_<name>.sh`
+  runs a single shell gate. Checking one script used to mean running all
+  twenty.
+- `make test` lints the workflow YAML with `yamllint`, configured by the new
+  `.yamllint` (100-column cap, bare `on:` trigger key, no document marker).
+- `restart_pair.sh` takes `HOST` (default `127.0.0.1`) for the join target it
+  hands the client through `7DTD_CONNECT`, the knob the other two harnesses
+  already honour and the README lists for them. A value carrying whitespace is
+  a usage error (exit 2), checked before anything is torn down.
+- A boolean env var holding an undocumented token now logs a warning naming
+  the variable and the value (`7DTD_CONNECT_DEBUG=ture`). The reading is
+  unchanged (unknown means on); the log just stops looking like a deliberate
+  setting. `1` / `true` / `yes` / `on` are now documented opt-in tokens.
+- `PORT` is checked against the real TCP range (1-65535) by the three join
+  harnesses, through the shared `scripts/config_validate.sh`, so a value the
+  client could never join is reported at startup instead of surfacing later as
+  a listen or join timeout; `restart_pair.sh` calls it a usage error (exit 2).
+- `START_SERVER` reads the documented boolean table in `one_shot_join.sh`. It
+  was compared to `1`, so `START_SERVER=true` read as off and the cycle failed
+  much later as "no listener on PORT", naming the port instead of the knob.
+- `env_bool` in `scripts/config_validate.sh`, the shell twin of the mod's
+  `EnvFlags`, now also reads `CLIENT_MUTE`. An undocumented token there was
+  coerced to mute in silence, so `CLIENT_MUTE=ture` looked like a deliberate
+  setting while the mod's own `7DTD_CONNECT_*` flags warned about the same
+  mistake.
+- The join harnesses' `--help` lists the knobs they read but did not document
+  (`ZDTD_BIN`, `WORLD_DIR`, `MAP_DIR`, `GAME_DIR`, and the `GAME` / `COMPAT` /
+  `STEAM_ROOT` / `STEAM_APPID` prefix resolution).
+- A pushed `vX.Y.Z` tag runs `scripts/test_version_sync.sh` and
+  `scripts/changelog_gate.sh` before it is accepted. The tag gate previously
+  matched the version against `ModInfo.xml` alone, so a tag could ship with a
+  `ModApi.cs` or `pyproject.toml` still reading the previous version (the drift
+  that shipped 0.10.5 pointing at a 0.10.4 build), and it accepted a
+  `## [X.Y.Z]` heading with no notes under it. `changelog_gate.sh` also
+  requires the compare links at the foot of the file to name the tagged
+  version, which is a hand edit nothing else checks.
+
 ### Changed
 
 - The local-host startup trace prefix is `startup trace:` and each step line
@@ -70,6 +126,80 @@ and enum handling, so a patch bump would claim none of that.
   `uv.lock` is what makes the install verifiable. `required-version` refuses a
   uv too old to read the lock, which would have to re-lock to use it.
   `test_make_tool_pin.sh` holds all three in place.
+
+
+- The local-host startup trace no longer builds its line when verbose tracing
+  is off. `PerfTrace.Trace` gates the log write, but the caller concatenated
+  the line first, so every step of a world load allocated a string that was
+  dropped. The call sites now test `PerfTrace.Enabled` before building one;
+  the trace output is unchanged when diag is on.
+- A rejected target or a failed connect from the F1 console is logged at error
+  severity, matching what the auto-join path already did for the same outcome.
+  The console still shows the message; only the log level changed, so a
+  client-log-only read no longer shows a clean run for a join that never
+  happened.
+- The connect-wait lines carry the seconds the gate held (`t=`) next to the
+  poll count, so a hung join is read from how long it waited rather than how
+  often it polled.
+- Every caught exception logged by the mod names its type next to the message
+  (`NullReferenceException: ...`), so a one-word message can be told apart
+  from a differently-shaped failure at the same call site. The `IsReady` gate
+  reason the join-wait line echoes uses the same shape.
+- The two `IsReady` expiry notes (a platform identity that never arrived, so
+  the join proceeds anyway) are logged at warning severity, since the join
+  they precede is the one that fails authentication.
+- `mute_client_audio.sh` names where a bad wait value came from (the
+  `wait-seconds` argument or `CLIENT_MUTE_TIMEOUT`) instead of always pointing
+  at the env var, and its help lists the statuses it can exit with.
+- `coverage_badge.py` answers `-h` / `--help` on stdout, and every entry point
+  reports a usage error as `usage: <name> ...` on stderr, the way the shell
+  scripts do.
+- ruff now runs the `S`, `SIM`, `EM`, `COM818/819`, `ISC`, `Q`, `TID`, `TCH`
+  and `ERA` groups alongside the existing ones, with the assert and
+  partial-path subprocess rules scoped off for `scripts/test_*.py` and the XML
+  parse rule for the Cobertura file the coverage lane just generated.
+- The ruff and mypy gates in `make test` are mandatory: without `uv` or
+  `ruff`+`mypy` on PATH the run fails instead of printing a warning and
+  reporting a green that analyzed nothing.
+- F1 console replies are actionable. `connect` echoes the argument it read and
+  the reason names the fix: the port range for a bad port, the bracketed IPv6
+  form for an unclosed `[`, the expected `host[:port]` shape for a missing
+  host, instead of `bad port` / `empty host`. `diag` rejects an unknown
+  argument by name and still prints the current state, rather than silently
+  answering as if it were `status`. A pasted port is truncated in the echo so
+  the reason stays on screen.
+
+- The log-marker scanner skips the grep when the join log has not grown since
+  its last scan of that marker. The window is byte-identical, so the verdict
+  cannot differ, and the join log is bursty: most polls used to re-run `tail`
+  plus `grep` over an unchanged tail for the whole join budget. External
+  truncation (size below the offset) still falls back to a full scan, and a
+  poll still forks once whenever the log grew.
+
+- The player name applied at boot is no longer echoed to the client log. The
+  line records only whether the name came from `7DTD_PLAYER_NAME` or from the
+  `PlayerNames` fallback; the value itself (an OS account name, host name, or
+  operator-supplied label) no longer lands in a log that gets pasted into bug
+  reports.
+- `launch_client.sh` trims and case-folds every enum value (`GFX_API`,
+  `CLIENT_PLATFORM`, `CLIENT_MUTE`), so `GFX_API=Vulkan` and `GFX_API=" vulkan "`
+  select the documented backend instead of aborting as usage errors. Unknown
+  values still abort.
+- `CLIENT_MUTE_TIMEOUT` is validated by the launcher that announces the poll
+  window, so a bad value names itself in the launch log.
+- Every env read in the mod goes through one guarded helper. An environment
+  that cannot be read now falls back to the default instead of throwing out of
+  a static initializer while the mod loads.
+- The log-line hygiene helpers moved out of `ConnectTarget` into their own
+  leaf module, `LogText`. `EnvFlags` (a low-level env reader) needed
+  `ConnectTarget.SanitizeForLog` to flatten a bad env value, so the leaf
+  depended on the join module above it; the two now meet at `LogText`, which
+  depends on neither. Behavior is unchanged and the same offline gates cover
+  it.
+- The local-host frame-hitch monitor and startup step trace moved from
+  `LocalHostWorldLoadPatches.cs` into `PerfTrace.cs`. They are diagnostics, not
+  part of the world-load workaround, and the other opt-in probes already live
+  in their own `*Trace.cs` files.
 
 ### Fixed
 
@@ -417,120 +547,17 @@ and enum handling, so a patch bump would claim none of that.
 - The CI badge job authenticates with an `http.extraheader` instead of a token
   embedded in the git remote URL, which wrote `GITHUB_TOKEN` into `.git/config`
   on the runner and into the process table for every git command.
-
-### Added
-
-- `make help` lists the targets, and `make gate GATE=scripts/test_<name>.sh`
-  runs a single shell gate. Checking one script used to mean running all
-  twenty.
-- `make test` lints the workflow YAML with `yamllint`, configured by the new
-  `.yamllint` (100-column cap, bare `on:` trigger key, no document marker).
-- `restart_pair.sh` takes `HOST` (default `127.0.0.1`) for the join target it
-  hands the client through `7DTD_CONNECT`, the knob the other two harnesses
-  already honour and the README lists for them. A value carrying whitespace is
-  a usage error (exit 2), checked before anything is torn down.
-- A boolean env var holding an undocumented token now logs a warning naming
-  the variable and the value (`7DTD_CONNECT_DEBUG=ture`). The reading is
-  unchanged (unknown means on); the log just stops looking like a deliberate
-  setting. `1` / `true` / `yes` / `on` are now documented opt-in tokens.
-- `PORT` is checked against the real TCP range (1-65535) by the three join
-  harnesses, through the shared `scripts/config_validate.sh`, so a value the
-  client could never join is reported at startup instead of surfacing later as
-  a listen or join timeout; `restart_pair.sh` calls it a usage error (exit 2).
-- `START_SERVER` reads the documented boolean table in `one_shot_join.sh`. It
-  was compared to `1`, so `START_SERVER=true` read as off and the cycle failed
-  much later as "no listener on PORT", naming the port instead of the knob.
-- `env_bool` in `scripts/config_validate.sh`, the shell twin of the mod's
-  `EnvFlags`, now also reads `CLIENT_MUTE`. An undocumented token there was
-  coerced to mute in silence, so `CLIENT_MUTE=ture` looked like a deliberate
-  setting while the mod's own `7DTD_CONNECT_*` flags warned about the same
-  mistake.
-- The join harnesses' `--help` lists the knobs they read but did not document
-  (`ZDTD_BIN`, `WORLD_DIR`, `MAP_DIR`, `GAME_DIR`, and the `GAME` / `COMPAT` /
-  `STEAM_ROOT` / `STEAM_APPID` prefix resolution).
-- A pushed `vX.Y.Z` tag runs `scripts/test_version_sync.sh` and
-  `scripts/changelog_gate.sh` before it is accepted. The tag gate previously
-  matched the version against `ModInfo.xml` alone, so a tag could ship with a
-  `ModApi.cs` or `pyproject.toml` still reading the previous version (the drift
-  that shipped 0.10.5 pointing at a 0.10.4 build), and it accepted a
-  `## [X.Y.Z]` heading with no notes under it. `changelog_gate.sh` also
-  requires the compare links at the foot of the file to name the tagged
-  version, which is a hand edit nothing else checks.
-
-### Changed
-
-- The local-host startup trace no longer builds its line when verbose tracing
-  is off. `PerfTrace.Trace` gates the log write, but the caller concatenated
-  the line first, so every step of a world load allocated a string that was
-  dropped. The call sites now test `PerfTrace.Enabled` before building one;
-  the trace output is unchanged when diag is on.
-- A rejected target or a failed connect from the F1 console is logged at error
-  severity, matching what the auto-join path already did for the same outcome.
-  The console still shows the message; only the log level changed, so a
-  client-log-only read no longer shows a clean run for a join that never
-  happened.
-- The connect-wait lines carry the seconds the gate held (`t=`) next to the
-  poll count, so a hung join is read from how long it waited rather than how
-  often it polled.
-- Every caught exception logged by the mod names its type next to the message
-  (`NullReferenceException: ...`), so a one-word message can be told apart
-  from a differently-shaped failure at the same call site. The `IsReady` gate
-  reason the join-wait line echoes uses the same shape.
-- The two `IsReady` expiry notes (a platform identity that never arrived, so
-  the join proceeds anyway) are logged at warning severity, since the join
-  they precede is the one that fails authentication.
-- `mute_client_audio.sh` names where a bad wait value came from (the
-  `wait-seconds` argument or `CLIENT_MUTE_TIMEOUT`) instead of always pointing
-  at the env var, and its help lists the statuses it can exit with.
-- `coverage_badge.py` answers `-h` / `--help` on stdout, and every entry point
-  reports a usage error as `usage: <name> ...` on stderr, the way the shell
-  scripts do.
-- ruff now runs the `S`, `SIM`, `EM`, `COM818/819`, `ISC`, `Q`, `TID`, `TCH`
-  and `ERA` groups alongside the existing ones, with the assert and
-  partial-path subprocess rules scoped off for `scripts/test_*.py` and the XML
-  parse rule for the Cobertura file the coverage lane just generated.
-- The ruff and mypy gates in `make test` are mandatory: without `uv` or
-  `ruff`+`mypy` on PATH the run fails instead of printing a warning and
-  reporting a green that analyzed nothing.
-- F1 console replies are actionable. `connect` echoes the argument it read and
-  the reason names the fix: the port range for a bad port, the bracketed IPv6
-  form for an unclosed `[`, the expected `host[:port]` shape for a missing
-  host, instead of `bad port` / `empty host`. `diag` rejects an unknown
-  argument by name and still prints the current state, rather than silently
-  answering as if it were `status`. A pasted port is truncated in the echo so
-  the reason stays on screen.
-
-- The log-marker scanner skips the grep when the join log has not grown since
-  its last scan of that marker. The window is byte-identical, so the verdict
-  cannot differ, and the join log is bursty: most polls used to re-run `tail`
-  plus `grep` over an unchanged tail for the whole join budget. External
-  truncation (size below the offset) still falls back to a full scan, and a
-  poll still forks once whenever the log grew.
-
-- The player name applied at boot is no longer echoed to the client log. The
-  line records only whether the name came from `7DTD_PLAYER_NAME` or from the
-  `PlayerNames` fallback; the value itself (an OS account name, host name, or
-  operator-supplied label) no longer lands in a log that gets pasted into bug
-  reports.
-- `launch_client.sh` trims and case-folds every enum value (`GFX_API`,
-  `CLIENT_PLATFORM`, `CLIENT_MUTE`), so `GFX_API=Vulkan` and `GFX_API=" vulkan "`
-  select the documented backend instead of aborting as usage errors. Unknown
-  values still abort.
-- `CLIENT_MUTE_TIMEOUT` is validated by the launcher that announces the poll
-  window, so a bad value names itself in the launch log.
-- Every env read in the mod goes through one guarded helper. An environment
-  that cannot be read now falls back to the default instead of throwing out of
-  a static initializer while the mod loads.
-- The log-line hygiene helpers moved out of `ConnectTarget` into their own
-  leaf module, `LogText`. `EnvFlags` (a low-level env reader) needed
-  `ConnectTarget.SanitizeForLog` to flatten a bad env value, so the leaf
-  depended on the join module above it; the two now meet at `LogText`, which
-  depends on neither. Behavior is unchanged and the same offline gates cover
-  it.
-- The local-host frame-hitch monitor and startup step trace moved from
-  `LocalHostWorldLoadPatches.cs` into `PerfTrace.cs`. They are diagnostics, not
-  part of the world-load workaround, and the other opt-in probes already live
-  in their own `*Trace.cs` files.
+- Every deadline in the mod is measured on `Time.realtimeSinceStartup` instead
+  of `Time.unscaledTime`. `unscaledTime` accumulates `unscaledDeltaTime`, which
+  Unity clamps to `Time.maximumDeltaTime` (0.333 s), so on the stalling boot
+  these gates exist to bound, a stalled frame advanced the clock by a third of
+  a second: the 45 s connect wait, the 30 s in-flight connect-request window,
+  and the native-user and cross-user (EOS) settle windows all ran for minutes
+  of wall clock before expiring. The `t=` seconds on the connect-wait and
+  heartbeat lines now come off the same clock, so a reported wait matches the
+  budget it is checked against. The `connectrequest` mode of
+  `scripts/test_connect_target_parse.sh` greps every mod source for a
+  reintroduced `Time.unscaledTime`.
 
 ## [0.12.0] - 2026-09-11
 

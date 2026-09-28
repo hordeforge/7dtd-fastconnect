@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Release gate for CHANGELOG.md. The tagged version must have its own notes
 # section, that section must carry entries, it must be the newest released
-# section, and the compare links at the foot of the file must name the tag.
+# section, and the compare links at the foot of the file must name the tag. An
+# `## [Unreleased]` section must exist and every released section must carry
+# its release date.
 #
 # The tag workflow ran before with a single `grep` for the `## [X.Y.Z]`
 # heading, so a version heading with nothing under it passed, and the compare
@@ -31,6 +33,10 @@ fail() {
     STATUS=1
 }
 STATUS=0
+
+if ! grep -qE '^## \[Unreleased\]' "$CHANGELOG"; then
+    fail "no \`## [Unreleased]\` section; the notes still to ship have nowhere to live"
+fi
 
 if ! awk -v want="$VERSION" -v file="$CHANGELOG" '
     # Runs both when the tagged section ends at the next heading and again in
@@ -86,6 +92,23 @@ if ! awk -v want="$VERSION" -v file="$CHANGELOG" '
         }
         exit rc
     }
+' "$CHANGELOG"; then
+    STATUS=1
+fi
+
+# Every released section carries its release date, so a reader can place a
+# version in time and a gap between two versions is visible as one. Undated
+# headings passed the section check, which only proves the notes are there.
+if ! awk '
+    /^## \[/ {
+        if ($0 ~ /^## \[Unreleased\]/) next
+        if ($0 !~ /^## \[[^]]+\] - [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) {
+            printf "ERROR: released section is undated or misdated: %s\n", $0 > "/dev/stderr"
+            printf "ERROR: use `## [X.Y.Z] - YYYY-MM-DD` so the release can be placed in time\n" > "/dev/stderr"
+            rc = 1
+        }
+    }
+    END { exit rc }
 ' "$CHANGELOG"; then
     STATUS=1
 fi

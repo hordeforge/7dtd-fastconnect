@@ -12,11 +12,19 @@ SCRATCH="$(scratch_mktemp "$ROOT" test_changelog_gate)"
 trap 'rm -rf "$SCRATCH"' EXIT
 
 # A changelog that passes the gate for 0.13.0. The named argument selects a
-# mutation: drop_section, empty_section, stale_unreleased_link, no_version_link.
+# mutation: drop_section, empty_section, stale_unreleased_link, no_version_link,
+# drop_unreleased, undated_section.
 write_changelog() {
 	local out="$SCRATCH/CHANGELOG.md"
 	local unreleased_link="https://github.com/hordeforge/7dtd-fastconnect/compare/v0.13.0...HEAD"
 	local version_link="https://github.com/hordeforge/7dtd-fastconnect/compare/v0.12.0...v0.13.0"
+	local unreleased="## [Unreleased]
+
+### Fixed
+
+- Unreleased work.
+
+"
 	local section="## [0.13.0] - 2026-10-01
 
 ### Fixed
@@ -29,13 +37,21 @@ write_changelog() {
 " ;;
 		stale_unreleased_link) unreleased_link="https://github.com/hordeforge/7dtd-fastconnect/compare/v0.12.0...HEAD" ;;
 		no_version_link) version_link="" ;;
+		drop_unreleased) unreleased="" ;;
+		undated_section) section="## [0.13.0]
+
+### Fixed
+
+- A released fix with no date.
+" ;;
 		no_subsection) section="## [0.13.0] - 2026-10-01
 
 - A released fix with no impact group.
 " ;;
 	esac
 	{
-		printf '# Changelog\n\n## [Unreleased]\n\n### Fixed\n\n- Unreleased work.\n\n'
+		printf '# Changelog\n\n'
+		printf '%s' "$unreleased"
 		printf '%s' "$section"
 		printf '## [0.12.0] - 2026-09-11\n\n### Fixed\n\n- The previous release.\n\n'
 		printf '[Unreleased]: %s\n' "$unreleased_link"
@@ -72,6 +88,8 @@ check "rejects a section with no entries" empty_section 0.13.0 fail
 check "rejects a section with no impact group" no_subsection 0.13.0 fail
 check "rejects a stale [Unreleased] compare link" stale_unreleased_link 0.13.0 fail
 check "rejects a missing [version] link" no_version_link 0.13.0 fail
+check "rejects a missing [Unreleased] section" drop_unreleased 0.13.0 fail
+check "rejects a released section with no date" undated_section 0.13.0 fail
 check "rejects a version older than the newest section" "" 0.12.0 fail
 check "rejects a version that never existed" "" 0.10.1 fail
 

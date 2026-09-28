@@ -61,7 +61,8 @@ zip. The archive bytes are reproducible: entry mtimes come from
    `[Unreleased]` must compare from the version being cut
    (`.../compare/vX.Y.Z...HEAD`) and the new `[X.Y.Z]` line must name the
    version. `scripts/changelog_gate.sh X.Y.Z` checks the section, its entries,
-   and both links without a tag:
+   both links, the presence of the `## [Unreleased]` section, and a
+   `## [X.Y.Z] - YYYY-MM-DD` date on the new section, all without a tag:
 
    ```bash
    make gate GATE=scripts/test_changelog_gate.sh   # the gate's own tests
@@ -136,17 +137,24 @@ The mod is three files with no server side and no persistent state, so a bad
 release rolls back by putting the previous files back:
 
 ```bash
-# 1. restore the installed copy from the previous release zip
-unzip -o dist/7dtd-fastconnect-0.12.0.zip -d "$GAME/Mods"
+# 1. restore the installed copy from the release BEFORE the one being undone
+#    (rolling 0.12.0 back means unzipping 0.11.0, not 0.12.0)
+unzip -o dist/7dtd-fastconnect-<previous-version>.zip -d "$GAME/Mods"
 
 # or, to remove the mod entirely
 make uninstall
 ```
+
+Both archives are on the GitHub release page for their tag, so a rollback does
+not need the local `dist/`.
 
 Removing the mod directory leaves the stock client working: it joins through
 the Steam server browser instead, which does not work for a non-Steam server
 like zdtd.
 
 A tag that was pushed by mistake is not rewritten here. Cut a new patch
-release with the reverted content and the CHANGELOG entry that says so; the
-tag gate will not accept a second tag for the same version.
+release with the reverted content and the CHANGELOG entry that says so. The
+`verify-tag` job checks that the tag matches the shipped version, that the
+version declarations agree, and that the notes exist; it does not know which
+tags already exist, so nothing in CI stops a re-push of a moved `vX.Y.Z` over
+its published zip. Bump to the next patch and re-release instead.
