@@ -705,11 +705,11 @@ static class TestMain
             // on" behavior but must say so: '7DTD_CONNECT_DEBUG=ture' silently
             // enabling verbose traces is exactly the silent misconfiguration
             // the warning exists for.
-            Check("IsKnownBool accepts blank", EnvFlags.IsKnownBool("   "));
-            Check("IsKnownBool accepts on", EnvFlags.IsKnownBool(" On "));
-            Check("IsKnownBool accepts yes", EnvFlags.IsKnownBool("yes"));
-            Check("IsKnownBool accepts off", EnvFlags.IsKnownBool("OFF"));
-            Check("IsKnownBool rejects unknown text", !EnvFlags.IsKnownBool("ture"));
+            Check("Parse leaves blank unset", EnvFlags.Parse("   ") == null);
+            Check("Parse reads on", EnvFlags.Parse(" On ") == true);
+            Check("Parse reads yes", EnvFlags.Parse("yes") == true);
+            Check("Parse reads off", EnvFlags.Parse("OFF") == false);
+            Check("Parse rejects unknown text", EnvFlags.Parse("ture") == null);
 
             Env(flag, "1");
             string cleanLog = CaptureStderr(delegate { EnvFlags.VarIsSetOn(flag); });
@@ -1574,7 +1574,7 @@ static class TestMain
         {
             optOut = EnvFlags.IsOptOut(raw);
             setOn = EnvFlags.IsSetOn(raw);
-            known = EnvFlags.IsKnownBool(raw);
+            known = string.IsNullOrWhiteSpace(raw) || EnvFlags.Parse(raw) != null;
         }
         catch (Exception ex) { CheckFuzzText(label + " EnvFlags threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
         CheckFuzzText(label + " a knob is on exactly when it is non-blank and not an opt-out",
@@ -1588,13 +1588,13 @@ static class TestMain
         CheckFuzzText(label + " the token table resolves as documented",
             EnvFlags.IsOptOut(tok) == FuzzBoolTokensOptOut[slot]
             && EnvFlags.IsSetOn(tok) == !FuzzBoolTokensOptOut[slot]
-            && EnvFlags.IsKnownBool(tok) == FuzzBoolTokensKnown[slot]);
+            && (EnvFlags.Parse(tok) != null) == FuzzBoolTokensKnown[slot]);
     }
 
     // The documented boolean vocabulary in both directions and in any case,
     // then the undocumented values the warning exists for: they read as on,
-    // and IsKnownBool says so. FuzzBoolTokensOptOut and FuzzBoolTokensKnown
-    // carry the documented verdict for each entry.
+    // and Parse returns no verdict for them. FuzzBoolTokensOptOut and
+    // FuzzBoolTokensKnown carry the documented verdict for each entry.
     static readonly string[] FuzzBoolTokens =
     {
         "0", "false", "FALSE", "no", "No", "off", "OFF", " off ", "\t0\t",

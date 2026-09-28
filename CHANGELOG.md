@@ -92,6 +92,20 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Changed
 
+- Four copies of one thing became one, with no behaviour change.
+  `EnvFlags` spelled the boolean token table twice, once per direction, behind
+  four predicates; it now has a single `Parse` over one table, and the opt-in
+  and opt-out readers are one comparison each. The two tables could document
+  a token on one side only, and the fuzz lane in `test_connect_target_parse.sh`
+  now reads the same table the mod does.
+  `World.LoadWorld` held `LoadManager.forceLoadSync` through its own copy of
+  the reflection, its own saved value and its own restore, next to the
+  hold/release pair `createWorld` used; both now go through that pair, which is
+  the only latch on the field.
+  `DiagToggle` kept the console override as a bool beside a separate "did the
+  command ever run" flag, which is a nullable bool spelled as two fields.
+  `ProbeFailure.Announce` and the two single-use error-message helpers in
+  `ConnectTarget` had one caller each and are now inline.
 - The local-host startup trace prefix is `startup trace:` and each step line
   names its stage (`StartAsServer -> step ...` / `createWorld step ...`).
   The old prefix said `StartAsServer trace:` on createWorld lines too, so a

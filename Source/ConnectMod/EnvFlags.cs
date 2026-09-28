@@ -20,38 +20,34 @@ namespace SdtdConnect
             catch (Exception) { return null; }
         }
 
-        /// <summary>Opt-out flag: true only for 0/false/no/off (any case).</summary>
-        internal static bool IsOptOut(string raw)
+        // The one token table, read in both directions. Every boolean env
+        // override goes through Parse, so a token cannot be documented on the
+        // opt-in side and missing on the opt-out side.
+        static readonly string[] _optOutTokens = { "0", "false", "no", "off" };
+        static readonly string[] _optInTokens = { "1", "true", "yes", "on" };
+
+        /// <summary>
+        /// The documented value of a boolean override: false for 0/false/no/off
+        /// (any case), true for 1/true/yes/on, null for blank or for a token
+        /// neither side documents.
+        /// </summary>
+        internal static bool? Parse(string raw)
         {
-            if (string.IsNullOrWhiteSpace(raw)) return false;
+            if (string.IsNullOrWhiteSpace(raw)) return null;
             string value = raw.Trim();
-            return value == "0"
-                || string.Equals(value, "false", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "no", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "off", StringComparison.OrdinalIgnoreCase);
+            if (Array.Exists(_optOutTokens, t => string.Equals(t, value, StringComparison.OrdinalIgnoreCase)))
+                return false;
+            if (Array.Exists(_optInTokens, t => string.Equals(t, value, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            return null;
         }
+
+        /// <summary>Opt-out flag: true only for 0/false/no/off (any case).</summary>
+        internal static bool IsOptOut(string raw) => Parse(raw) == false;
 
         /// <summary>Opt-in flag: true when set to anything but an opt-out value.</summary>
         internal static bool IsSetOn(string raw)
-        {
-            return !string.IsNullOrWhiteSpace(raw) && !IsOptOut(raw);
-        }
-
-        /// <summary>True for blank or a documented boolean token in either direction.</summary>
-        internal static bool IsKnownBool(string raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw)) return true;
-            return IsOptOut(raw) || IsRecognizedOn(raw);
-        }
-
-        static bool IsRecognizedOn(string raw)
-        {
-            string value = raw.Trim();
-            return value == "1"
-                || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "on", StringComparison.OrdinalIgnoreCase);
-        }
+            => !string.IsNullOrWhiteSpace(raw) && Parse(raw) != false;
 
         /// <summary>
         /// Warns when a boolean var holds an undocumented token. Callers read
@@ -59,7 +55,7 @@ namespace SdtdConnect
         /// </summary>
         internal static void WarnUnknownValue(string name, string raw)
         {
-            if (IsKnownBool(raw)) return;
+            if (string.IsNullOrWhiteSpace(raw) || Parse(raw) != null) return;
             Log.Warning("[7dtd-fastconnect] " + name + "='" + LogText.SanitizeForLog(raw.Trim())
                 + "' is not a documented boolean (1/true/yes/on, or 0/false/no/off to disable); reading it as ON");
         }

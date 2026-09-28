@@ -105,20 +105,9 @@ namespace SdtdConnect
                 && port >= MinPort && port <= MaxPort;
         }
 
-        // The rejected port is echoed with the accepted range: "bad port"
-        // alone leaves the operator guessing which of host and port is wrong.
-        static string BadPortError(string text)
-        {
-            return "port must be a number from " + MinPort + " to " + MaxPort
-                + " (got '" + LogText.EchoForMessage(text) + "')";
-        }
-
-        // Same for a missing host: the expected shape is spelled out so the
-        // message doubles as the correction.
-        static string MissingHostError()
-        {
-            return "missing host; expected host[:port], e.g. connect 127.0.0.1:27025";
-        }
+        // A missing host names the expected shape, so the message doubles as
+        // the correction.
+        const string MissingHostError = "missing host; expected host[:port], e.g. connect 127.0.0.1:27025";
 
         /// <summary>
         /// Merges an optional explicit port argument into a raw host string
@@ -182,7 +171,7 @@ namespace SdtdConnect
             error = null;
             if (string.IsNullOrWhiteSpace(raw))
             {
-                error = MissingHostError();
+                error = MissingHostError;
                 return false;
             }
 
@@ -221,15 +210,18 @@ namespace SdtdConnect
                 }
             }
 
+            // The rejected port is echoed with the accepted range: "bad port"
+            // alone leaves the operator guessing which of host and port is wrong.
             if (portText != null && !TryParsePort(portText, out portPart))
             {
-                error = BadPortError(portText);
+                error = "port must be a number from " + MinPort + " to " + MaxPort
+                    + " (got '" + LogText.EchoForMessage(portText) + "')";
                 return false;
             }
 
             if (string.IsNullOrWhiteSpace(hostPart))
             {
-                error = MissingHostError();
+                error = MissingHostError;
                 return false;
             }
 
@@ -240,7 +232,7 @@ namespace SdtdConnect
             // the default.
             if (hostPart.StartsWith(":") && !hostPart.StartsWith("::"))
             {
-                error = MissingHostError();
+                error = MissingHostError;
                 return false;
             }
 

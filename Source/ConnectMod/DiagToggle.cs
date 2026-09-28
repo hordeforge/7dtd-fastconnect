@@ -23,19 +23,12 @@ namespace SdtdConnect
         // The process env never changes at runtime; live toggling is Set().
         static readonly bool _envEnabled = EnvFlags.VarIsSetOn(EnvVar);
 
-        // Console toggle: F1 `diag on/off/toggle/status`
-        static bool _consoleOverride;
-        static bool _consoleHasOverride;
+        // Console toggle: F1 `diag on/off/toggle/status`. Null until the
+        // command has been used, which is what lets the env snapshot stand.
+        static bool? _consoleOverride;
         static bool _reported;
 
-        public static bool Enabled
-        {
-            get
-            {
-                if (_consoleHasOverride) return _consoleOverride;
-                return _envEnabled;
-            }
-        }
+        public static bool Enabled => _consoleOverride ?? _envEnabled;
 
         /// <summary>
         /// Log the verbose-on notice once per process unless the console command
@@ -54,14 +47,13 @@ namespace SdtdConnect
         // while Enabled, so a `diag off` flip is not itself announced.
         internal static void Set(bool on)
         {
-            _consoleHasOverride = true;
             _consoleOverride = on;
             _reported = false;
         }
 
         internal static string StatusLine()
         {
-            string src = _consoleHasOverride ? "console" : (_envEnabled ? "env" : "default");
+            string src = _consoleOverride.HasValue ? "console" : (_envEnabled ? "env" : "default");
             return "[7dtd-fastconnect] diag " + (Enabled ? "ON" : "OFF") + " (" + src + ")";
         }
     }

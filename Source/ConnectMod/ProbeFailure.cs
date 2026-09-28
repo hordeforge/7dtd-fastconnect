@@ -23,18 +23,12 @@ namespace SdtdConnect
 
         internal static void Once(string what, Exception ex)
         {
-            if (ex == null) return;
-            Announce(what, ex.ToString());
-        }
-
-        static void Announce(string what, string detail)
-        {
-            if (!_announced.Add(what)) return;
+            if (ex == null || !_announced.Add(what)) return;
             // Swallows a failure of the game's own logger. This is the last
             // stop for every probe failure in the mod, so there is nowhere
             // left to report to; rethrowing would push a diagnostic's failure
             // into the stock call site the probe was only observing.
-            try { Log.Warning("[7dtd-fastconnect] " + what + " failed: " + detail + " (further failures muted)"); }
+            try { Log.Warning("[7dtd-fastconnect] " + what + " failed: " + ex + " (further failures muted)"); }
             catch (Exception) { }
         }
     }

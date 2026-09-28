@@ -201,29 +201,10 @@ namespace SdtdConnect
 
         static IEnumerator DrainWorldLoad(IEnumerator root)
         {
-            FieldInfo forceSync = null;
-            bool canRestore = false;
-            bool previousForceSync = false;
-            // The reflection prologue runs inside the postfix, before this
-            // iterator is ever driven, so a throw here (a renamed or ambiguous
-            // field after a game update) propagates out of the postfix into
-            // stock World.LoadWorld, which then never returns its enumerator:
-            // the world does not load and the failure is the game's to report.
-            // A failed hold simply means draining without the flag.
-            try
-            {
-                forceSync = BootUnblock.ForceLoadSyncField();
-                canRestore = forceSync != null;
-                previousForceSync = canRestore && (bool)forceSync.GetValue(null);
-                if (canRestore) forceSync.SetValue(null, true);
-            }
-            catch (Exception ex)
-            {
-                canRestore = false;
-                Log.Warning("[7dtd-fastconnect] force-load-sync hold failed; draining without it: "
-                    + ex.GetType().Name + ": " + ex.Message);
-            }
-
+            // The hold runs before this iterator is ever driven, inside the
+            // postfix, which is why it is a plain method and not a yield in
+            // the body. A failed hold simply means draining without the flag.
+            HoldForceLoadSync();
             try
             {
                 var stack = new Stack<IEnumerator>();
@@ -244,7 +225,7 @@ namespace SdtdConnect
             }
             finally
             {
-                if (canRestore) forceSync.SetValue(null, previousForceSync);
+                ReleaseForceLoadSync();
             }
             yield break;
         }
@@ -318,16 +299,20 @@ namespace SdtdConnect
                 : "[7dtd-fastconnect] Local-host async loads drained, sync loading held until startup completes");
         }
 
-        static bool _forceSyncHeld, _forceSyncPrevious;
+        // One latch for both holders: the World.LoadWorld drain holds the flag
+        // for that load, and PrepareCreateWorld holds it from the drained queue
+        // until startup ends. They never overlap (LoadWorld runs before the
+        // drain), so one hold/release pair covers both.
+        static bool _forceSyncHeld, previousForceSync;
 
         static void HoldForceLoadSync()
         {
             try
             {
-                FieldInfo field = BootUnblock.ForceLoadSyncField();
-                if (field == null || _forceSyncHeld) return;
-                _forceSyncPrevious = (bool)field.GetValue(null);
-                field.SetValue(null, true);
+                FieldInfo forceSync = BootUnblock.ForceLoadSyncField();
+                if (forceSync == null || _forceSyncHeld) return;
+                previousForceSync = (bool)forceSync.GetValue(null);
+                forceSync.SetValue(null, true);
                 _forceSyncHeld = true;
             }
             catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync hold failed: " + ex.GetType().Name + ": " + ex.Message); }
@@ -341,8 +326,8 @@ namespace SdtdConnect
                 // ForceSyncField() is nullable on a renamed field; a null here
                 // would throw inside the finally that owns the restore, so it is
                 // handled the same way HoldForceLoadSync refuses to hold.
-                FieldInfo field = BootUnblock.ForceLoadSyncField();
-                if (field != null) field.SetValue(null, _forceSyncPrevious);
+                FieldInfo forceSync = BootUnblock.ForceLoadSyncField();
+                if (forceSync != null) forceSync.SetValue(null, previousForceSync);
             }
             catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync release failed: " + ex.GetType().Name + ": " + ex.Message); }
             _forceSyncHeld = false;
