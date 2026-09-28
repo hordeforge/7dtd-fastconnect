@@ -6,10 +6,6 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/test_common.sh"
-not_grep() {
-	local pattern="$1" file="$2"
-	! grep -q -- "$pattern" "$file"
-}
 
 assert "mute helper executable" test -x "$ROOT/scripts/mute_client_audio.sh"
 assert "launch_client references mute helper" grep -q 'mute_client_audio.sh' "$ROOT/scripts/launch_client.sh"
@@ -30,14 +26,9 @@ BEHAV=""
 # or (case-insensitive) process binary matches 7DaysToDie, and nothing else.
 if command -v jq >/dev/null 2>&1; then
 	BEHAV="$(scratch_mktemp "$ROOT" mute-helper)"
-	cp "$ROOT/scripts/testdata/pactl_stub.sh" "$BEHAV/pactl"
-	chmod +x "$BEHAV/pactl"
+	install_pactl_stub "$BEHAV"
 
-	printf '%s\n' '[
-	 {"index": 7, "properties": {"application.name": "7DaysToDie"}},
-	 {"index": 9, "properties": {"application.name": "spotify"}},
-	 {"index": 11, "properties": {"application.process.binary": "7daystodie.exe"}}
-	]' > "$BEHAV/streams.json"
+	write_audio_streams "$BEHAV/streams.json"
 	: > "$BEHAV/mute.log"
 	if PATH="$BEHAV:$PATH" PACTL_JSON="$BEHAV/streams.json" PACTL_LOG="$BEHAV/mute.log" \
 		"$ROOT/scripts/mute_client_audio.sh" 5 >"$BEHAV/out" 2>"$BEHAV/err"; then

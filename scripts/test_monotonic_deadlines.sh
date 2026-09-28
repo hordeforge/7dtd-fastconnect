@@ -7,11 +7,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/test_common.sh"
 
-not_grep_re() {
-	local pattern="$1" file="$2"
-	! grep -Eq -- "$pattern" "$file"
-}
-
 CLOCK="$ROOT/scripts/monotonic_clock.sh"
 assert "shared clock module reads monotonic uptime" grep -q '/proc/uptime' "$CLOCK"
 

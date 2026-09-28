@@ -5,10 +5,6 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/test_common.sh"
-not_grep() {
-	local pattern="$1" file="$2"
-	! grep -q -- "$pattern" "$file"
-}
 
 assert "unmute helper executable" test -x "$ROOT/scripts/unmute_client_audio.sh"
 assert "README documents unmute command" \
@@ -18,14 +14,9 @@ assert "mute helper still exists (pair)" test -x "$ROOT/scripts/mute_client_audi
 BEHAV=""
 if command -v jq >/dev/null 2>&1; then
 	BEHAV="$(scratch_mktemp "$ROOT" unmute-helper)"
-	cp "$ROOT/scripts/testdata/pactl_stub.sh" "$BEHAV/pactl"
-	chmod +x "$BEHAV/pactl"
+	install_pactl_stub "$BEHAV"
 
-	printf '%s\n' '[
-	 {"index": 7, "properties": {"application.name": "7DaysToDie"}},
-	 {"index": 9, "properties": {"application.name": "spotify"}},
-	 {"index": 11, "properties": {"application.process.binary": "7daystodie.exe"}}
-	]' > "$BEHAV/streams.json"
+	write_audio_streams "$BEHAV/streams.json"
 	: > "$BEHAV/unmute.log"
 	if PATH="$BEHAV:$PATH" PACTL_JSON="$BEHAV/streams.json" PACTL_LOG="$BEHAV/unmute.log" \
 		"$ROOT/scripts/unmute_client_audio.sh" >"$BEHAV/out" 2>"$BEHAV/err"; then

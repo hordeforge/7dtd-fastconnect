@@ -130,7 +130,14 @@ def _setup(
     # Proton runs the exe with cwd=game and passes extra args through. The
     # optional sleep keeps the launcher alive long enough that backgrounded
     # children (the mute poller) finish their first poll deterministically.
-    body = f"printf '%s\\n' \"$@\" > {shlex.quote(str(record))}\n"
+    # The cfg snapshot is the only way to observe the swap itself: the file on
+    # disk after the launcher exits is back to the pre-swap Steam config
+    # either way, so a launcher that never swapped at all still looks correct.
+    body = (
+        f"if [[ -f platform.cfg ]]; then "
+        f"cp platform.cfg {shlex.quote(str(tmp_path / 'platform-at-launch.txt'))}; fi\n"
+    )
+    body += f"printf '%s\\n' \"$@\" > {shlex.quote(str(record))}\n"
     if game_run_seconds > 0:
         # The launcher invokes ./7DaysToDie.exe relative to cwd=game, so no
         # absolute-path pgrep can see the stub; it records its own pid instead.
@@ -225,10 +232,20 @@ def _argv(tmp_path: Path) -> list[str]:
     return record.read_text(encoding="utf-8").splitlines()
 
 
+def _platform_at_launch(tmp_path: Path) -> str:
+    """platform.cfg as the game process itself saw it: the Local swap is
+    observable only in-window, never in the file left behind after exit."""
+    snap = tmp_path / "platform-at-launch.txt"
+    assert snap.exists(), "stub game exe never saw a platform.cfg (no swap window observed)"
+    return snap.read_text(encoding="utf-8")
+
+
 def test_local_platform_swap_and_restore(tmp_path: Path) -> None:
     game = _setup(tmp_path)
     r = _launch(tmp_path)
     assert r.returncode == 0, r.stderr
+    # The game ran against the swapped config, not the Steam one.
+    assert _platform_at_launch(tmp_path) == LOCAL_CFG
     # Trap restored the original config.
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
     # No leftover backup.
@@ -239,6 +256,7 @@ def test_no_platform_override_leaves_config_alone(tmp_path: Path) -> None:
     game = _setup(tmp_path)
     r = _launch(tmp_path, local_platform=False)
     assert r.returncode == 0, r.stderr
+    assert _platform_at_launch(tmp_path) == STEAM_CFG
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
@@ -250,6 +268,7 @@ def test_invalid_platform_value_leaves_config_alone(tmp_path: Path) -> None:
     r = _launch(tmp_path, local_platform=False, extra_env={"CLIENT_PLATFORM": "bogus"})
     assert r.returncode == 0, r.stderr
     assert "CLIENT_PLATFORM='bogus' is not 1/local/lan" in r.stderr
+    assert _platform_at_launch(tmp_path) == STEAM_CFG
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
     assert not (game / "platform.cfg.re-localbak").exists()
 
@@ -266,6 +285,9 @@ def test_platform_value_matches_case_insensitively(
     r = _launch(tmp_path, extra_env={"CLIENT_PLATFORM": value})
     assert r.returncode == 0, r.stderr
     assert "WARN" not in r.stderr
+    # Matching is the whole point of this case: an unmatched value would launch
+    # with Steam auth, which the post-exit config cannot reveal.
+    assert _platform_at_launch(tmp_path) == LOCAL_CFG
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
     assert not (game / "platform.cfg.re-localbak").exists()
 
@@ -276,6 +298,7 @@ def test_empty_platform_value_is_unset_not_warning(tmp_path: Path) -> None:
     r = _launch(tmp_path, local_platform=False, extra_env={"CLIENT_PLATFORM": ""})
     assert r.returncode == 0, r.stderr
     assert "CLIENT_PLATFORM" not in r.stderr
+    assert _platform_at_launch(tmp_path) == STEAM_CFG
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
@@ -289,6 +312,8 @@ def test_leftover_backup_is_restored_then_reswapped(tmp_path: Path) -> None:
     r = _launch(tmp_path)
     assert r.returncode == 0, r.stderr
     assert "restored from a previous interrupted run" in r.stdout
+    # Freshly swapped, not left on the interrupted run's Local config.
+    assert _platform_at_launch(tmp_path) == LOCAL_CFG
     # After the clean exit the original Steam config is back.
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 

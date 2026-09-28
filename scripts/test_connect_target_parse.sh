@@ -74,8 +74,18 @@ run_mode() {
 expect_argv() {
 	local mode="$1" name="$2" expected="$3"
 	shift 4 # mode, name, expected, "--"
-	local got
-	got="$(run_mode "$mode" "$@" | head -n1)"
+	# A nonzero harness status must be reported, not swallowed: a bare
+	# `got="$(...)"` aborts this whole gate under set -e with no FAIL line, so
+	# one broken case would hide every case after it.
+	local out="" got rc=0
+	out="$(run_mode "$mode" "$@")" || rc=$?
+	if ((rc != 0)); then
+		echo "FAIL $name (harness exited $rc)" >&2
+		printf '%s\n' "$out" >&2
+		FAILS=$((FAILS + 1))
+		return 0
+	fi
+	got="$(head -n1 <<<"$out")"
 	if [[ "$got" == "$expected" ]]; then echo "PASS $name"
 	else echo "FAIL $name (expected '$expected', got '$got')" >&2; FAILS=$((FAILS + 1)); fi
 }

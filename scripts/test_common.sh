@@ -23,6 +23,29 @@ assert() {
 	else echo "FAIL $name" >&2; FAILS=$((FAILS + 1)); fi
 }
 
+# assert can only test success, so "this text must NOT appear in this file"
+# needs a predicate of its own. Literal and ERE variants, same argument order.
+not_grep() { ! grep -q -- "$1" "$2"; }
+not_grep_re() { ! grep -Eq -- "$1" "$2"; }
+
+# Audio-helper fixtures, shared by the mute/unmute gates so the two exercise
+# the same stub and the same stream list. install_pactl_stub needs an existing
+# dir that is ahead of the real pactl on the helper's PATH.
+install_pactl_stub() {
+	cp "$ROOT/scripts/testdata/pactl_stub.sh" "$1/pactl"
+	chmod +x "$1/pactl"
+}
+
+# One stream per matching rule (application.name, case-folded binary) next to
+# an unrelated one that must never be muted.
+write_audio_streams() {
+	printf '%s\n' '[
+	 {"index": 7, "properties": {"application.name": "7DaysToDie"}},
+	 {"index": 9, "properties": {"application.name": "spotify"}},
+	 {"index": 11, "properties": {"application.process.binary": "7daystodie.exe"}}
+	]' >"$1"
+}
+
 finish() {
 	if ((FAILS > 0)); then
 		echo "RESULT FAIL ($FAILS)" >&2
