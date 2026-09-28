@@ -130,8 +130,45 @@ case "${PLATFORM_MODE,,}" in
 esac
 PLATFORM_CFG="$GAME/platform.cfg"
 PLATFORM_BAK="$GAME/platform.cfg.re-localbak"
+# Held for this launcher's whole life while it owns the swap: the backup file
+# is a single slot, so two launchers sharing the install would each back up
+# (and later restore) the other's config, ending with platform.cfg stuck on
+# Local and the player's Steam choice lost.
+PLATFORM_LOCK="$GAME/platform.cfg.re-local.lock"
+PLATFORM_LOCK_FD=""
+# Whether this process created the backup, and so may restore it.
+PLATFORM_SWAPPED=0
+
+# Takes the exclusive platform.cfg swap lock without blocking. Returns 1 when
+# another live launcher holds it. A missing flock degrades to the previous
+# unlocked behavior with a warning rather than refusing to launch.
+acquire_platform_lock() {
+  if ! command -v flock >/dev/null 2>&1; then
+    echo "WARN: flock not found; platform.cfg swap is not exclusive across launchers" >&2
+    return 0
+  fi
+  if ! exec {PLATFORM_LOCK_FD}>>"$PLATFORM_LOCK"; then
+    echo "WARN: cannot open $PLATFORM_LOCK; platform.cfg swap is not exclusive across launchers" >&2
+    PLATFORM_LOCK_FD=""
+    return 0
+  fi
+  if ! flock -n "$PLATFORM_LOCK_FD"; then
+    exec {PLATFORM_LOCK_FD}>&-
+    PLATFORM_LOCK_FD=""
+    return 1
+  fi
+  return 0
+}
 
 swap_local_platform() {
+  if ! acquire_platform_lock; then
+    # Another live launcher owns the swap (it holds the lock from before its
+    # own swap until it exits), so the install is already in Local mode.
+    # Swapping again would back up that launcher's Local config and destroy
+    # the Steam original on restore.
+    echo "Client platform: Local (another launcher holds the swap; no second backup taken)"
+    return 0
+  fi
   # A previous hard-killed run (SIGKILL cannot be trapped) may have left the
   # config swapped with a backup behind; restore it first so the swap is
   # idempotent and self-healing.
@@ -150,12 +187,16 @@ swap_local_platform() {
     return 0
   fi
   cp "$PLATFORM_CFG" "$PLATFORM_BAK"
+  PLATFORM_SWAPPED=1
   printf 'platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n' >"$PLATFORM_CFG"
   echo "Client platform: Local (no Steam auth; restored on exit)"
 }
 
 restore_platform() {
-  if [[ -f "$PLATFORM_BAK" ]]; then
+  # Only the launcher that took the backup may consume it. Restoring a backup
+  # another live launcher still owns would put a Local config back under a
+  # running client and delete the original it is about to restore.
+  if ((PLATFORM_SWAPPED == 1)) && [[ -f "$PLATFORM_BAK" ]]; then
     # Runs from the EXIT/signal traps; a failure cannot be retried there, but
     # it must at least be named (the backup survives, so the next launch's
     # self-heal retries).

@@ -96,7 +96,9 @@ zip itself is built locally and attached manually
    verdict; the scripts assume only the game writes them.
 4. **Scripts → on-disk config**: `CLIENT_PLATFORM=local` overwrites
    `$GAME/platform.cfg` after backing it up, restores on exit, self-heals a
-   previous interrupted swap, and refuses when the backup cannot restore
+   previous interrupted swap, refuses when the backup cannot restore, and holds
+   an exclusive lock (`platform.cfg.re-local.lock`) so a second launcher on the
+   same install reuses that swap instead of taking the single backup slot
    (launch_client.sh:96-130). Failure here silently changes which platform
    identity the user's next manual launch uses.
 5. **Automation mode → engine internals**: Harmony patches tagged
@@ -145,8 +147,9 @@ no setuid, no elevated installer (`make install` copies files into the game's
 **Scripts → on-disk config / processes**
 
 - *Tampering/availability*: the `platform.cfg` swap has backup, refuse-on-
-  unrestorable, and self-heal paths (launch_client.sh:100-116); residual risk
-  is losing the user's platform selection if both copies die mid-run.
+  unrestorable, and self-heal paths (launch_client.sh:100-116) and is exclusive
+  across concurrent launchers via `flock`; residual risk is losing the user's
+  platform selection if both copies die mid-run.
 - *Process targeting*: kill sweeps match substrings of any user's command line
   (`pkill -9 -f '7DaysToDie'`, restart_pair.sh:40; `pgrep -f
   '[/]7DaysToDie.exe|wine64-preloader.*7DaysToDie'`, one_shot_join.sh:107),

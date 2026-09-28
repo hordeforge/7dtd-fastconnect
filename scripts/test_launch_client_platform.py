@@ -386,6 +386,57 @@ def test_sigterm_runs_cleanup_traps(tmp_path: Path) -> None:
             pass
 
 
+@pytest.mark.skipif(os.getuid() == 0, reason="root ignores dir permissions")
+def test_concurrent_launcher_does_not_steal_the_platform_backup(tmp_path: Path) -> None:
+    """Two launchers on one install must not share the single backup slot.
+
+    The first swaps platform.cfg to Local and holds it for its whole run; a
+    second launcher must neither back up that Local config nor restore it on
+    its way out, or the player's Steam platform.cfg is destroyed for good.
+    The second launcher aborts right after the swap decision (read-only log
+    dir), which still exercises its exit trap.
+    """
+    game = _setup(tmp_path, game_run_seconds=60)
+    first = subprocess.Popen(
+        ["bash", str(LAUNCH)],
+        env=_launch_env(tmp_path),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    try:
+        # The swap lands before the first launcher starts waiting on the game,
+        # so waiting on it cannot race the launcher's own startup.
+        deadline = time.monotonic() + 10
+        while (game / "platform.cfg").read_text(encoding="utf-8") != LOCAL_CFG:
+            assert time.monotonic() < deadline, "first launcher never swapped platform.cfg"
+            assert first.poll() is None, "first launcher exited early"
+            time.sleep(0.05)
+        compat = tmp_path / "compat-ro"
+        compat.mkdir()
+        compat.chmod(0o500)  # -d passes; mkdir beneath fails for non-root
+        try:
+            second = _launch(tmp_path, extra_env={"COMPAT": str(compat)})
+        finally:
+            compat.chmod(0o700)
+        assert second.returncode != 0, second.stdout + second.stderr
+        assert "another launcher holds the swap" in second.stdout, second.stdout
+        assert first.poll() is None, "first launcher died during the second run"
+        # The live owner's swap and backup are untouched.
+        assert (game / "platform.cfg").read_text(encoding="utf-8") == LOCAL_CFG
+        assert (game / "platform.cfg.re-localbak").read_text(encoding="utf-8") == STEAM_CFG
+    finally:
+        try:
+            os.killpg(first.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        first.wait(timeout=15)
+    # Hard-killed owner: the backup of the Steam config survives intact, which
+    # is what the next launch self-heals from (see the leftover-backup test).
+    assert (game / "platform.cfg.re-localbak").read_text(encoding="utf-8") == STEAM_CFG
+
+
 def _pgrep_pids(pattern: str) -> list[str]:
     out = subprocess.run(
         ["pgrep", "-f", pattern],
