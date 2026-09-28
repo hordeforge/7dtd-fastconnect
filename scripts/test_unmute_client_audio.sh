@@ -29,7 +29,11 @@ if command -v jq >/dev/null 2>&1; then
 		"$ROOT/scripts/unmute_client_audio.sh" >"$BEHAV/out" 2>"$BEHAV/err"; then
 		assert "unmutes stream matched by application name" grep -qx 'set-sink-input-mute 7 0' "$BEHAV/unmute.log"
 		assert "unmutes stream matched case-insensitively by binary" grep -qx 'set-sink-input-mute 11 0' "$BEHAV/unmute.log"
-		assert "leaves unrelated streams alone" not_grep ' 9 ' "$BEHAV/unmute.log"
+		assert "leaves unrelated streams alone" not_grep_re '^set-sink-input-mute 9 ' "$BEHAV/unmute.log"
+		# The two positives above pass on a filter that also unmutes something
+		# else, so the count pins the filter to exactly the matching streams.
+		assert "unmutes nothing beyond the two matches" \
+			test "$(wc -l <"$BEHAV/unmute.log")" -eq 2
 		assert "reports the unmuted streams" grep -q 'Unmuted 7 Days To Die audio stream' "$BEHAV/out"
 	else
 		echo "FAIL unmute helper exits nonzero on a match" >&2
@@ -100,10 +104,17 @@ if command -v jq >/dev/null 2>&1; then
 	# the command substitution still inert.
 	hint_line="$(grep -F 'stream-properties' "$BEHAV/hint.txt" | head -1)"
 	quoted="${hint_line##*\" }"
-	pasted="$(eval "printf '%s' $quoted" 2>/dev/null)"
+	# The paste runs in its own empty cwd: a regression that let the command
+	# substitution through would drop a pwned file in whatever directory the
+	# gate was started from (the repo root), and the assertion would then read
+	# a stray file from an earlier run instead of this one.
+	PASTE_DIR="$BEHAV/paste"
+	mkdir -p "$PASTE_DIR"
+	pasted="$(cd "$PASTE_DIR" && eval "printf '%s' $quoted" 2>/dev/null)"
 	assert "pasted path re-parses to exactly the original" \
 		test "$pasted" = "$HOSTILE/wireplumber/stream-properties"
-	assert "pasting the hint ran no command substitution" test ! -e pwned
+	assert "pasting the hint ran no command substitution" \
+		test -z "$(ls -A "$PASTE_DIR")"
 else
 	echo "SKIP behavioral unmute checks (jq missing)" >&2
 fi

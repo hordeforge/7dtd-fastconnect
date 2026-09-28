@@ -34,7 +34,11 @@ if command -v jq >/dev/null 2>&1; then
 		"$ROOT/scripts/mute_client_audio.sh" 5 >"$BEHAV/out" 2>"$BEHAV/err"; then
 		assert "mutes stream matched by application name" grep -qx 'set-sink-input-mute 7 1' "$BEHAV/mute.log"
 		assert "mutes stream matched case-insensitively by binary" grep -qx 'set-sink-input-mute 11 1' "$BEHAV/mute.log"
-		assert "leaves unrelated streams unmuted" not_grep ' 9 ' "$BEHAV/mute.log"
+		assert "leaves unrelated streams unmuted" not_grep_re '^set-sink-input-mute 9 ' "$BEHAV/mute.log"
+		# The two positives above pass on a filter that also mutes something
+		# else, so the count pins the filter to exactly the matching streams.
+		assert "mutes nothing beyond the two matches" \
+			test "$(wc -l <"$BEHAV/mute.log")" -eq 2
 		assert "reports the muted streams" grep -q 'Muted 7 Days To Die audio stream' "$BEHAV/out"
 	else
 		echo "FAIL mute helper exits nonzero on a match" >&2

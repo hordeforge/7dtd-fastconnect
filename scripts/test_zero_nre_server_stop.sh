@@ -38,15 +38,20 @@ keeps_name_sweep() {
 	grep -q 'pkill -KILL -x zdtd' "$src"
 }
 
-# Every start must pass through the stop path, so a relaunch cannot leave the
-# previous server holding PORT.
+# Every start must pass through the stop path BEFORE the new server is
+# spawned, so a relaunch cannot leave the previous server holding PORT.
+# Compared inside the function body: taking the first `stop_zdtd` line number
+# in the whole file only proved that a stop call appears somewhere after the
+# definition, which a stop moved to the end of the body would still satisfy.
 start_stops_first() {
-	local start_line stop_call
-	start_line="$(grep -n 'start_zdtd()' "$src" | head -1 | cut -d: -f1)"
-	[[ -n "$start_line" ]] || return 1
-	stop_call="$(grep -n '^\s*stop_zdtd$' "$src" | cut -d: -f1 | head -1)"
-	[[ -n "$stop_call" ]] || return 1
-	(( stop_call > start_line ))
+	local body stop_line spawn_line
+	body="$(sed -n '/^start_zdtd() {/,/^}/p' "$src")"
+	[[ -n "$body" ]] || return 1
+	stop_line="$(grep -n '^\s*stop_zdtd$' <<<"$body" | head -1 | cut -d: -f1)"
+	# The backgrounded subshell that becomes the server.
+	spawn_line="$(grep -n 'exec stdbuf .*"\$ZDTD_BIN"' <<<"$body" | head -1 | cut -d: -f1)"
+	[[ -n "$stop_line" && -n "$spawn_line" ]] || return 1
+	(( stop_line < spawn_line ))
 }
 
 assert "zero_nre_join_loop.sh records the server pid it starts" records_server_pid

@@ -20,6 +20,8 @@
 #   - ConnectReady: gate state machine incl. already-connected short-circuit
 #     and warn-once expiry notes
 #   - PlayerNames: fallback identity invariants (never empty, trimmed, capped)
+#   - ProbeFailure: announce-once latch, keyed per probe name so one dead
+#     probe cannot mute another
 #   - AutomationMode: decision table (launch-context detection vs explicit
 #     opt-in/opt-out), one process per case
 #   - Fuzz: seeded grammar-biased generator asserting invariants over
@@ -104,6 +106,7 @@ assert "log-safe flattening of launch targets" run_mode sanitize
 assert "EnvFlags opt-out/opt-in truthiness table" run_mode envflags
 assert "ConnectReady gate state machine" run_mode connectready
 assert "PlayerNames fallback invariants (never empty, capped, trimmed)" run_mode playernames
+assert "ProbeFailure announce-once latch (per probe name)" run_mode probefailure
 assert "force-load-sync default-on / opt-out / snapshot contract" run_mode forcesync
 
 # AutomationMode gates every automation patch; its decision table is

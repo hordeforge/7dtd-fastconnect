@@ -11,6 +11,9 @@
 //   - `playernames`: PlayerNames.Resolve invariants (server kicks empty or
 //                   duplicate names: resolved identity must be non-empty,
 //                   trimmed, and within the stock client-name cap)
+//   - `probefailure`: ProbeFailure announce-once latch, keyed per probe name
+//                   (once per name, a dead probe must not mute another, and
+//                   an empty reason must not consume the latch)
 //   - `forcesync` : BootUnblock force-load-sync contract (default-on,
 //                   opt-out honored once-logged, env decision snapshotted)
 //   - `automation ...`: AutomationMode.Enabled decision table, one process per
@@ -740,6 +743,70 @@ static class TestMain
                     new string('a', PlayerNames.MaxLength) + char.ConvertFromUtf32(0x1F600))));
             Check("capped name below the cap is untouched",
                 PlayerNames.Normalize("short") == "short");
+
+            return Done();
+        }
+
+        if (mode == "probefailure")
+        {
+            // The announce-once channel. Silence is indistinguishable from a
+            // healthy quiet join, but a 10 Hz heartbeat that keeps throwing
+            // would bury the markers join harnesses grep for. Two properties
+            // matter and neither is visible in the source: the latch fires
+            // once per probe name, and it is keyed per name so a dead probe
+            // cannot mute another (a shared latch buried the synthetic-id
+            // notice, the one failure that silently changes the server-side
+            // player identity).
+            const string prefix = "pf";
+
+            string first = CaptureStderr(delegate
+            {
+                ProbeFailure.Once(prefix + "-boom", new InvalidOperationException("boot gate dead"));
+            });
+            Check("first exception announces", first.Contains(prefix + "-boom"));
+            Check("announcement carries the exception text", first.Contains("boot gate dead"));
+            Check("announcement uses the mod log prefix", first.Contains("[7dtd-fastconnect]"));
+            Check("announcement says later failures are muted",
+                first.Contains("further failures muted"));
+            Check("first announcement is a single line",
+                CountOccurrences(first, prefix + "-boom") == 1);
+
+            // Same probe, different failure: the latch is the point.
+            string repeat = CaptureStderr(delegate
+            {
+                ProbeFailure.Once(prefix + "-boom", new InvalidOperationException("spawn gate dead"));
+                ProbeFailure.Once(prefix + "-boom", new InvalidOperationException("load gate dead"));
+            });
+            Check("repeat failures for the same probe stay silent", repeat == "");
+
+            // A different probe must still be heard.
+            string other = CaptureStderr(delegate
+            {
+                ProbeFailure.Once(prefix + "-synthetic-id", new InvalidOperationException("no id"));
+            });
+            Check("a different probe still announces", other.Contains(prefix + "-synthetic-id"));
+            Check("a different probe carries its own detail", other.Contains("no id"));
+
+            // Reason-shaped overload.
+            string reason = CaptureStderr(delegate { ProbeFailure.Once(prefix + "-reason", "window never opened"); });
+            Check("reason overload announces", reason.Contains(prefix + "-reason"));
+            Check("reason overload carries the reason", reason.Contains("window never opened"));
+
+            // A null exception and an empty reason are not failures. Neither may
+            // log, and neither may burn the latch for the real one.
+            Check("null exception is silent", CaptureStderr(delegate
+            {
+                ProbeFailure.Once(prefix + "-null", (Exception)null);
+            }) == "");
+            Check("empty reason is silent", CaptureStderr(delegate
+            {
+                ProbeFailure.Once(prefix + "-empty", "");
+            }) == "");
+            string afterEmpty = CaptureStderr(delegate
+            {
+                ProbeFailure.Once(prefix + "-empty", "the real failure");
+            });
+            Check("an empty reason does not consume the latch", afterEmpty.Contains("the real failure"));
 
             return Done();
         }
