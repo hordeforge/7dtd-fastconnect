@@ -22,8 +22,11 @@ assert "normalizes an env-supplied name through the shared helper" \
 	body_contains 'PlayerNames.Normalize(requested)'
 assert "normalization clamps the length and drops invisible characters" \
 	grep -q 'internal static string Normalize' "$ROOT/Source/ConnectMod/PlayerNames.cs"
-assert "the length helper compares against the stock client-name cap" \
-	grep -q 'name.Length <= MaxLength' "$ROOT/Source/ConnectMod/PlayerNames.cs"
+# The cap is counted in code points, so a UTF-16-unit cap (a second
+# truncation rule beside the shared one) must not reappear here; it would cut
+# an astral name that the cap is documented to allow.
+assert "no UTF-16-unit length cap is reintroduced" \
+	not_grep 'name.Length <= MaxLength' "$ROOT/Source/ConnectMod/PlayerNames.cs"
 assert "the cap and its code-point unit live in PlayerNames" \
 	grep -q 'MaxLength = 24' "$ROOT/Source/ConnectMod/PlayerNames.cs"
 assert "the cap normalizes and cuts without splitting a surrogate pair" \

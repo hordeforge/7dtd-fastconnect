@@ -8,9 +8,10 @@
 #     bracketed/bare IPv6, port bounds
 #   - MergePortArg: optional second console token merged only into a portless
 #     host, steam:// scheme stripped first
-#   - LogText.SanitizeForLog: control and invisible-format characters flattened
-#     so a crafted target value cannot forge extra client-log lines (join
-#     harnesses grep those markers) or render a line a grep does not read back
+#   - LogText.SanitizeForLog: control, line-breaking and invisible-format
+#     characters flattened so a crafted target value cannot forge extra
+#     client-log lines (join harnesses grep those markers) or render a line a
+#     grep does not read back
 #   - TryFromLaunchContext: 7DTD_CONNECT resolution, invalid-env rejection,
 #     -connect=/-connect/+connect argv forms, +connect_lobby skip, and the
 #     documented precedence (7DTD_CONNECT beats -connect= argv)
@@ -22,7 +23,7 @@
 #   - AutomationMode: decision table (launch-context detection vs explicit
 #     opt-in/opt-out), one process per case
 #   - Fuzz: seeded grammar-biased generator asserting invariants over
-#     TryParse/MergePortArg/SanitizeForLog/TryFromLaunchContext (totality,
+#     TryParse/MergePortArg/LogText.SanitizeForLog/TryFromLaunchContext (totality,
 #     bounded ports, single-line log/source, cross-port merge consistency)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

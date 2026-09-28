@@ -466,39 +466,37 @@ static class TestMain
             Check("crlf flattened to spaces",
                 LogText.SanitizeForLog("h\r\nFAKE") == "h  FAKE");
             Check("tab flattened to space",
-                ConnectTarget.SanitizeForLog("\t9.9.9.9") == " 9.9.9.9");
+                LogText.SanitizeForLog("\t9.9.9.9") == " 9.9.9.9");
             // Invisible-format characters (Cf) are not C0 controls, so a value
             // carrying a bidi override survives char.IsControl: the terminal
             // shows nothing, but grep still matches the bytes, so a forged
             // marker reads back differently from what a harness greps for.
             Check("bidi override flattened to space",
-                ConnectTarget.SanitizeForLog("g\u202Enidets") == "g nidets");
+                LogText.SanitizeForLog("g\u202Enidets") == "g nidets");
             Check("zero-width space flattened to space",
-                ConnectTarget.SanitizeForLog("1.2.3.4\u200B:27025") == "1.2.3.4 :27025");
+                LogText.SanitizeForLog("1.2.3.4\u200B:27025") == "1.2.3.4 :27025");
             Check("BOM flattened to space",
-                ConnectTarget.SanitizeForLog("\uFEFF127.0.0.1") == " 127.0.0.1");
+                LogText.SanitizeForLog("\uFEFF127.0.0.1") == " 127.0.0.1");
             Check("invisible separator flattened to space",
-                ConnectTarget.SanitizeForLog("a\u2066b\u2069c") == "a b c");
+                LogText.SanitizeForLog("a\u2066b\u2069c") == "a b c");
             Check("accented host unchanged",
-                ConnectTarget.SanitizeForLog("caf\u00E9.lan:27025") == "caf\u00E9.lan:27025");
+                LogText.SanitizeForLog("caf\u00E9.lan:27025") == "caf\u00E9.lan:27025");
             // char.IsControl covers C0, DEL and C1; the Unicode line and
             // paragraph separators are the ones a log reader still lays out
             // as a line break, and the shell twin flattens the same set.
             Check("U+0085 (C1 NEL) flattened to space",
-                ConnectTarget.SanitizeForLog("a\u0085result=joined") == "a result=joined");
+                LogText.SanitizeForLog("a\u0085result=joined") == "a result=joined");
             Check("U+2028 line separator flattened to space",
-                ConnectTarget.SanitizeForLog("a\u2028result=joined") == "a result=joined");
+                LogText.SanitizeForLog("a\u2028result=joined") == "a result=joined");
             Check("U+2029 paragraph separator flattened to space",
-                ConnectTarget.SanitizeForLog("a\u2029b") == "a b");
+                LogText.SanitizeForLog("a\u2029b") == "a b");
             Check("multi-byte text passes through unchanged",
-                ConnectTarget.SanitizeForLog("zdtd.lan/\u00e9\U0001F600")
+                LogText.SanitizeForLog("zdtd.lan/\u00e9\U0001F600")
                     == "zdtd.lan/\u00e9\U0001F600");
-            // One rule, both entry points: the -connect= warning paths
-            // sanitize through LogText, so a value carrying a bidi override or
-            // a BOM must be flattened there too, not only via ConnectTarget.
-            Check("LogText flattens a bidi override",
-                LogText.SanitizeForLog("g\u202Enidets") == "g nidets");
-            Check("LogText flattens a BOM",
+            // One rule for every entry point: the F1 console echo runs the
+            // same flattening as the -connect= warning paths, so an env-var
+            // name carrying a BOM cannot reach the log unflattened.
+            Check("LogText flattens a BOM in an env name",
                 LogText.SanitizeForLog("\uFEFF7DTD_CONNECT") == " 7DTD_CONNECT");
             Check("LogText echo flattens an invisible separator",
                 LogText.EchoForMessage("host\u2066:27025") == "host :27025");
@@ -696,12 +694,12 @@ static class TestMain
                 TextUtil.CodePointCount(emojiRun) == 3);
 
             // Echo truncation shares the unit and the pair rule.
-            string echo = ConnectTarget.EchoForMessage(
+            string echo = LogText.EchoForMessage(
                 new string('y', 39) + "\U0001F600 tail");
             Check("echo cut is 40 code points plus the ellipsis",
                 TextUtil.CodePointCount(echo) == 43 && !HasLoneSurrogate(echo));
             Check("echo of a short astral value is untouched",
-                ConnectTarget.EchoForMessage(grinning) == grinning);
+                LogText.EchoForMessage(grinning) == grinning);
 
             // The name reaches the server, so Normalize must strip the
             // characters that forge a line in a server log, and a length cap
@@ -728,16 +726,20 @@ static class TestMain
 
             // A name that an OS can hold (astral characters in a user or
             // machine name) must not be cut mid-surrogate: the server stores
-            // and echoes whatever the client sends.
-            string astral = PlayerNames.CapToMaxLength(
+            // and echoes whatever the client sends. The cap counts code
+            // points, so the astral character is the 24th and the name is
+            // legal; the rule under test is that it is not cut in half.
+            string astral = PlayerNames.Normalize(
                 "abcdefghijklmnopqrstuvw" + char.ConvertFromUtf32(0x1F600));
             Check("capped astral name fits the cap",
-                astral.Length <= PlayerNames.MaxLength);
+                TextUtil.CodePointCount(astral) <= PlayerNames.MaxLength);
             Check("capped astral name keeps whole characters",
-                !char.IsHighSurrogate(astral[astral.Length - 1])
-                    && !char.IsLowSurrogate(astral[astral.Length - 1]));
+                !HasLoneSurrogate(astral));
+            Check("an overlong astral name is cut on a code-point boundary",
+                !HasLoneSurrogate(PlayerNames.Normalize(
+                    new string('a', PlayerNames.MaxLength) + char.ConvertFromUtf32(0x1F600))));
             Check("capped name below the cap is untouched",
-                PlayerNames.CapToMaxLength("short") == "short");
+                PlayerNames.Normalize("short") == "short");
 
             return Done();
         }
@@ -934,7 +936,7 @@ static class TestMain
 
         // Totality: none of the entry points may throw on any input.
         string san;
-        try { san = ConnectTarget.SanitizeForLog(raw); }
+        try { san = LogText.SanitizeForLog(raw); }
         catch (Exception ex) { CheckFuzz(label + " SanitizeForLog threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
 
         if (san != null)

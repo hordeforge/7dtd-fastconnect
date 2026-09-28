@@ -21,17 +21,17 @@ namespace SdtdConnect
         /// MaxLength code points without splitting a surrogate pair. The name
         /// reaches the server and lands in its logs and player list, so an env
         /// value carrying a newline or a bidi override would forge a line
-        /// there exactly as it would in the client log (ConnectTarget.
-        /// SanitizeForLog owns the character rule; the name is an identity
-        /// string, not only a log value, so it is cleaned before it is stored
-        /// rather than only before it is echoed). Returns null for a null or
-        /// empty input, so the caller can treat a value that normalized away
-        /// as the same signal as an absent one.
+        /// there exactly as it would in the client log (LogText owns the
+        /// character rule; the name is an identity string, not only a log
+        /// value, so it is cleaned before it is stored rather than only
+        /// before it is echoed). Returns null for a null or empty input, so
+        /// the caller can treat a value that normalized away as the same
+        /// signal as an absent one.
         /// </summary>
         internal static string Normalize(string raw)
         {
             if (string.IsNullOrEmpty(raw)) return null;
-            return Cap(ConnectTarget.SanitizeForLog(raw).Trim());
+            return Cap(LogText.SanitizeForLog(raw).Trim());
         }
 
         /// <summary>
@@ -65,20 +65,6 @@ namespace SdtdConnect
             }
             if (string.IsNullOrWhiteSpace(name)) name = "player";
             return Cap(name.Trim());
-        }
-
-        /// <summary>
-        /// Trims a name to the stock cap without cutting a surrogate pair in
-        /// half: a name is stored and echoed by the server, and a lone
-        /// surrogate in it is not a valid name there. Dropping the whole
-        /// astral character costs at most one code point of length.
-        /// </summary>
-        internal static string CapToMaxLength(string name)
-        {
-            if (name == null || name.Length <= MaxLength) return name;
-            int cut = MaxLength;
-            if (char.IsHighSurrogate(name[cut - 1])) cut--;
-            return name.Substring(0, cut);
         }
     }
 }

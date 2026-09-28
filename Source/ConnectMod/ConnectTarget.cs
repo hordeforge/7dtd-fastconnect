@@ -1,7 +1,6 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 namespace SdtdConnect
 {
@@ -39,78 +38,12 @@ namespace SdtdConnect
         // twice or, worse, look like "no target set".
         static bool _badTargetWarned;
 
-        /// <summary>
-        /// Flattens control, line-breaking and invisible-format characters so
-        /// a launch-context string stays one readable log line. Env and argv
-        /// values are attacker-shapable (a clicked steam://run URL chooses
-        /// -connect= text), and join harnesses grep the client log for fixed
-        /// markers; an embedded newline could forge those markers without
-        /// ever connecting, a U+2028 breaks the line in a reader that grep
-        /// reads as one, and a bidi override could render a forged line
-        /// that reads differently from the text a grep sees. One character
-        /// becomes one space, so offsets and lengths are preserved.
-        /// The stricter twin of LogText.SanitizeForLog, which this module
-        /// uses for every launch-context value it echoes: the reported source
-        /// is the line a reader and a grep both have to agree on.
-        /// </summary>
-        internal static string SanitizeForLog(string value)
-        {
-            if (string.IsNullOrEmpty(value)) return value;
-            bool dirty = false;
-            foreach (char c in value)
-            {
-                if (IsLineBreaking(c) || IsInvisibleFormat(c)) { dirty = true; break; }
-            }
-            if (!dirty) return value;
-            var sb = new StringBuilder(value.Length);
-            foreach (char c in value)
-                sb.Append(IsLineBreaking(c) || IsInvisibleFormat(c) ? ' ' : c);
-            return sb.ToString();
-        }
-
-        // char.IsControl covers C0, DEL and C1 but not the Unicode line and
-        // paragraph separators, which a log reader lays out as a line break
-        // even though grep does not: the same forged-marker shape, one layer
-        // down. The shell twin (scripts/log_sanitize.sh) flattens the same set.
-        static bool IsLineBreaking(char c)
-        {
-            return char.IsControl(c) || c == '\u2028' || c == '\u2029';
-        }
-
-        // Unicode format characters a terminal renders as nothing (or as a
-        // line reorder) but a grep of the text still sees, so each is checked
-        // by range: they are Cf, and char.IsControl does not cover them.
-        static bool IsInvisibleFormat(char c)
-        {
-            return (c >= '\u200B' && c <= '\u200F')   // ZWSP, ZWNJ, ZWJ, LRM, RLM
-                || (c >= '\u2060' && c <= '\u2064')   // word joiner, invisible operators
-                || (c >= '\u2066' && c <= '\u2069')   // LRI, RLI, FSI, PDI
-                || (c >= '\u202A' && c <= '\u202E')   // LRE, RLE, PDF, LRO, RLO
-                || c == '\uFEFF';                    // BOM / zero-width no-break space
-        }
-
-        /// <summary>
-        /// One-line echo of operator input for an error message: control
-        /// characters flattened, long pastes cut so a mistyped paste cannot
-        /// scroll the reason off screen. The cut counts code points and never
-        /// splits a surrogate pair (TextUtil), so the echo cannot put a lone
-        /// surrogate in front of the operator.
-        /// </summary>
-        internal static string EchoForMessage(string value)
-        {
-            const int maxChars = 40;
-            if (string.IsNullOrEmpty(value)) return value;
-            string flat = SanitizeForLog(value).Trim();
-            if (TextUtil.CodePointCount(flat) <= maxChars) return flat;
-            return TextUtil.TruncateToCodePoints(flat, maxChars) + "...";
-        }
-
         static void WarnIgnoredTarget(string sourceLabel, string raw, string error)
         {
             if (_badTargetWarned) return;
             _badTargetWarned = true;
-            Log.Warning("[7dtd-fastconnect] " + SanitizeForLog(sourceLabel) + "='"
-                + SanitizeForLog(raw) + "' ignored: "
+            Log.Warning("[7dtd-fastconnect] " + LogText.SanitizeForLog(sourceLabel) + "='"
+                + LogText.SanitizeForLog(raw) + "' ignored: "
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
@@ -200,8 +133,8 @@ namespace SdtdConnect
         {
             if (_droppedPortArgWarned) return;
             _droppedPortArgWarned = true;
-            Log.Warning("[7dtd-fastconnect] port argument '" + SanitizeForLog(portArg)
-                + "' ignored: '" + SanitizeForLog(host) + "' already carries a port");
+            Log.Warning("[7dtd-fastconnect] port argument '" + LogText.SanitizeForLog(portArg)
+                + "' ignored: '" + LogText.SanitizeForLog(host) + "' already carries a port");
         }
 
         public static bool TryParse(string raw, out string host, out int port, out string error)
@@ -290,7 +223,7 @@ namespace SdtdConnect
             {
                 if (TryParse(env, out host, out port, out string envError))
                 {
-                    source = EnvVar + "=" + SanitizeForLog(env.Trim());
+                    source = EnvVar + "=" + LogText.SanitizeForLog(env.Trim());
                     return true;
                 }
                 WarnIgnoredTarget(EnvVar, env.Trim(), envError);
@@ -323,8 +256,8 @@ namespace SdtdConnect
                 if (TryParse(val, out host, out port, out string argError))
                 {
                     source = a.Contains("=")
-                        ? SanitizeForLog(a)
-                        : SanitizeForLog(a) + " " + SanitizeForLog(val);
+                        ? LogText.SanitizeForLog(a)
+                        : LogText.SanitizeForLog(a) + " " + LogText.SanitizeForLog(val);
                     return true;
                 }
                 // Only the flag name; the value is already in the message.
@@ -354,13 +287,13 @@ namespace SdtdConnect
                 {
                     if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
                     {
-                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
+                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + LogText.SanitizeForLog(host);
                         return false;
                     }
                     var entry = Dns.EndGetHostEntry(pending);
                     if (entry.AddressList == null || entry.AddressList.Length == 0)
                     {
-                        message = "no IP for hostname " + SanitizeForLog(host);
+                        message = "no IP for hostname " + LogText.SanitizeForLog(host);
                         return false;
                     }
                     // First address is the default; only a later one can
@@ -389,7 +322,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                message = "DNS failed for " + SanitizeForLog(host) + ": "
+                message = "DNS failed for " + LogText.SanitizeForLog(host) + ": "
                     + ex.GetType().Name + ": " + ex.Message;
                 return false;
             }
@@ -450,7 +383,7 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
 
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={SanitizeForLog(host)})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={LogText.SanitizeForLog(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";
@@ -461,7 +394,7 @@ namespace SdtdConnect
                 // Full stack: ProtocolManager.SetupProtocols NRE is otherwise silent.
                 // The message may echo the raw host, so only that part is flattened;
                 // the deliberate newline before the stack trace stays.
-                message = ex.GetType().Name + ": " + SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
+                message = ex.GetType().Name + ": " + LogText.SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
                 return false;
             }
         }

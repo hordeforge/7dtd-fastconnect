@@ -39,7 +39,7 @@ assert "empty value stays empty" flat '' ''
 # byte-range tr would either miss or take out of every other multi-byte
 # character; a log reader breaks the line on them even though grep does not,
 # so they are flattened by code point here and by char.IsControl + the same
-# two separators in ConnectTarget.SanitizeForLog.
+# two separators in LogText.SanitizeForLog.
 assert "C1 NEL is flattened" flat $'a\302\205result=joined' 'a result=joined'
 assert "C1 DEL is flattened" flat $'x\302\237y' 'x y'
 assert "U+2028 line separator is flattened" flat $'a\342\200\250result=joined' 'a result=joined'

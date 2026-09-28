@@ -4,8 +4,9 @@ namespace SdtdConnect
 {
     /// <summary>
     /// Log-line hygiene shared by every module that echoes operator input.
-    /// Leaf helper: env parsing, connect targets and console commands all
-    /// depend on it, never the other way round.
+    /// Leaf helper: env parsing, connect targets, player names and console
+    /// commands all depend on it, never the other way round. It owns the
+    /// character rule outright; scripts/log_sanitize.sh is the shell twin.
     /// </summary>
     internal static class LogText
     {
@@ -24,26 +25,34 @@ namespace SdtdConnect
         }
 
         // A character that must not reach a log line verbatim: a control
-        // character (a newline forges a marker a harness greps for) or an
-        // invisible format character (renders as nothing, so the line reads
-        // as something it is not).
-        static bool IsLogUnsafe(char c) => char.IsControl(c) || IsInvisibleFormat(c);
+        // character (a newline forges a marker a harness greps for), a
+        // Unicode line/paragraph separator (a log reader lays it out as a
+        // line break though grep does not), or an invisible format character
+        // (renders as nothing, so the line reads as something it is not).
+        static bool IsLogUnsafe(char c)
+        {
+            return char.IsControl(c) || IsInvisibleFormat(c) || c == '\u2028' || c == '\u2029';
+        }
 
         /// <summary>
-        /// Flattens control and invisible-format characters so a
-        /// launch-context string stays one readable log line. Env and argv
+        /// Flattens control, line-breaking and invisible-format characters so
+        /// a launch-context string stays one readable log line. Env and argv
         /// values are attacker-shapable (a clicked steam://run URL chooses
         /// -connect= text), and join harnesses grep the client log for fixed
         /// markers; an embedded newline could forge those markers without
-        /// ever connecting, and a bidi override could render a forged line
+        /// ever connecting, a U+2028 breaks the line in a reader that grep
+        /// reads as one, and a bidi override could render a forged line
         /// that reads differently from the text a grep sees. One character
         /// becomes one space, so offsets and lengths are preserved.
         ///
-        /// Used by EnvFlags and the console echo path.
-        /// ConnectTarget.SanitizeForLog is the stricter twin every
-        /// launch-context value goes through: it keeps this character set and
-        /// adds the U+2028/U+2029 separators a log reader lays out as a line
-        /// break. scripts/log_sanitize.sh is the shell twin of that one.
+        /// The single implementation of the rule: ConnectTarget, PlayerNames
+        /// and EnvFlags delegate here, and scripts/log_sanitize.sh is the shell
+        /// twin. It covers the U+2028/U+2029 separators a log reader lays out
+        /// as a line break. The rule used to be duplicated: the copy inside
+        /// ConnectTarget had already drifted, both ways, keeping the
+        /// separators this one lacked, and a per-module EchoForMessage cut the
+        /// echo on UTF-16 units, so a pasted astral character reached the log
+        /// as a lone surrogate.
         /// </summary>
         internal static string SanitizeForLog(string value)
         {
@@ -63,14 +72,17 @@ namespace SdtdConnect
         /// <summary>
         /// One-line echo of operator input for an error message: log-unsafe
         /// characters flattened, long pastes cut so a mistyped paste cannot
-        /// scroll the reason off screen.
+        /// scroll the reason off screen. The cut counts code points and never
+        /// splits a surrogate pair (TextUtil), so the echo cannot put a lone
+        /// surrogate in front of the operator.
         /// </summary>
         internal static string EchoForMessage(string value)
         {
             const int maxChars = 40;
             if (string.IsNullOrEmpty(value)) return value;
             string flat = SanitizeForLog(value).Trim();
-            return flat.Length <= maxChars ? flat : flat.Substring(0, maxChars) + "...";
+            if (TextUtil.CodePointCount(flat) <= maxChars) return flat;
+            return TextUtil.TruncateToCodePoints(flat, maxChars) + "...";
         }
     }
 }
