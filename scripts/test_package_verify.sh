@@ -101,4 +101,26 @@ VERSION=7.8.9 "$REPO/scripts/package.sh" >/dev/null 2>&1
 assert "a build leftover does not reach the archive" \
 	not_grep 'pdb' "$REPO/dist/7dtd-fastconnect-7.8.9.zip"
 
+# 4. Rerun the same version twice: the second run must end on the same
+# artifact, and a rerun that fails verification must leave the first run's zip
+# in place. Repacking replaces the release path only with a verified archive,
+# so a failed rerun cannot leave a release slot empty or holding a broken zip.
+VERSION=2.0.0 "$REPO/scripts/package.sh" >/dev/null 2>&1
+rerun_zip="$REPO/dist/7dtd-fastconnect-2.0.0.zip"
+cp "$rerun_zip" "$WORK/first-2.0.0.zip"
+VERSION=2.0.0 "$REPO/scripts/package.sh" >/dev/null 2>&1
+assert "a second run of the same version converges on the same bytes" \
+	cmp -s "$rerun_zip" "$WORK/first-2.0.0.zip"
+
+set +e
+PATH="$WORK/binzip:$PATH" REAL_ZIP="$REAL_ZIP" VERSION=2.0.0 "$REPO/scripts/package.sh" \
+	>"$WORK/rerun-bad.log" 2>&1
+rerun_bad_rc=$?
+set -e
+assert "a rerun that fails verification fails" test "$rerun_bad_rc" -ne 0
+assert "a failed rerun leaves the previous run's archive intact" \
+	cmp -s "$rerun_zip" "$WORK/first-2.0.0.zip"
+assert "a failed rerun writes no per-run leftovers" \
+	test -z "$(find "$REPO/dist" -maxdepth 1 -name '.package-candidate-*' -o -name '.package-stage-*')"
+
 finish

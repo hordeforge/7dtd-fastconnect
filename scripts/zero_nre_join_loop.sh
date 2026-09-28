@@ -213,6 +213,12 @@ count_nre_after_join() {
 # a rerun start from the same empty set the first run did; a missing copy then
 # means "no evidence", which is what the 9998 below says it means.
 rm -f "$SCRATCH"/stock-join-zn*.log
+# The two verdict files name this run's outcome, and only the branch that
+# produces one writes it: a run that exhausts its budget writes FAIL.txt and
+# never touches PASS.txt. Without this a PASS from an earlier run survives a
+# later failing run, and a reader (a gate, a person, a CI step) finds a pass
+# and a fail on disk at once with no way to tell which run each came from.
+rm -f "$SCRATCH/zero_nre_PASS.txt" "$SCRATCH/zero_nre_FAIL.txt"
 # zero_nre_summary.txt appends per attempt across runs, so its mtime never
 # goes stale and the -mtime prune above can never fire on it. Trim to the
 # newest lines once per run instead; per-run growth is a handful of lines.

@@ -76,10 +76,12 @@ find "$STAGE" -type d -exec chmod 0755 {} +
 find "$STAGE" -type f -exec chmod 0644 {} +
 
 OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
-# Start from an empty archive: zip updates entries into an existing file, so a
-# stale or truncated zip left by an interrupted run would keep deleted files
-# in the shipped artifact or fail confusingly mid-update.
-rm -f "$OUT"
+# The archive at the release path is left alone until the new one is complete.
+# Nothing is zipped into it directly, so a zip left by an earlier run cannot
+# leak deleted entries into the new archive the way an update-in-place would;
+# the rename below replaces it atomically. Deleting it up front instead would
+# mean a run that fails or is killed after this point (no zip, full disk)
+# destroys a good archive an earlier run produced and leaves nothing behind.
 # zipped into a temp file in the destination directory and renamed, so a zip
 # that fails or is killed part-way (disk full, signal) never leaves a
 # truncated archive at the release path looking like a finished artifact.

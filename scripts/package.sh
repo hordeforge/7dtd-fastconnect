@@ -106,15 +106,26 @@ OUT="$ROOT/dist/7dtd-fastconnect-$VERSION.zip"
 # Use a project-local staging dir instead of /tmp (tmpfs/RAM) so an
 # interrupted package (SIGKILL) does not leak stage trees in volatile storage.
 STAGE="$ROOT/dist/.package-stage-$$"
+# The archive is built and read back at this path, then renamed onto the
+# release path, so the path a release is published at only ever holds an
+# archive this run verified. A rerun that fails the verification below leaves
+# the previous run's zip in place instead of replacing a good release with a
+# broken one.
+CANDIDATE="$ROOT/dist/.package-candidate-$$"
+# A killed run cannot run its trap, so its per-run stage and candidate paths
+# (both named by pid) stay behind forever. Drop anything older than a day:
+# long enough that no run this one is racing is still using it.
+find "$ROOT/dist" -maxdepth 1 -name '.package-stage-*' -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+find "$ROOT/dist" -maxdepth 1 -name '.package-candidate-*' -mmin +1440 -delete 2>/dev/null || true
 mkdir -p "$STAGE"
 # Signals must exit, not fall through: a non-exiting INT/TERM handler removes
 # the stage and the script continues into repro_zip.sh, which then reports
 # "stage dir does not exist" as a setup failure and exits 1 instead of 130.
-trap 'rm -rf "$STAGE"' EXIT
+trap 'rm -rf "$STAGE"; rm -f "$CANDIDATE"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 "$ROOT/scripts/stage_mod.sh" "$ROOT/dist/7dtd-fastconnect" "$STAGE"
-"$ROOT/scripts/repro_zip.sh" "$STAGE" "$OUT"
+"$ROOT/scripts/repro_zip.sh" "$STAGE" "$CANDIDATE"
 
 # Read the archive back and require it to hold exactly the staged tree. A zip
 # that lost an entry, gained one, or is unreadable is not a release, and the
@@ -124,14 +135,16 @@ trap 'exit 143' TERM
 # find does not. Comparing the sorted lists (LC_ALL=C on both sides) pins
 # both directions: a missing payload file and a leaked build leftover both
 # fail.
-archived="$(unzip -Z1 "$OUT" | sed 's|/$||' | LC_ALL=C sort)"
+archived="$(unzip -Z1 "$CANDIDATE" | sed 's|/$||' | LC_ALL=C sort)"
 staged="$(cd "$STAGE" && find . -mindepth 1 | sed 's|^\./||;s|/$||' | LC_ALL=C sort)"
 if [[ "$archived" != "$staged" ]]; then
 	echo "ERROR: archive contents do not match the staged payload:" >&2
 	diff <(printf '%s\n' "$staged") <(printf '%s\n' "$archived") >&2 || true
-	rm -f "$OUT"
+	echo "ERROR: nothing published to $OUT; any zip already there is an earlier run's" >&2
 	exit 1
 fi
+# Verified, so the release path gets it.
+mv -f "$CANDIDATE" "$OUT"
 
 # What a rebuild needs to reproduce the zip: the exact inputs, the toolchain
 # that compiled them, and the bytes that came out. Written beside the archive,

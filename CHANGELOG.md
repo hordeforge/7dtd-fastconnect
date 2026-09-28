@@ -203,6 +203,21 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Fixed
 
+- Reruns of the packaging path destroyed the artifact a previous run
+  produced. `repro_zip.sh` deleted the archive at the release path before
+  zipping a replacement, so a run that failed (no `zip`, full disk, killed)
+  left nothing where a good release zip had been; the delete was also
+  unnecessary, since nothing was ever zipped into that path. `package.sh` now
+  builds the archive at a per-run candidate path, verifies it there, and only
+  then renames it onto the release path, so the path a release is published at
+  only ever holds an archive this run verified. Both repack to identical bytes
+  on a second run, and `test_repro_zip.sh` and `test_package_verify.sh` pin
+  the rerun property. A killed run's stage and candidate paths are pruned
+  instead of accumulating under `dist/`.
+- `zero_nre_join_loop.sh` left `zero_nre_PASS.txt` from an earlier run on disk
+  when a later run failed, so a pass and a fail sat side by side with nothing
+  to say which run each came from. Both verdict files are cleared at the start
+  of a run, pinned by `test_zero_nre_verdict_reset.sh`.
 - The console echo (`LogText.EchoForMessage`) cut a pasted value at 40 UTF-16
   code units, so a long paste of emoji or CJK could end in a lone surrogate
   and print as U+FFFD. It now counts code points, like `ConnectTarget`'s

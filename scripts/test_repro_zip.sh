@@ -66,4 +66,30 @@ first_entry_ts="$(unzip -l "$WORK/a.zip" | awk 'NR==4 {print $2, $3}')"
 assert "entry mtimes follow SOURCE_DATE_EPOCH ($first_entry_ts)" \
 	test "$first_entry_ts" = "2023-11-14 22:13"
 
+# Rerun over an archive an earlier run produced. A packer that fails must not
+# take that archive with it: the release path is replaced by a complete zip,
+# never emptied on the way to one.
+mkdir -p "$WORK/failzip"
+cat >"$WORK/failzip/zip" <<'STUB'
+#!/usr/bin/env bash
+echo "stub: packing failed" >&2
+exit 1
+STUB
+chmod +x "$WORK/failzip/zip"
+cp "$WORK/a.zip" "$WORK/rerun.zip"
+set +e
+PATH="$WORK/failzip:$PATH" SOURCE_DATE_EPOCH=$EPOCH \
+	"$ROOT/scripts/repro_zip.sh" "$stage_a" "$WORK/rerun.zip" >"$WORK/rerun.log" 2>&1
+rerun_rc=$?
+set -e
+assert "a rerun whose packer fails exits non-zero" test "$rerun_rc" -ne 0
+assert "a failed rerun leaves the previous archive byte-identical" \
+	cmp -s "$WORK/rerun.zip" "$WORK/a.zip"
+
+# And a succeeding rerun over the same path replaces it with the same bytes,
+# so running the packer twice converges on one artifact.
+SOURCE_DATE_EPOCH=$EPOCH "$ROOT/scripts/repro_zip.sh" "$stage_a" "$WORK/rerun.zip" >/dev/null
+assert "a second run over the same path converges" \
+	cmp -s "$WORK/rerun.zip" "$WORK/a.zip"
+
 finish
