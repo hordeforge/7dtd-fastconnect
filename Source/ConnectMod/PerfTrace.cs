@@ -21,14 +21,6 @@ namespace SdtdConnect
         static bool _hitchMonitorStarted;
 
         /// <summary>
-        /// Whether a trace line would be emitted. Call sites on the startup
-        /// coroutines must test this before building their line: the argument
-        /// is concatenated by the caller, so gating inside Trace alone still
-        /// pays for the string on every step of a world load that logs nothing.
-        /// </summary>
-        internal static bool Enabled => DiagToggle.Enabled;
-
-        /// <summary>
         /// Local-host startup trace, `diag on` / 7DTD_CONNECT_DEBUG=1 only
         /// (~330 steps). Both local-host startup stages report through it, the
         /// createWorld step walk and the StartAsServer step walk, and each

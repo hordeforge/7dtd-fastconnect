@@ -43,7 +43,7 @@ assert "gates hitch logging behind diag" grep -q '!DiagToggle.Enabled) continue'
 # Each call site must open with the toggle check on the line above it.
 unguarded_trace() {
 	awk '/PerfTrace\.Trace\(/ {
-		if (prev !~ /if \((PerfTrace\.Enabled|tracing)\)$/) { print; bad = 1 }
+		if (prev !~ /if \((DiagToggle\.Enabled|tracing)\)$/) { print; bad = 1 }
 	} { prev = $0 } END { exit bad }' "$PATCHES"
 }
 assert "gates every startup trace line at its call site" unguarded_trace

@@ -27,14 +27,6 @@ namespace SdtdConnect
             Announce(what, ex.ToString());
         }
 
-        // Reason-shaped variant for a probe that has to report something other
-        // than an exception. Same once-and-mute contract.
-        internal static void Once(string what, string reason)
-        {
-            if (string.IsNullOrEmpty(reason)) return;
-            Announce(what, reason);
-        }
-
         static void Announce(string what, string detail)
         {
             if (!_announced.Add(what)) return;

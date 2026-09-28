@@ -117,7 +117,7 @@ namespace SdtdConnect
                     if (!MoveNext("StartAsServer", iterator, out object current))
                     {
                         stack.Pop();
-                        if (PerfTrace.Enabled)
+                        if (DiagToggle.Enabled)
                             PerfTrace.Trace("StartAsServer completed depth " + stack.Count + " after step " + step);
                         continue;
                     }
@@ -133,7 +133,7 @@ namespace SdtdConnect
                     // The lines are built here, not inside Trace, so each one is
                     // gated on the toggle: a world load runs hundreds of steps
                     // with diag off and must not concatenate a line per step.
-                    bool tracing = PerfTrace.Enabled;
+                    bool tracing = DiagToggle.Enabled;
                     if (tracing)
                         PerfTrace.Trace("StartAsServer -> step " + step + " depth " + stack.Count
                             + " yield " + (current == null ? "null" : current.GetType().Name)
@@ -260,7 +260,7 @@ namespace SdtdConnect
                 step++;
                 // Same gate as the step lines in Flatten: the line is built at
                 // the call site, so an untested Trace would still concatenate it.
-                if (PerfTrace.Enabled)
+                if (DiagToggle.Enabled)
                     PerfTrace.Trace("createWorld step " + step
                         + " skipped " + skippedFrameBreaks
                         + " yield " + (current == null ? "null" : current.GetType().Name)

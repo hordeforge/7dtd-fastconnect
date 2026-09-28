@@ -878,26 +878,17 @@ static class TestMain
             Check("a different probe still announces", other.Contains(prefix + "-synthetic-id"));
             Check("a different probe carries its own detail", other.Contains("no id"));
 
-            // Reason-shaped overload.
-            string reason = CaptureStderr(delegate { ProbeFailure.Once(prefix + "-reason", "window never opened"); });
-            Check("reason overload announces", reason.Contains(prefix + "-reason"));
-            Check("reason overload carries the reason", reason.Contains("window never opened"));
-
-            // A null exception and an empty reason are not failures. Neither may
-            // log, and neither may burn the latch for the real one.
+            // A null exception is not a failure: it may not log, and it may
+            // not burn the latch for the real one.
             Check("null exception is silent", CaptureStderr(delegate
             {
                 ProbeFailure.Once(prefix + "-null", (Exception)null);
             }) == "");
-            Check("empty reason is silent", CaptureStderr(delegate
+            string afterNull = CaptureStderr(delegate
             {
-                ProbeFailure.Once(prefix + "-empty", "");
-            }) == "");
-            string afterEmpty = CaptureStderr(delegate
-            {
-                ProbeFailure.Once(prefix + "-empty", "the real failure");
+                ProbeFailure.Once(prefix + "-null", new InvalidOperationException("the real failure"));
             });
-            Check("an empty reason does not consume the latch", afterEmpty.Contains("the real failure"));
+            Check("a null exception does not consume the latch", afterNull.Contains("the real failure"));
 
             return Done();
         }
