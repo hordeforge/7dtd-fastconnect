@@ -618,6 +618,19 @@ static class TestMain
             Check("Normalize empties a value of only invisible characters",
                 string.IsNullOrEmpty(PlayerNames.Normalize("\u202E\u200B")));
 
+            // A name that an OS can hold (astral characters in a user or
+            // machine name) must not be cut mid-surrogate: the server stores
+            // and echoes whatever the client sends.
+            string astral = PlayerNames.CapToMaxLength(
+                "abcdefghijklmnopqrstuvw" + char.ConvertFromUtf32(0x1F600));
+            Check("capped astral name fits the cap",
+                astral.Length <= PlayerNames.MaxLength);
+            Check("capped astral name keeps whole characters",
+                !char.IsHighSurrogate(astral[astral.Length - 1])
+                    && !char.IsLowSurrogate(astral[astral.Length - 1]));
+            Check("capped name below the cap is untouched",
+                PlayerNames.CapToMaxLength("short") == "short");
+
             return Done();
         }
 

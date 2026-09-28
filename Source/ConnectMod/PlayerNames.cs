@@ -59,5 +59,19 @@ namespace SdtdConnect
             name = Normalize(name);
             return string.IsNullOrEmpty(name) ? "player" : name;
         }
+
+        /// <summary>
+        /// Trims a name to the stock cap without cutting a surrogate pair in
+        /// half: a name is stored and echoed by the server, and a lone
+        /// surrogate in it is not a valid name there. Dropping the whole
+        /// astral character costs at most one code point of length.
+        /// </summary>
+        internal static string CapToMaxLength(string name)
+        {
+            if (name == null || name.Length <= MaxLength) return name;
+            int cut = MaxLength;
+            if (char.IsHighSurrogate(name[cut - 1])) cut--;
+            return name.Substring(0, cut);
+        }
     }
 }

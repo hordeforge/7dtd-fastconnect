@@ -122,10 +122,13 @@ fi
 # 7DTD_CONNECT_* flags). A blank value is not an opt-out: it trims to empty and
 # keeps the unset default, mute on, which is what EnvFlags.IsSetOn does with a
 # whitespace-only value.
-MUTE_CLIENT="${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}"
-MUTE_MODE="$(trim_ws "$MUTE_CLIENT")"
-case "${MUTE_MODE,,}" in
-  0 | false | no | off) MUTE_CLIENT="" ;;
+MUTE_CLIENT="$(lower "$(trim "${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}")")"
+# Every value resolves to an explicit on/off here, because a whitespace-only
+# CLIENT_MUTE trims to the same empty string as the opt-out token and would
+# otherwise read as "mute off" below.
+case "$MUTE_CLIENT" in
+  0 | false | no | off) MUTE_CLIENT="0" ;;
+  *) MUTE_CLIENT="1" ;;
 esac
 MUTE_WAIT="$(trim "${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}")"
 # Validated here, not only in the helper: the launcher is what announces the
@@ -247,7 +250,7 @@ MUTE_PID=""
 # that pid is the shared desktop Steam client, not a child this script owns.
 GAME_PID=""
 start_mute_poll() {
-  if [[ -z "$MUTE_CLIENT" ]]; then
+  if [[ "$MUTE_CLIENT" == "0" ]]; then
     return 0
   fi
   if [[ ! -x "$MUTE_HELPER" ]]; then
