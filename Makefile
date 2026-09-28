@@ -56,6 +56,10 @@ test:
 	$(ROOT)/scripts/test_version_sync.sh
 	$(ROOT)/scripts/test_cycle_filename_guard.sh
 	$(ROOT)/scripts/test_zero_nre_log_dir_guard.sh
+	$(ROOT)/scripts/test_make_tool_pin.sh
+	# Without uv the Python gates below run a binary from PATH, so
+	# assert_tool_pin.sh checks each one against its == pin in pyproject.toml
+	# first: a fallback run must be the pinned tool, not merely a tool.
 	@if command -v shellcheck >/dev/null; then \
 	  echo "shellcheck:"; \
 	  shellcheck -S warning $(ROOT)/scripts/*.sh; \
@@ -67,7 +71,9 @@ test:
 	  uv run --frozen --group dev ruff format --check scripts && \
 	  uv run --frozen --group dev mypy --strict $(PY_SOURCES); \
 	elif command -v ruff >/dev/null && command -v mypy >/dev/null; then \
-	  cd "$(ROOT)" && ruff check scripts && ruff format --check scripts && \
+	  cd "$(ROOT)" && "$(ROOT)/scripts/assert_tool_pin.sh" ruff ruff && \
+	  "$(ROOT)/scripts/assert_tool_pin.sh" mypy mypy && \
+	  ruff check scripts && ruff format --check scripts && \
 	  mypy --strict $(PY_SOURCES); \
 	else \
 	  echo "WARN: ruff/mypy not available; static analysis skipped" >&2; \
@@ -75,7 +81,8 @@ test:
 	@if command -v uv >/dev/null; then \
 	  cd "$(ROOT)" && uv run --frozen --group dev pytest scripts/test_launch_client_platform.py -q --tb=short; \
 	else \
-	  cd "$(ROOT)" && python3 -m pytest scripts/test_launch_client_platform.py -q --tb=short; \
+	  cd "$(ROOT)" && "$(ROOT)/scripts/assert_tool_pin.sh" pytest python3 -m pytest && \
+	  python3 -m pytest scripts/test_launch_client_platform.py -q --tb=short; \
 	fi
 
 package:

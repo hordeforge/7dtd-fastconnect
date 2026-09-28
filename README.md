@@ -69,7 +69,10 @@ stubs (`scripts/testdata/`) and runs target parsing and launch-context
 resolution for real. It skips itself only when neither toolchain is present.
 `test_repro_zip.sh` pins the byte-reproducibility contract of packaging.
 The shellcheck / ruff / mypy / pytest gates run last and warn when a tool is
-missing.
+missing. With `uv` on PATH they run the versions pinned in `pyproject.toml`
+and hash-checked in `uv.lock`; without it they fall back to the tools on PATH,
+which must report the same pinned version or the gate stops
+(`scripts/assert_tool_pin.sh`).
 
 ## Usage
 
