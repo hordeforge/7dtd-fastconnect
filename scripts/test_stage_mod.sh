@@ -20,6 +20,7 @@ build_ok() {
 	mkdir -p "$d"
 	printf 'dll' >"$d/7dtd-fastconnect.dll"
 	printf '<xml/>\n' >"$d/ModInfo.xml"
+	printf 'MIT\n' >"$d/LICENSE"
 	# What a real build also leaves in dist/: the symbol file, and a dll
 	# from a build before an assembly rename that MSBuild never prunes.
 	printf 'pdb' >"$d/7dtd-fastconnect.pdb"
@@ -37,9 +38,10 @@ mkdir -p "$WORK/stage-full"
 "$STAGE_MOD" "$d" "$WORK/stage-full"
 "$ROOT/scripts/repro_zip.sh" "$WORK/stage-full" "$WORK/full.zip" >/dev/null
 entries="$(zip_entries "$WORK/full.zip")"
-assert "staged tree holds only the two payload files" \
+assert "staged tree holds only the payload files" \
 	test "$entries" = "7dtd-fastconnect/
 7dtd-fastconnect/7dtd-fastconnect.dll
+7dtd-fastconnect/LICENSE
 7dtd-fastconnect/ModInfo.xml"
 
 # 2. The zip's top level is the mod folder, so unzipping into <game>/Mods
@@ -50,9 +52,11 @@ assert "zip has the mod folder at its top level" \
 # 3. The installed file set and the packaged one are the same set: a user
 #    who `make install`s and a user who unzips a release get the same mod.
 #    make install copies both files in one cp -f of "$(DIST)/A" "$(DIST)/B".
+# Every file make install copies out of the build dir. The trailing filter
+# drops `"$(DIST)/"`, the build target directory, which is not a payload file.
 installed_files() {
-	sed -n 's/.*cp -f "\$(DIST)\/\([^"]*\)" "\$(DIST)\/\([^"]*\)".*/\1\n\2/p' \
-		"$ROOT/Makefile" | LC_ALL=C sort
+	grep -o '"\$(DIST)/[^"]*"' "$ROOT/Makefile" | sed 's/"\$(DIST)\///; s/"$//' \
+		| grep -v '^$' | LC_ALL=C sort
 }
 packaged_files() {
 	sed -n 's/^PAYLOAD=(\(.*\))$/\1/p' "$STAGE_MOD" | tr ' ' '\n' | LC_ALL=C sort
@@ -99,6 +103,17 @@ assert "staging into a used stage root yields exactly the payload" \
 	test "$(find "$WORK/stage-rerun" -mindepth 1 | sed "s|$WORK/stage-rerun/||" | LC_ALL=C sort)" = \
 		"7dtd-fastconnect
 7dtd-fastconnect/7dtd-fastconnect.dll
+7dtd-fastconnect/LICENSE
 7dtd-fastconnect/ModInfo.xml"
+
+# 8. `make install` and `make uninstall` act on $(INSTALL_DIR), which an empty
+#    or root MODS_DIR collapses to a top-level path that uninstall would
+#    delete recursively. The guard must reject those before any disk change
+#    and let a real Mods dir through.
+guard() { make -C "$ROOT" --no-print-directory check-mods-dir MODS_DIR="$1" >/dev/null 2>&1; }
+guard_fails() { ! guard "$1"; }
+assert "install guard rejects an empty MODS_DIR" guard_fails ""
+assert "install guard rejects a root MODS_DIR" guard_fails "/"
+assert "install guard accepts a game Mods dir" guard "$WORK/game/Mods"
 
 finish

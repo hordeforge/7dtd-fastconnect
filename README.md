@@ -76,8 +76,8 @@ Installs to `$GAME/Mods/7dtd-fastconnect/`.
 
 From a release zip instead: unzip `7dtd-fastconnect-<version>.zip` into
 `$GAME/Mods/`. The archive already contains the `7dtd-fastconnect/` folder at
-its top level and holds only the two files above, so it lands where the game
-looks for mods.
+its top level and holds only `7dtd-fastconnect.dll`, `ModInfo.xml`, and
+`LICENSE`, so it lands where the game looks for mods.
 
 ## Tests
 

@@ -28,7 +28,7 @@ ifneq ($(DOTNET_ROOT),)
   export PATH := $(DOTNET_ROOT):$(PATH)
 endif
 
-.PHONY: build install uninstall clean test gate coverage package help dotnet-version
+.PHONY: build install uninstall clean test gate coverage package help dotnet-version check-mods-dir
 
 # The SDK the build actually resolved under the DOTNET_ROOT search above, so
 # the package build record names the compiler instead of whatever dotnet the
@@ -70,7 +70,9 @@ build:
 		"Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
 		-p:RestoreLockedMode=true \
 		-p:GameRoot="$(GAME)"
-	cp -f "$(ROOT)/ModInfo.xml" "$(DIST)/"
+	# LICENSE rides along with the payload: the mod ships as a redistributable
+	# zip, so its terms have to travel with it.
+	cp -f "$(ROOT)/ModInfo.xml" "$(ROOT)/LICENSE" "$(DIST)/"
 	@echo "OK → $(DIST)"
 
 # Line coverage of the ConnectTarget offline gate compiled with the dotnet
@@ -159,15 +161,31 @@ package:
 	$(ROOT)/scripts/package.sh
 
 install: build
+	@$(MAKE) --no-print-directory check-mods-dir
 	mkdir -p "$(INSTALL_DIR)"
-	cp -f "$(DIST)/ModInfo.xml" "$(DIST)/7dtd-fastconnect.dll" "$(INSTALL_DIR)/"
+	cp -f "$(DIST)/ModInfo.xml" "$(DIST)/LICENSE" "$(DIST)/7dtd-fastconnect.dll" "$(INSTALL_DIR)/"
 	@echo "Installed → $(INSTALL_DIR)"
 	@echo "Launch client with EAC off (-noeac). Example:"
 	@echo "  env 7DTD_CONNECT=127.0.0.1:27025 $(ROOT)/scripts/launch_client.sh"
 
 uninstall:
+	@$(MAKE) --no-print-directory check-mods-dir
 	rm -rf "$(INSTALL_DIR)"
 	@echo "Removed $(INSTALL_DIR)"
+
+# An empty or root-level MODS_DIR (an unset variable, an export that did not
+# survive, a typo like MODS_DIR=) makes INSTALL_DIR "/7dtd-fastconnect", and
+# `make uninstall` would rm -rf that. Refuse before either target touches
+# disk rather than after.
+check-mods-dir:
+	@if [ -z "$(MODS_DIR)" ] || [ "$(MODS_DIR)" = / ]; then \
+		echo "ERROR: MODS_DIR is '$(MODS_DIR)'; point it at the game's Mods directory (GAME=... or MODS_DIR=...)" >&2; \
+		exit 2; \
+	fi
+	@if [ "$(INSTALL_DIR)" != /*/* ]; then \
+		echo "ERROR: INSTALL_DIR '$(INSTALL_DIR)' is not two levels below /; refusing to touch it" >&2; \
+		exit 2; \
+	fi
 
 clean:
 	rm -rf "$(ROOT)/dist" "$(ROOT)/Source/ConnectMod/bin" "$(ROOT)/Source/ConnectMod/obj"

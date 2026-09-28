@@ -25,7 +25,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 	echo "Usage: stage_mod.sh <build_dir> <stage_root>"
 	cat <<'EOF'
 
-Copy the shipped mod payload (7dtd-fastconnect.dll, ModInfo.xml) from the
+Copy the shipped mod payload (7dtd-fastconnect.dll, ModInfo.xml, LICENSE) from the
 build output into <stage_root>/7dtd-fastconnect/. That folder is emptied
 first, so staging into a stage root a previous run used produces the same
 tree. Exits 1 if the build output lacks any of them, so a partial build is
@@ -46,9 +46,10 @@ BUILD_DIR="$1"
 STAGE_ROOT="$2"
 
 MOD_DIR_NAME=7dtd-fastconnect
-# The mod payload: the assembly the game loads plus the manifest it reads.
-# Keep in sync with `make install`, which installs the same two files.
-PAYLOAD=(7dtd-fastconnect.dll ModInfo.xml)
+# The mod payload: the assembly the game loads, the manifest it reads, and
+# the license the zip redistributes under. Keep in sync with `make install`,
+# which installs the same files.
+PAYLOAD=(7dtd-fastconnect.dll ModInfo.xml LICENSE)
 
 if [[ ! -d "$BUILD_DIR" ]]; then
 	echo "ERROR: build output '$BUILD_DIR' does not exist; run make build first" >&2

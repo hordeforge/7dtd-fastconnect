@@ -49,8 +49,16 @@ and enum handling, so a patch bump would claim none of that.
   `FIX` and `ANN`. A blind except or a swallowed error had no enabled rule
   naming it. `COM` stays at `COM818`/`COM819` because `COM812` contradicts
   `ruff format`, and the two would rewrite the same line.
+- The release zip and `make install` now ship `LICENSE` alongside the
+  assembly and the manifest. The mod is redistributed as a zip, so its
+  terms have to travel with the payload.
 
 ### Fixed
+
+- `make install` and `make uninstall` refuse an empty or root-level
+  `MODS_DIR`. Either value collapses `INSTALL_DIR` to a top-level path
+  that `uninstall` deletes recursively; the guard fails before anything
+  touches disk.
 
 - Client-log evidence copied into the join control log is sanitized and
   prefixed. `one_shot_join.sh` appended the client log's join lines to

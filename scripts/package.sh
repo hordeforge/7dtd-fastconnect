@@ -104,7 +104,7 @@ trap 'rm -rf "$STAGE"' EXIT INT TERM
 
 # What a rebuild needs to reproduce the zip: the exact inputs, the toolchain
 # that compiled them, and the bytes that came out. Written beside the archive,
-# never into it, so the payload stays the two files the game loads.
+# never into it, so the payload stays the files the game loads.
 BUILDINFO="${OUT%.zip}.buildinfo"
 {
 	echo "version: $VERSION"

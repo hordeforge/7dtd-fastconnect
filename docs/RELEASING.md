@@ -11,11 +11,12 @@ a client install and attached to the release by hand.
 
 ## What ships
 
-One zip, `dist/7dtd-fastconnect-<version>.zip`, holding two files under a
+One zip, `dist/7dtd-fastconnect-<version>.zip`, holding three files under a
 top-level `7dtd-fastconnect/` folder:
 
 - `7dtd-fastconnect.dll`
 - `ModInfo.xml`
+- `LICENSE` (the terms the mod is redistributed under)
 
 A sibling `dist/7dtd-fastconnect-<version>.buildinfo` records the commit, the
 dirty state, `SOURCE_DATE_EPOCH`, the dotnet SDK version, and the archive's
@@ -100,13 +101,13 @@ zip. The archive bytes are reproducible: entry mtimes come from
 6. **Verify the artifact before uploading it.**
 
    ```bash
-   unzip -l dist/7dtd-fastconnect-0.12.0.zip   # exactly the two files, one folder
+   unzip -l dist/7dtd-fastconnect-0.12.0.zip   # exactly the payload, one folder
    cat  dist/7dtd-fastconnect-0.12.0.buildinfo
    unzip -o dist/7dtd-fastconnect-0.12.0.zip -d "$GAME/Mods"
    ```
 
    The zip installs by being unzipped into `$GAME/Mods/`. To prove it in
-   place instead, `make install` copies the same two files and needs no
+   place instead, `make install` copies the same files and needs no
    archive.
 
 7. **Publish.** Create the GitHub release for the tag and attach
@@ -126,7 +127,7 @@ zip. The archive bytes are reproducible: entry mtimes come from
 
 ## Rollback
 
-The mod is two files with no server side and no persistent state, so a bad
+The mod is three files with no server side and no persistent state, so a bad
 release rolls back by putting the previous files back:
 
 ```bash

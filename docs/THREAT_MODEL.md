@@ -228,7 +228,8 @@ no setuid, no elevated installer (`make install` copies files into the game's
 | Load-priority / force-sync restore in `finally` | leaving the client in a modified global state | LocalHostWorldLoadPatches.cs:116-128,344-363 |
 | Hitch monitor started once per process | one eternal coroutine per hosted session | LocalHostWorldLoadPatches.cs:177-184 |
 | EULA gate handled once per process | a repeated `windowEula` request re-saving prefs and re-firing `MainMenuOpened` at every mod | EulaSkip.cs:17-19,50,72; pinned by scripts/test_eula_gate_once.sh |
-| Staged mod folder emptied before staging | a reused stage root shipping files the payload no longer has | scripts/stage_mod.sh:69-74; pinned by scripts/test_stage_mod.sh |
+| Staged mod folder emptied before staging | a reused stage root shipping files the payload no longer has | scripts/stage_mod.sh:70-75; pinned by scripts/test_stage_mod.sh |
+| install/uninstall refuse an empty or root `MODS_DIR` | `rm -rf $(INSTALL_DIR)` on a top-level path built from an unset variable | Makefile:156,164,168-180; pinned by scripts/test_stage_mod.sh |
 | Diagnostic traces gated behind `7DTD_CONNECT_DEBUG` / `diag on` | R6 log volume in normal play | DiagToggle.cs:5,19-30; WindowTrace.cs:14-17; LocalHostWorldLoadPatches.cs:212,233-237; LoadStateProbe.cs:11-15 |
 | Announce-once probe failures | a dead probe reading as a healthy quiet join | ProbeFailure.cs:15-43 |
 | Player-name cap (24 code points, NFC, never cutting a surrogate pair), control/invisible-format flattening, and never-empty fallback | oversized/injected names reaching prefs; one name in two spellings, or a cap that corrupts an emoji name into U+FFFD | PlayerNames.cs:16-81, TextUtil.cs:22-85, ModApi.cs:122-169 |

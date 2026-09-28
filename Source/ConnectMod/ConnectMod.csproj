@@ -13,7 +13,7 @@
     <!-- The shipped dll carries a debug directory naming the pdb by its
          absolute build path, so two checkouts of one commit produced
          different bytes. No symbols are shipped (scripts/stage_mod.sh stages
-         the dll and ModInfo.xml only), so build with none. -->
+         the payload only), so build with none. -->
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <Deterministic>true</Deterministic>
