@@ -34,12 +34,17 @@ namespace SdtdConnect
 
             if (AutomationMode.Enabled)
             {
-                TryStep("boot unblock", () =>
+                // Separate steps from each other: the uncap and the force-sync
+                // setting are independent settings, and one warning covering
+                // both left the reader unable to tell which of them did not
+                // apply. Same type-and-message shape as every other step here.
+                TryStep("frame uncap", () =>
                 {
                     // Stock only enables RIB in editor; async addressables starve at ~1 FPS under Proton.
                     BootUnblock.ApplyFrameUncap("InitMod");
-                    BootUnblock.ApplyForceLoadSync();
                 });
+
+                TryStep("forceLoadSync set", () => BootUnblock.ApplyForceLoadSync());
 
                 TryStep("Discord prefs set", () =>
                 {

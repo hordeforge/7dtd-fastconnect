@@ -61,7 +61,18 @@ def rate(xmls: list[str], filt: str) -> int:
             for ln in cls.iter("line"):
                 total += 1
                 hit += 1 if ln.get("hits", "0") != "0" else 0
-    return round(100 * hit / total) if total else 0
+    if total == 0:
+        # Nothing was counted, so there is no coverage to report. A 0% badge
+        # here reads as a measurement of a source tree that was never
+        # instrumented, which is exactly the run that failed to collect; the
+        # report is named so the reader can see which filter came up empty.
+        print(
+            f"error: no line of any report matched filter {filt!r}; "
+            f"coverage was not collected, not measured at zero",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return round(100 * hit / total)
 
 
 HELP = """Usage: coverage_badge.py OUTPUT.svg FILTER COBERTURA_XML...
@@ -69,7 +80,9 @@ HELP = """Usage: coverage_badge.py OUTPUT.svg FILTER COBERTURA_XML...
 Write a line-coverage badge SVG to OUTPUT.svg, counting only classes whose
 filename contains FILTER (the Makefile passes /Source/).
 
-Exit status: 0 badge written | 1 a report could not be read or parsed
+Exit status: 0 badge written | 1 a report could not be read or parsed, or
+             no line of any report matched FILTER (coverage was not
+             collected, which is not a measurement of zero)
              | 2 usage error.
 """
 

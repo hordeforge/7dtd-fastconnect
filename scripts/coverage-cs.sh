@@ -56,6 +56,13 @@ cd "$work"
 # compile errors, otherwise a broken coverage build fails with no diagnosis.
 dotnet build -c Release -v q --nologo
 dll="$(find bin -name 'cov.dll' | head -1)"
+# An empty $dll here would surface as a per-mode profiler failure naming the
+# wrong thing (the profiler, not the missing assembly), and "no output under
+# bin/" after a build that reported success needs its own name.
+if [[ -z "$dll" ]]; then
+	echo "FAIL: build reported success but produced no cov.dll under $work/bin" >&2
+	exit 1
+fi
 
 modes=(argv argvenv automation connectready envflags forcesync launchctx parse playernames sanitize)
 for m in "${modes[@]}"; do

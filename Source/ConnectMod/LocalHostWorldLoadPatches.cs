@@ -181,6 +181,17 @@ namespace SdtdConnect
                 Log.Warning("[7dtd-fastconnect] Local-host player prefab prewarm failed: " + ex.GetType().Name + ": " + ex.Message);
                 yield break;
             }
+            // A load request the manager declines (renamed asset after a game
+            // update, a key it does not know) comes back as no task at all
+            // rather than as a throw. Reading IsDone on it would end this
+            // coroutine with a NullReferenceException Unity reports nowhere,
+            // so the prewarm would be lost with no trace at all.
+            if (playerPrefab == null)
+            {
+                Log.Warning("[7dtd-fastconnect] Local-host player prefab prewarm skipped: "
+                    + "LoadManager returned no request for Prefabs/prefabEntityPlayerLocal");
+                yield break;
+            }
 
             Log.Out("[7dtd-fastconnect] Local-host prewarming local player prefab");
             const float prewarmMaxSec = 60f;

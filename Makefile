@@ -136,6 +136,7 @@ GATES := \
 	scripts/test_config_validate.sh \
 	scripts/test_unmute_client_audio.sh \
 	scripts/test_cli_help.sh \
+	scripts/test_coverage_badge.sh \
 	scripts/test_monotonic_deadlines.sh \
 	scripts/test_log_marker_cache.sh \
 	scripts/test_log_marker_fuzz.sh \

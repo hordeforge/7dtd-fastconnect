@@ -222,6 +222,22 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Fixed
 
+- `coverage_badge.py` reported 0% coverage, and exited 0, for a report no line
+  of which matched the filter. A profiler run that collected nothing therefore
+  published a measurement. It now fails, naming the filter, and writes no
+  badge; `scripts/test_coverage_badge.sh` pins both the rate and the refusal.
+- A `World.LoadWorld` hold on `LoadManager.forceLoadSync` restored the field
+  from an unguarded `finally`, where a throwing `SetValue` escaped into stock
+  game code; it is now guarded and logged, like the hold and release beside it.
+  The local-host player-prefab prewarm also read `IsDone` on a request
+  `LoadManager` can decline to return at all, ending the coroutine with an
+  NRE Unity reports nowhere; that is named and skipped instead.
+- The `InitMod` boot-unblock warning covered the frame uncap and the
+  force-sync set together and dropped the exception type, so a log line could
+  not say which setting did not apply. The two are caught and reported
+  separately, in the type-and-message shape every other catch in the mod uses.
+- `coverage-cs.sh` reported a missing build output as a per-mode profiler
+  failure naming the profiler; it now fails on the missing `cov.dll` itself.
 - Reruns of the packaging path destroyed the artifact a previous run
   produced. `repro_zip.sh` deleted the archive at the release path before
   zipping a replacement, so a run that failed (no `zip`, full disk, killed)
