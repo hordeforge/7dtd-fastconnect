@@ -23,54 +23,36 @@ namespace SdtdConnect
             Log.Out("[7dtd-fastconnect] automation boot mode " + (AutomationMode.Enabled ? "enabled" : "disabled")
                 + " (auto when 7DTD_CONNECT/-connect is present; override with " + AutomationMode.EnvVar + ")");
 
-            try
+            TryStep("intro movie disable", () =>
             {
                 // This is a user-facing preference, not automation plumbing.
                 GamePrefs.Set(EnumGamePrefs.OptionsIntroMovieEnabled, false);
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
                 GamePrefs.Instance?.Save();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] intro movie disable failed: " + ex.GetType().Name + ": " + ex.Message);
-            }
+            });
 
             if (AutomationMode.Enabled)
             {
-                try
+                TryStep("boot unblock", () =>
                 {
                     // Stock only enables RIB in editor; async addressables starve at ~1 FPS under Proton.
                     BootUnblock.ApplyFrameUncap("InitMod");
                     BootUnblock.ApplyForceLoadSync();
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning("[7dtd-fastconnect] boot unblock failed: " + ex.Message);
-                }
+                });
 
-                try
+                TryStep("Discord prefs set", () =>
                 {
                     GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                     GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning("[7dtd-fastconnect] Discord prefs set failed: " + ex.GetType().Name + ": " + ex.Message);
-                }
+                });
 
-                // Separate try: an EULA accept failure blocks startup, and a
+                // Separate step: an EULA accept failure blocks startup, and a
                 // message blaming Discord sends the reader after the wrong
-                // setting.
-                try
-                {
-                    // EULA gate blocks MainMenu (scroll+accept); force accepted for automation.
-                    Log.Out("[7dtd-fastconnect] EULA prefs accepted=" + EulaSkip.AcceptLatest());
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning("[7dtd-fastconnect] EULA prefs accept failed: " + ex.GetType().Name + ": " + ex.Message);
-                }
+                // setting. EULA gate blocks MainMenu (scroll+accept); force
+                // accepted for automation.
+                TryStep("EULA prefs accept", () =>
+                    Log.Out("[7dtd-fastconnect] EULA prefs accepted=" + EulaSkip.AcceptLatest()));
             }
 
             // 7DTD_PLAYER_NAME is an operator ask, not automation plumbing, so
@@ -80,14 +62,7 @@ namespace SdtdConnect
             // documents it for. The no-env fallback (store a name the stock
             // dedi would otherwise reject) stays automation-only, so an
             // ordinary client launch still leaves the stored pref alone.
-            try
-            {
-                ApplyPlayerNameOverride();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] player name override failed: " + ex.GetType().Name + ": " + ex.Message);
-            }
+            TryStep("player name override", ApplyPlayerNameOverride);
 
             try
             {
@@ -126,16 +101,11 @@ namespace SdtdConnect
 
             if (AutomationMode.Enabled)
             {
-                try
-                {
-                    XUiC_MainMenu.shownNewsScreenOnce = true;
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning("[7dtd-fastconnect] InitMod news-screen skip failed: " + ex.Message);
-                }
+                TryStep("InitMod news-screen skip", () => XUiC_MainMenu.shownNewsScreenOnce = true);
             }
 
+            // Error severity, not the TryStep warning: without the handler the
+            // auto-join never runs, and the log must not read as a normal boot.
             try
             {
                 ModEvents.MainMenuOpened.RegisterHandler(OnMainMenuOpened);
@@ -143,6 +113,25 @@ namespace SdtdConnect
             catch (Exception ex)
             {
                 Log.Error("[7dtd-fastconnect] MainMenuOpened register failed: " + ex.GetType().Name + ": " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Runs one optional init step and reports a throw as a warning instead
+        /// of letting it stop the rest of InitMod. Every optional-pref and
+        /// skip step goes through here, so each one costs only its own setting
+        /// and the reported shape (what failed, exception type, message) is
+        /// the same for all of them.
+        /// </summary>
+        static void TryStep(string what, Action step)
+        {
+            try
+            {
+                step();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-fastconnect] " + what + " failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
 
@@ -191,26 +180,21 @@ namespace SdtdConnect
                 requested = PlayerNames.Normalize(requested);
                 if (string.IsNullOrEmpty(requested)) requested = PlayerNames.Resolve();
             }
-            try
-            {
-                GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
-                GamePrefs.Instance?.Save();
-                // The applied name is the player's own identity (OS account
-                // name, host name, or an operator-supplied label) and the
-                // client log is what gets pasted into bug reports, so the
-                // value never reaches it: only the source is recorded.
-                // Name the real source, since a fallback logged as "from
-                // 7DTD_PLAYER_NAME" would send someone debugging after an env
-                // value that is not set.
-                Log.Out(fromEnv
-                    ? "[7dtd-fastconnect] player name applied from " + PlayerNameEnv
-                    : "[7dtd-fastconnect] player name applied from fallback ("
-                        + PlayerNameEnv + " unset, stored PlayerName empty)");
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] player name override failed: " + ex.GetType().Name + ": " + ex.Message);
-            }
+            // A throwing write is reported by the caller's TryStep under the
+            // same name, so it is not guarded again here.
+            GamePrefs.Set(EnumGamePrefs.PlayerName, requested);
+            GamePrefs.Instance?.Save();
+            // The applied name is the player's own identity (OS account
+            // name, host name, or an operator-supplied label) and the
+            // client log is what gets pasted into bug reports, so the
+            // value never reaches it: only the source is recorded.
+            // Name the real source, since a fallback logged as "from
+            // 7DTD_PLAYER_NAME" would send someone debugging after an env
+            // value that is not set.
+            Log.Out(fromEnv
+                ? "[7dtd-fastconnect] player name applied from " + PlayerNameEnv
+                : "[7dtd-fastconnect] player name applied from fallback ("
+                    + PlayerNameEnv + " unset, stored PlayerName empty)");
         }
 
         static void OnMainMenuOpened(ref ModEvents.SMainMenuOpenedData _data)
@@ -218,16 +202,12 @@ namespace SdtdConnect
             DiagToggle.AnnounceOnce();
             if (AutomationMode.Enabled)
             {
-                try
+                TryStep("MainMenuOpened news/intro skip", () =>
                 {
                     XUiC_MainMenu.shownNewsScreenOnce = true;
                     if (GameManager.Instance != null)
                         GameManager.Instance.showOpenerMovieOnLoad = false;
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning("[7dtd-fastconnect] MainMenuOpened news/intro skip failed: " + ex.Message);
-                }
+                });
             }
 
             if (_autoTried) return;
@@ -271,15 +251,8 @@ namespace SdtdConnect
             // joins keep stock behaviour: the pref persists, so setting it
             // outside automation would suppress the spawn window in ordinary
             // play too.
-            try
-            {
-                if (AutomationMode.Enabled)
-                    GamePrefs.Set(EnumGamePrefs.SkipSpawnButton, true);
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("[7dtd-fastconnect] SkipSpawnButton set failed: " + ex.GetType().Name + ": " + ex.Message);
-            }
+            if (AutomationMode.Enabled)
+                TryStep("SkipSpawnButton set", () => GamePrefs.Set(EnumGamePrefs.SkipSpawnButton, true));
 
             try
             {

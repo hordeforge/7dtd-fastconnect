@@ -37,7 +37,6 @@ namespace SdtdConnect
             {
                 Log.Warning("[7dtd-fastconnect] GetAuthTicket Finalizer: " + __exception.GetType().Name + ": " + __exception.Message + " -> empty ticket");
                 __result = "";
-                return null;
             }
             return null;
         }
@@ -147,7 +146,6 @@ namespace SdtdConnect
                     // announce once so identity drift is debuggable.
                     ProbeFailure.Once("synthetic steam id finalizer", ex);
                 }
-                return null;
             }
             return null;
         }
@@ -186,7 +184,6 @@ namespace SdtdConnect
             {
                 Log.Warning("[7dtd-fastconnect] EOS GetAuthTicket Finalizer: " + __exception.GetType().Name + ": " + __exception.Message + " -> empty");
                 __result = "";
-                return null;
             }
             return null;
         }

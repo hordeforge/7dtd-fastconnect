@@ -301,6 +301,7 @@ namespace SdtdConnect
                 }
 
                 if (val == null) continue;
+                int eq = a.IndexOf('=');
                 if (TryParse(val, out host, out port, out string argError))
                 {
                     source = a.Contains("=")
@@ -310,7 +311,7 @@ namespace SdtdConnect
                     return true;
                 }
                 // Only the flag name; the value is already in the message.
-                string label = a.Contains("=") ? a.Substring(0, a.IndexOf('=')) : a;
+                string label = eq >= 0 ? a.Substring(0, eq) : a;
                 WarnIgnoredTarget(label, val, argError);
             }
 

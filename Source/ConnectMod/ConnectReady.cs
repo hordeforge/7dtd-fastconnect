@@ -104,7 +104,7 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    // Same poll-rate contract as the cross-user probe above.
+                    // Same poll-rate contract as the cross-user probe below.
                     ProbeFailure.Once("native-user probe", ex);
                 }
 
@@ -173,7 +173,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                // Same poll-rate contract as the native-user probe below.
+                // Same poll-rate contract as the native-user probe above.
                 ProbeFailure.Once("cross-user probe", ex);
                 return true;
             }

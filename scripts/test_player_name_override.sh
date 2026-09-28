@@ -15,7 +15,11 @@ body_contains() { [[ "$METHOD" == *"$1"* ]]; }
 body_omits() { [[ "$METHOD" != *"$1"* ]]; }
 
 assert "names the opt-in environment variable" grep -q 'PlayerNameEnv = "7DTD_PLAYER_NAME"' "$SOURCE"
-assert "reads the requested name before auto-join" grep -q 'ApplyPlayerNameOverride();' "$SOURCE"
+# The call is a method group passed to the guarded-step helper, so accept both
+# that form and a plain call; what is asserted is that InitMod runs the
+# override, not how the call is spelled.
+assert "reads the requested name before auto-join" \
+	grep -qE 'ApplyPlayerNameOverride(\(\))?[;)]' "$SOURCE"
 assert "falls back to a generated name when the variable is unset" \
 	body_contains 'PlayerNames.Resolve()'
 assert "normalizes an env-supplied name through the shared helper" \
