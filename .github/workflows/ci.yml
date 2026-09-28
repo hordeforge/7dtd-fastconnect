@@ -44,7 +44,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          url="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Authenticate through an http.extraheader rather than a token in the
+          # remote URL: a URL with the token in it is written to .git/config on
+          # disk and shows up in the process table for every git command.
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          export GIT_CONFIG_VALUE_0="$auth"
+          url="https://github.com/${GITHUB_REPOSITORY}.git"
           if git ls-remote --exit-code --heads origin badges >/dev/null 2>&1; then
             git clone --depth 1 --branch badges "$url" badge-repo
           else

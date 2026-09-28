@@ -166,6 +166,11 @@ and will reject a duplicate identity. It persists the chosen name in that
 client profile, so use a dedicated Proton profile for automation rather than
 the player's everyday profile.
 
+The name is normalized before it is stored: control and invisible-format
+characters become spaces, and anything past 24 characters is dropped (never
+mid-surrogate-pair). The name reaches the server and its logs, so a value
+carrying a newline or a bidi override would forge a line there.
+
 Launch a peer named `atomic-peer`:
 
 ```bash
@@ -258,7 +263,10 @@ that hold for all of them:
   `true` / `yes` / `on`; any other non-empty value still opts in but logs a
   warning naming the variable and the value, so a typo cannot look like a
   deliberate setting.
-- Values echoed to logs are flattened to one line (no control characters).
+- Values echoed to logs are flattened to one line: control characters become
+  spaces, and the invisible Unicode format characters (bidi overrides, LRM/RLM,
+  zero-width joiners, BOM) become spaces too, so a terminal cannot be made to
+  render a line differently from the text a harness greps for.
 - Invalid enum values either abort with the valid set (`GFX_API`) or warn and
   fall back (`CLIENT_PLATFORM`, numeric timeouts); nothing is silently ignored.
 

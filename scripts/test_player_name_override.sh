@@ -18,8 +18,12 @@ assert "names the opt-in environment variable" grep -q 'PlayerNameEnv = "7DTD_PL
 assert "reads the requested name before auto-join" grep -q 'ApplyPlayerNameOverride();' "$SOURCE"
 assert "falls back to a generated name when the variable is unset" \
 	body_contains 'PlayerNames.Resolve()'
-assert "clamps an over-long requested name" \
-	body_contains 'PlayerNames.MaxLength'
+assert "normalizes an env-supplied name through the shared helper" \
+	body_contains 'PlayerNames.Normalize(requested)'
+assert "normalization clamps the length and drops invisible characters" \
+	grep -q 'internal static string Normalize' "$ROOT/Source/ConnectMod/PlayerNames.cs"
+assert "normalization uses the stock client-name cap" \
+	grep -q 'name.Length > MaxLength' "$ROOT/Source/ConnectMod/PlayerNames.cs"
 assert "uses the stock player-name preference inside the override" \
 	body_contains 'GamePrefs.Set(EnumGamePrefs.PlayerName, requested)'
 assert "persists the preference inside the override" \

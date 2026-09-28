@@ -420,6 +420,20 @@ static class TestMain
                 ConnectTarget.SanitizeForLog("h\r\nFAKE") == "h  FAKE");
             Check("tab flattened to space",
                 ConnectTarget.SanitizeForLog("\t9.9.9.9") == " 9.9.9.9");
+            // Invisible-format characters (Cf) are not C0 controls, so a value
+            // carrying a bidi override survives char.IsControl: the terminal
+            // shows nothing, but grep still matches the bytes, so a forged
+            // marker reads back differently from what a harness greps for.
+            Check("bidi override flattened to space",
+                ConnectTarget.SanitizeForLog("g\u202Enidets") == "g nidets");
+            Check("zero-width space flattened to space",
+                ConnectTarget.SanitizeForLog("1.2.3.4\u200B:27025") == "1.2.3.4 :27025");
+            Check("BOM flattened to space",
+                ConnectTarget.SanitizeForLog("\uFEFF127.0.0.1") == " 127.0.0.1");
+            Check("invisible separator flattened to space",
+                ConnectTarget.SanitizeForLog("a\u2066b\u2069c") == "a b c");
+            Check("accented host unchanged",
+                ConnectTarget.SanitizeForLog("caf\u00E9.lan:27025") == "caf\u00E9.lan:27025");
 
             // Accepted newline-bearing target: the reported source stays one line.
             Env(ConnectTarget.EnvVar, "1.2.3.4\nFound own player entity with id");
@@ -575,6 +589,29 @@ static class TestMain
                 name.Length <= PlayerNames.MaxLength);
             Check("resolved name carries no outer whitespace", name == name.Trim());
 
+            // The name reaches the server, so Normalize must strip the
+            // characters that forge a line in a server log, and a length cap
+            // must not cut a surrogate pair in half.
+            Check("Normalize flattens a newline in the name",
+                PlayerNames.Normalize("al\nice: admin") == "al ice: admin");
+            Check("Normalize drops a bidi override",
+                PlayerNames.Normalize("g\u202Enidets") == "g nidets");
+            Check("Normalize caps an overlong name",
+                PlayerNames.Normalize(new string('a', 40)).Length == PlayerNames.MaxLength);
+            Check("Normalize keeps an accented name",
+                PlayerNames.Normalize("ren\u00E9") == "ren\u00E9");
+            // A name capped at MaxLength with an astral character landing on
+            // the boundary must not end in an unpaired surrogate.
+            string capped = PlayerNames.Normalize(new string('a', PlayerNames.MaxLength - 1) + "\U0001F600");
+            Check("Normalize never ends on a lone high surrogate",
+                capped.Length > 0 && !char.IsHighSurrogate(capped[capped.Length - 1]));
+            Check("Normalize returns null for null", PlayerNames.Normalize(null) == null);
+            Check("Normalize returns null for empty", PlayerNames.Normalize("") == null);
+            // A value that is nothing but stripped characters normalizes to
+            // nothing, which is the signal the caller falls back on.
+            Check("Normalize empties a value of only invisible characters",
+                string.IsNullOrEmpty(PlayerNames.Normalize("\u202E\u200B")));
+
             return Done();
         }
 
@@ -641,6 +678,17 @@ static class TestMain
             _fuzzReported++;
             Console.WriteLine("FAIL " + name);
         }
+    }
+
+    // Mirrors ConnectTarget.IsInvisibleFormat: the Cf characters char.IsControl
+    // does not cover, which a terminal renders as nothing.
+    static bool IsInvisibleFormat(char c)
+    {
+        return (c >= '\u200B' && c <= '\u200F')
+            || (c >= '\u2060' && c <= '\u2064')
+            || (c >= '\u2066' && c <= '\u2069')
+            || (c >= '\u202A' && c <= '\u202E')
+            || c == '\uFEFF';
     }
 
     static string EscapeForLog(string s)
@@ -725,6 +773,10 @@ static class TestMain
         if (r.Next(4) == 0) raw = "\n" + raw;
         if (r.Next(4) == 0) raw = raw + "\rFAKE JOINED LINE";
         if (r.Next(6) == 0) raw = "  " + raw + " ";
+        // Invisible-format characters: invisible to a reader, present to grep.
+        if (r.Next(6) == 0) raw = "\u202E" + raw + "\u202C";
+        if (r.Next(6) == 0) raw = raw.Replace(":", "\u200B:");
+        if (r.Next(8) == 0) raw = "\uFEFF" + raw;
         return raw;
     }
 
@@ -741,7 +793,7 @@ static class TestMain
         {
             CheckFuzz(label + " sanitize preserves length", san.Length == (raw ?? "").Length);
             bool clean = true;
-            foreach (char c in san) { if (char.IsControl(c)) { clean = false; break; } }
+            foreach (char c in san) { if (char.IsControl(c) || IsInvisibleFormat(c)) { clean = false; break; } }
             CheckFuzz(label + " sanitize strips control chars", clean);
         }
 

@@ -42,6 +42,33 @@ if command -v jq >/dev/null 2>&1; then
 		echo "FAIL unmute helper exits nonzero when no stream and no saved mute" >&2
 		FAILS=$((FAILS + 1))
 	fi
+
+	# The "still muted" branch prints a command the user is invited to paste,
+	# with the resolved XDG_STATE_HOME path in it. A path carrying quotes,
+	# spaces, or shell metacharacters must survive as one inert argument.
+	HOSTILE="$BEHAV/wei'rd \$(touch pwned) dir"
+	mkdir -p "$HOSTILE/wireplumber"
+	printf '%s\n' 'Output/Audio:application.name:7DaysToDie:x={"mute":true}' \
+		> "$HOSTILE/wireplumber/stream-properties"
+	hint_rc=0
+	hint="$(PATH="$BEHAV:$PATH" PACTL_JSON="$BEHAV/streams.json" PACTL_LOG="$BEHAV/unmute.log" \
+		XDG_STATE_HOME="$HOSTILE" \
+		"$ROOT/scripts/unmute_client_audio.sh" 2>&1 >/dev/null)" || hint_rc=$?
+	printf '%s\n' "$hint" > "$BEHAV/hint.txt"
+	assert "still-muted branch exits 1" test "$hint_rc" -eq 1
+	# The path reaches the hint as a single-quoted argument with the embedded
+	# quote escaped, so a paste cannot turn it into shell syntax.
+	assert "hint single-quotes the state file path" \
+		grep -qF "rd \$(touch pwned) dir/wireplumber/stream-properties'" "$BEHAV/hint.txt"
+	assert "hint escapes the embedded quote" grep -qF "'\''" "$BEHAV/hint.txt"
+	# The quoted form the user pastes must re-parse to the same one path, with
+	# the command substitution still inert.
+	hint_line="$(grep -F 'stream-properties' "$BEHAV/hint.txt" | head -1)"
+	quoted="${hint_line##*\" }"
+	pasted="$(eval "printf '%s' $quoted" 2>/dev/null)"
+	assert "pasted path re-parses to exactly the original" \
+		test "$pasted" = "$HOSTILE/wireplumber/stream-properties"
+	assert "pasting the hint ran no command substitution" test ! -e pwned
 else
 	echo "SKIP behavioral unmute checks (jq missing)" >&2
 fi

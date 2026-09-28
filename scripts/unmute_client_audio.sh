@@ -48,16 +48,20 @@ fi
 echo "No running 7 Days To Die audio stream found." >&2
 
 if grep -qiE '^Output/Audio:application\.name:7DaysToDie[^=]*=.*"mute":true' "$STATE_FILE" 2>/dev/null; then
-	# Unquoted delimiter so the resolved STATE_FILE is shown: XDG_STATE_HOME
-	# may move it away from ~/.local/state, and a hint pointing at a file the
-	# user does not have is worse than none.
+	# The resolved path is shown, since XDG_STATE_HOME may move it away from
+	# ~/.local/state and a hint pointing at a file the user does not have is
+	# worse than none. It is single-quoted with embedded quotes and control
+	# characters escaped: this is a command the user is invited to paste, so a
+	# path carrying a space must survive the shell and a path carrying shell
+	# metacharacters must not become part of the command.
+	state_arg="$(printf '%s' "$STATE_FILE" | sed "s/'/'\\\\''/g" | tr '\000-\037\177' ' ')"
 	cat >&2 <<-EOF
 
 		The saved state still says muted, so the next launch will start silent.
 		Start the game and run this script again, or edit the saved state
 		directly and restart WirePlumber so it reloads the file:
 
-		    "\${EDITOR:-nano}" $STATE_FILE
+		    "\${EDITOR:-nano}" '$state_arg'
 		    systemctl --user restart wireplumber
 	EOF
 	exit 1

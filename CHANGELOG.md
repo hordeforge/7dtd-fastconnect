@@ -81,6 +81,20 @@ in the affected sections instead of being papered over.
   instead of falling through to "any other non-empty value" and muting the
   session anyway. The mod's `EnvFlags` twin and the `CLIENT_PLATFORM` gate in
   the same script already trimmed.
+- Invisible Unicode format characters (bidi overrides and embeddings, LRM/RLM,
+  the zero-width joiners, the BOM) are flattened in the log-sanitizing twins
+  (`ConnectTarget.SanitizeForLog` and `scripts/log_sanitize.sh`). They are not
+  control characters, so they survived both sanitizers: a terminal renders
+  nothing for them while `grep` still matches the bytes, which let a crafted
+  `7DTD_CONNECT` or `7DTD_PLAYER_NAME` value produce a line that reads back
+  differently from what the join harnesses grep for.
+- `7DTD_PLAYER_NAME` is normalized before it is stored in `GamePrefs`, not
+  only before it is echoed to the log. The name is sent to the server, so a
+  newline or bidi override in it could forge a line in a server log. The
+  length cap no longer truncates between the halves of a surrogate pair.
+- The CI badge job authenticates with an `http.extraheader` instead of a token
+  embedded in the git remote URL, which wrote `GITHUB_TOKEN` into `.git/config`
+  on the runner and into the process table for every git command.
 
 ## [0.12.0] - 2026-09-11
 

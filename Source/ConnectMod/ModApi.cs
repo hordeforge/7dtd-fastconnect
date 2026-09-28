@@ -133,9 +133,12 @@ namespace SdtdConnect
             }
             else
             {
-                requested = requested.Trim();
-                if (requested.Length > PlayerNames.MaxLength)
-                    requested = requested.Substring(0, PlayerNames.MaxLength);
+                // A value made only of characters normalization strips (a lone
+                // bidi override, say) normalizes to nothing, and the server
+                // kicks an empty name. Fall back to the same identity the unset
+                // path uses rather than storing an empty pref.
+                requested = PlayerNames.Normalize(requested);
+                if (string.IsNullOrEmpty(requested)) requested = PlayerNames.Resolve();
             }
             try
             {
