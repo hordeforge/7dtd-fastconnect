@@ -77,11 +77,26 @@ namespace SdtdConnect
                                 Log.Out("[7dtd-fastconnect] note: Crossplatform.User.PlatformUserId=null past wait window, proceeding anyway");
                             }
                         }
-                        else if (user != null)
+                        else
                         {
-                            _crossWaitStart = -1f; // logged in; reset for later rejoins
+                            // The wait is only armed while the id is actually
+                            // missing, so anything else (logged in, or the
+                            // platform/user torn down) ends the episode: a
+                            // deadline from an earlier episode kept across the
+                            // gap would already be past, and the next wait
+                            // would skip its whole window and join into the
+                            // NRE it exists to avoid.
+                            _crossWaitStart = -1f;
                             _crossProceedLogged = false;
                         }
+                    }
+                    else
+                    {
+                        // Local-mode client, or a cross platform torn down
+                        // before this check ran: same reset, for the same
+                        // reason.
+                        _crossWaitStart = -1f;
+                        _crossProceedLogged = false;
                     }
                 }
                 catch (Exception ex)
