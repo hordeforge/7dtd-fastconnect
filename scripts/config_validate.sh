@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Shared value checks for the lifecycle scripts: the join harnesses' PORT
-# knob, the unbounded count knobs the loop harness also reads (TIMEOUT_SEC,
-# SETTLE_SEC, MAX_ATTEMPTS), the client-mute poll window, and every boolean
-# env knob (CLIENT_MUTE, START_SERVER).
+# knob and HOST, the unbounded count knobs the loop harness also reads
+# (TIMEOUT_SEC, SETTLE_SEC, MAX_ATTEMPTS), the client-mute poll window and the
+# poller's shutdown grace, and every boolean env knob (CLIENT_MUTE,
+# START_SERVER). The numeric checks accept a leading zero as decimal; callers
+# read every value back through uint_value, which is the form the arithmetic
+# and the argv / ERE built from them downstream all accept.
 #
 # All of them land in something that only breaks later: PORT and the counts in
 # a numeric comparison, an ERE, a --port argv or $(( )) arithmetic, a boolean
@@ -114,6 +117,50 @@ is_mute_wait() {
 	d="$(canon_uint "$1")"
 	[[ -n "$d" ]] || return 1
 	((10#$d >= 1 && 10#$d <= MAX_MUTE_WAIT_SECONDS))
+}
+
+# Upper bound on the mute poller's shutdown grace, in seconds: the watchdog
+# sleeps this long before killing a helper that ignored TERM. Long enough for
+# any real audio stack to unwind, and far below a wait that would hold the
+# launcher's exit path (and with it the platform.cfg restore) open.
+MAX_POLL_STOP_GRACE_SECONDS=300
+
+# True for that grace: 1..MAX_POLL_STOP_GRACE_SECONDS. The launcher reads it
+# through here for the reason CLIENT_MUTE_TIMEOUT is: a digit regex in front of
+# a (( )) accepts values the arithmetic and sleep(1) then refuse. "08" makes
+# the comparison itself a base error (so the raw value reached sleep) and a
+# 20-digit value wraps to 1 and passes the lower bound, either way leaving the
+# watchdog without a window it can use.
+is_poll_stop_grace() {
+	is_uint "$1" || return 1
+	local d
+	d="$(canon_uint "$1")"
+	[[ -n "$d" ]] || return 1
+	((10#$d >= 1 && 10#$d <= MAX_POLL_STOP_GRACE_SECONDS))
+}
+
+# Canonical decimal form of a validated bounded uint: the digits with the
+# leading zeros stripped, which is the only form every consumer agrees on.
+# The checks above accept a leading zero as decimal (027025 is the port
+# 27025), but a value left as written does not survive the trip: $(( )) reads
+# 08 as an octal base error and aborts under set -e, and an ERE or an argv
+# built from the digits as written does not name the number either. A value
+# that passed its check and then failed at the use is the worst shape a
+# config knob can have, so every caller reads it back through here. All zeros print as 0, the one form with no leading zero to strip.
+uint_value() {
+	local d
+	d="$(canon_uint "$1")"
+	printf '%s' "${d:-0}"
+}
+
+# True for a join host as the harnesses take it: one non-blank token. Every
+# grammar the client accepts for a host is a single token, and HOST reaches
+# both 7DTD_CONNECT and the harness log lines, so whitespace in one is a typo
+# that otherwise surfaces much later as a join timeout naming the port. C
+# locale so a non-breaking space is caught too.
+is_connect_host() {
+	local LC_ALL=C
+	[[ -n "$1" && "$1" != *[[:space:]]* ]]
 }
 
 # Read one boolean knob. Usage: env_bool "NAME=value" ["ALIAS=value" ...] DEFAULT

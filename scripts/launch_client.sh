@@ -31,7 +31,7 @@ Key env vars (full table: README "Environment variables"):
   CLIENT_MUTE_TIMEOUT  seconds to poll for that stream, 1..3600 (default 60)
   MUTE_POLL_STOP_GRACE_SEC
                        seconds the mute poller gets to exit on shutdown
-                       before it is killed (default 5)
+                       before it is killed, 1..300 (default 5)
   CLIENT_PLATFORM      local | lan | 1 selects no-Steam Local mode
 EOF
   exit 0
@@ -127,6 +127,9 @@ if ! is_mute_wait "$MUTE_WAIT"; then
   echo "WARN: CLIENT_MUTE_TIMEOUT invalid ('$(sanitize_log_text "$MUTE_WAIT")'); using 60." >&2
   MUTE_WAIT=60
 fi
+# Canonical digits: 060 is the same 60 the check accepted, and the helper
+# re-reads this argv in its own arithmetic.
+MUTE_WAIT="$(uint_value "$MUTE_WAIT")"
 
 # Optional no-Steam client mode (see ../7dtd-loadgen/docs/STOCK_AUTH.md Option A):
 # CLIENT_PLATFORM=local backs up the game's platform.cfg, selects the Local
@@ -314,10 +317,17 @@ start_mute_poll() {
 # swapped for as long as the hang lasted. Overridable so a host whose audio
 # stack is slower to unwind is not reported as a wedged helper.
 MUTE_POLL_STOP_GRACE_SEC="$(trim "${MUTE_POLL_STOP_GRACE_SEC:-5}")"
-if ! [[ "$MUTE_POLL_STOP_GRACE_SEC" =~ ^[0-9]+$ ]] || ((MUTE_POLL_STOP_GRACE_SEC < 1)); then
+# Through the shared check, like the mute window above and for the same
+# reason: the old digit regex in front of a (( ) < 1 ) comparison let a
+# 20-digit value wrap to 1 through, and made "08" an octal base error inside
+# the comparison itself, which left the raw value in the watchdog's sleep.
+if ! is_poll_stop_grace "$MUTE_POLL_STOP_GRACE_SEC"; then
   echo "WARN: MUTE_POLL_STOP_GRACE_SEC invalid ('$(sanitize_log_text "$MUTE_POLL_STOP_GRACE_SEC")'); using 5." >&2
   MUTE_POLL_STOP_GRACE_SEC=5
 fi
+# Canonical digits, for the same reason as MUTE_WAIT above, so the number the
+# watchdog sleeps is the number the check read.
+MUTE_POLL_STOP_GRACE_SEC="$(uint_value "$MUTE_POLL_STOP_GRACE_SEC")"
 
 # The poller is only useful while the game runs; stop and reap it so it does
 # not outlive this script still polling pactl for a dead client.

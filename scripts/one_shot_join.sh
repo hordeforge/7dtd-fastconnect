@@ -16,7 +16,8 @@ Exit status: 0 joined | 1 join failed or client exited early
              3 server never listened / no listener on PORT
 
 Key env vars:
-  HOST / PORT    join target (default 127.0.0.1:27025); a set 7DTD_CONNECT wins
+  HOST / PORT    join target (default 127.0.0.1:27025); a set 7DTD_CONNECT
+                 wins, so point the cycle at a remote server with it
   TIMEOUT_SEC    join wait budget in seconds (default 240)
   SETTLE_SEC     post-join settle window (default 0)
   CYCLE          label for this run's artifact filenames (default 1)
@@ -121,6 +122,17 @@ if ! is_tcp_port "$PORT"; then
   echo "WARN: PORT invalid ('$(sanitize_log_text "$PORT")'); using $DEFAULT_CONNECT_PORT." >&2
   PORT="$DEFAULT_CONNECT_PORT"
 fi
+# Canonical digits: the check accepts a leading zero as decimal and the ERE
+# below (and the client reading the target) match the digits as written.
+PORT="$(uint_value "$PORT")"
+# Same treatment PORT gets, one rule shared with the other two harnesses: HOST
+# reaches 7DTD_CONNECT and this cycle's log lines, and a value carrying
+# whitespace is a typo the client would reject much later as a join timeout
+# naming the port. Warn and fall back, as every other knob here does.
+if ! is_connect_host "$HOST"; then
+  echo "WARN: HOST invalid ('$(sanitize_log_text "$HOST")'); using $DEFAULT_CONNECT_HOST." >&2
+  HOST="$DEFAULT_CONNECT_HOST"
+fi
 # Bash cannot expand/export names starting with a digit, so read the canonical
 # 7DTD_CONNECT via printenv.
 CONNECT="$(printenv 7DTD_CONNECT 2>/dev/null || true)"
@@ -133,6 +145,8 @@ if ! is_bounded_uint "$TIMEOUT_SEC"; then
   echo "WARN: TIMEOUT_SEC invalid ('$(sanitize_log_text "$TIMEOUT_SEC")'); using 240." >&2
   TIMEOUT_SEC=240
 fi
+# Canonical digits, for the same reason as PORT: the value feeds a $(( )).
+TIMEOUT_SEC="$(uint_value "$TIMEOUT_SEC")"
 # Post-join settle window; same numeric guard as TIMEOUT_SEC so a typo cannot
 # silently skip the settle (or sleep on garbage).
 SETTLE_SEC="${SETTLE_SEC:-0}"
@@ -140,6 +154,8 @@ if ! is_bounded_uint "$SETTLE_SEC"; then
   echo "WARN: SETTLE_SEC invalid ('$(sanitize_log_text "$SETTLE_SEC")'); using 0." >&2
   SETTLE_SEC=0
 fi
+# Same: it reaches an (( )) comparison in the settle branch and a sleep.
+SETTLE_SEC="$(uint_value "$SETTLE_SEC")"
 CYCLE="${CYCLE:-1}"
 # CYCLE is interpolated into output filenames (stock-join-${CYCLE}.log,
 # client-lifecycle-${CYCLE}.txt) and is attacker-shapable like 7DTD_CONNECT:

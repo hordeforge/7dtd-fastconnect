@@ -353,6 +353,12 @@ that hold for all of them:
 - Invalid enum values either abort with the valid set (`GFX_API`) or warn and
   fall back (`CLIENT_MUTE`, `CLIENT_PLATFORM`, numeric timeouts); nothing is
   silently ignored.
+- A numeric knob accepts a leading zero as decimal (`027025` is port 27025)
+  and is then read in canonical form: `$(( ))` reads `08` as an octal base
+  error, and an ERE or a `--port` argv built from the digits as written does
+  not name the number either. `scripts/config_validate.sh` owns both the range
+  and that canonical form, so a value that passes a check cannot still fail at
+  the use.
 
 | Variable | Default | Controls |
 |---|---|---|
@@ -366,7 +372,7 @@ that hold for all of them:
 | `GFX_API` | `d3d11` | Forced backend: `d3d11`, `d3d12`, `vulkan`, `glcore`, or `none`; an invalid value aborts before launch |
 | `CLIENT_MUTE` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE`) | `1` | OS-level mute of the game audio stream at launch; an undocumented value warns and mutes |
 | `CLIENT_MUTE_TIMEOUT` (+ alias `SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT`) | `60` | Seconds the launcher polls for that stream (1..3600) |
-| `MUTE_POLL_STOP_GRACE_SEC` | `5` | Seconds the launcher waits for the mute poller to exit before killing it |
+| `MUTE_POLL_STOP_GRACE_SEC` | `5` | Seconds the launcher waits for the mute poller to exit before killing it (1..300) |
 | `CLIENT_PLATFORM` | Steam mode | `1` / `local` / `lan` (case-insensitive) selects no-Steam Local mode; anything else warns and is ignored |
 
 Threat model and known gaps: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
@@ -383,11 +389,16 @@ must be a real TCP port (1-65535, the same range the client accepts for
 other two fall back to 27025. `SCRATCH` must be an absolute path with no
 `..`: the harnesses prune it by age and count, and a path that climbs out
 would have that prune reach files outside the artifact dir; a rejected value
-warns and the default is used. `START_SERVER` reads the boolean table above
+warns and the default is used. `HOST` must be a single token: `restart_pair.sh`
+exits 2 before it tears the running pair down, the other two warn and use the
+loopback default. `START_SERVER` reads the boolean table above
 (`1` / `true` / `yes` / `on`, `0` / `false` / `no` / `off`), so
 `START_SERVER=true` starts the server instead of leaving the cycle to report
-"no listener on PORT". `HOST` is not pattern-checked: it is passed to the
-client as `7DTD_CONNECT` and the client rejects it there. The zdtd binary is
+"no listener on PORT". In `one_shot_join.sh` a `7DTD_CONNECT` set in the
+environment wins over `HOST`/`PORT`, which is how a cycle is pointed at a
+remote server; `zero_nre_join_loop.sh` starts the server it scores, so it pins
+every cycle to `HOST:PORT` and an inherited `7DTD_CONNECT` cannot send the
+loop at another server and report a clean join for it. The zdtd binary is
 checked at the point of use, not at startup, so a `START_SERVER=0` loop runs
 without the server checked out.
 

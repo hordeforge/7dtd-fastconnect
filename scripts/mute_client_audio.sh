@@ -67,6 +67,10 @@ if ! is_mute_wait "$WAIT_SECONDS"; then
 	fi
 	WAIT_SECONDS=60
 fi
+# Canonical digits, because the check accepts a leading zero as decimal and
+# the arithmetic below does not: $(( mono_sec + 08 )) is an octal base error,
+# and under set -e it would abort the helper after the value already passed.
+WAIT_SECONDS="$(uint_value "$WAIT_SECONDS")"
 
 if ! command -v pactl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
 	echo "WARN: pactl and jq required to mute client; leaving audio unmuted." >&2

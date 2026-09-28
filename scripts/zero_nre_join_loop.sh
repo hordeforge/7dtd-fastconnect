@@ -15,7 +15,9 @@ Exit status: 0 confirmed zero-NRE join | 1 budget exhausted or the
              zdtd server failed to listen | 2 usage error or ZDTD_BIN missing.
 
 Key env vars:
-  HOST           join target for each cycle (default 127.0.0.1)
+  HOST           join target for each cycle (default 127.0.0.1); every cycle
+                 is pointed at HOST:PORT, so an inherited 7DTD_CONNECT
+                 cannot send the loop at another server
   PORT           zdtd listen port (default 27025)
   MAX_ATTEMPTS   cycle budget (default 6)
   TIMEOUT_SEC    per-cycle join wait in seconds (default 90)
@@ -250,14 +252,35 @@ if ! is_tcp_port "$PORT"; then
   log "WARN: PORT invalid ('$(sanitize_log_text "$PORT")'); using $DEFAULT_CONNECT_PORT"
   PORT="$DEFAULT_CONNECT_PORT"
 fi
+# Canonical digits, for the same reasons as the values below.
+PORT="$(uint_value "$PORT")"
 if ! is_bounded_uint "$MAX_ATTEMPTS"; then
   log "WARN: MAX_ATTEMPTS invalid ('$(sanitize_log_text "$MAX_ATTEMPTS")'); using 6"
   MAX_ATTEMPTS=6
 fi
+# Canonical digits: these feed a $(( )) comparison, and 08 is an octal base
+# error there rather than the 8 the check just accepted.
+MAX_ATTEMPTS="$(uint_value "$MAX_ATTEMPTS")"
 if ! is_bounded_uint "$TIMEOUT_SEC"; then
   log "WARN: TIMEOUT_SEC invalid ('$(sanitize_log_text "$TIMEOUT_SEC")'); using 90"
   TIMEOUT_SEC=90
 fi
+# Same: the value is passed down to one_shot_join.sh and added to a $(( )).
+TIMEOUT_SEC="$(uint_value "$TIMEOUT_SEC")"
+# HOST reaches the target each cycle is pointed at, so it gets the same single
+# token rule the other harnesses apply.
+if ! is_connect_host "$HOST"; then
+  log "WARN: HOST invalid ('$(sanitize_log_text "$HOST")'); using $DEFAULT_CONNECT_HOST"
+  HOST="$DEFAULT_CONNECT_HOST"
+fi
+# The target every cycle joins is pinned to the server this run started. Left
+# to the child, an exported 7DTD_CONNECT in the operator's shell would win
+# over HOST/PORT there (one_shot_join.sh's documented precedence), the cycles
+# would join a different server than the one being started here, and the NRE
+# score would be read from a foreign log that may well join cleanly: a PASS
+# for a run that never exercised this loop's server. It rides env(1) because
+# bash cannot assign a name starting with a digit.
+CYCLE_TARGET="$HOST:$PORT"
 
 # start_zdtd always spawns its own server, so a missing binary is a setup
 # error, not a listen failure: name it before the trap instead of stalling
@@ -282,7 +305,8 @@ while (( attempt <= MAX_ATTEMPTS )); do
   rm -f "$SCRATCH/stock-join-zn${attempt}.log" "$SCRATCH/stock-join-znok2.log"
   one_shot_rc=0
   CYCLE="zn$attempt" TIMEOUT_SEC="$TIMEOUT_SEC" START_SERVER=0 PORT="$PORT" HOST="$HOST" \
-    SCRATCH="$SCRATCH" bash "$ONE_SHOT" 2>&1 | tee "$SCRATCH/zero_nre-cycle-$attempt.txt" || one_shot_rc=$?
+    SCRATCH="$SCRATCH" \
+    env 7DTD_CONNECT="$CYCLE_TARGET" bash "$ONE_SHOT" 2>&1 | tee "$SCRATCH/zero_nre-cycle-$attempt.txt" || one_shot_rc=$?
   one_shot_rc="${one_shot_rc:-0}"
   # A cycle that died before writing its own result= line (missing server
   # binary, exec failure) leaves the summary entry without a result field, so
@@ -312,7 +336,8 @@ while (( attempt <= MAX_ATTEMPTS )); do
     log "confirmation cycle"
     : >"$CLIENT_LOG_SRC"
     CYCLE="znok2" TIMEOUT_SEC="$TIMEOUT_SEC" START_SERVER=0 PORT="$PORT" HOST="$HOST" \
-      SCRATCH="$SCRATCH" bash "$ONE_SHOT" | tee "$SCRATCH/zero_nre-cycle-confirm.txt" || true
+      SCRATCH="$SCRATCH" \
+      env 7DTD_CONNECT="$CYCLE_TARGET" bash "$ONE_SHOT" | tee "$SCRATCH/zero_nre-cycle-confirm.txt" || true
     LOG2="$SCRATCH/stock-join-znok2.log"
     if [[ ! -f "$LOG2" ]]; then
       # Same stale-evidence trap as the per-attempt log above, and the confirm

@@ -38,11 +38,13 @@ fi
 SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
 # Shared Proton knowledge: prefix derivation and the wine-stack sweep.
 source "$SCRIPTDIR/proton_paths.sh"
-# Shared value checks (is_tcp_port): see scripts/config_validate.sh.
+# Shared value checks (is_tcp_port, is_connect_host): see
+# scripts/config_validate.sh.
 source "$SCRIPTDIR/config_validate.sh"
 # Flattening for the rejection lines below, which echo operator-supplied
-# values: a newline or a bidi override in one would forge a second terminal
-# line or read as something it is not. See scripts/log_sanitize.sh.
+# values from the environment: a newline or a bidi override in one would
+# forge a second terminal line or read as something it is not in whatever
+# reads this script's stderr. See scripts/log_sanitize.sh.
 source "$SCRIPTDIR/log_sanitize.sh"
 
 WORLD="$1"
@@ -54,13 +56,18 @@ if ! is_tcp_port "$PORT"; then
   echo "ERROR: port must be 1-65535, got '$(sanitize_log_text "$PORT")'" >&2
   exit 2
 fi
+# Canonical digits: 027025 is the same 27025 the check accepted, and it goes
+# to --port argv and into the client's 7DTD_CONNECT.
+PORT="$(uint_value "$PORT")"
 # HOST joins the pair relaunch; the README lists it among the harness knobs and
 # the other two harnesses already honour it. Validated before anything is torn
 # down, with the same treatment PORT gets: the value reaches 7DTD_CONNECT and
 # the launcher's log, so a value carrying whitespace is a usage error. Unset
-# and empty mean the loopback default, as for every other knob.
+# and empty mean the loopback default, as for every other knob. The rule
+# itself is the shared is_connect_host, so all three harnesses agree on what a
+# host is and only differ in what a bad one costs.
 HOST="${HOST:-$DEFAULT_CONNECT_HOST}"
-if [[ "$HOST" =~ [[:space:]] ]]; then
+if ! is_connect_host "$HOST"; then
   echo "ERROR: host must be a single word, got '$(sanitize_log_text "$HOST")'" >&2
   exit 2
 fi
@@ -77,7 +84,7 @@ ZDTD="${ZDTD:-${ZDTD_ROOT:+$ZDTD_ROOT/zig-out/bin/zdtd}}"
 # unwritable dir discovered after the pkill sweep would leave the previous
 # server/client pair dead with nothing relaunched.
 if [[ ! -x "$ZDTD" ]]; then
-  echo "ERROR: zdtd binary not found or not executable: $(sanitize_log_text "${ZDTD:-<unset>}"); set ZDTD=/path/to/zdtd" >&2
+  echo "ERROR: zdtd binary not found or not executable: '$(sanitize_log_text "${ZDTD:-<unset>}")' (set ZDTD=/path/to/zdtd)" >&2
   exit 1
 fi
 mkdir -p "$WORLD" "$LOGDIR"

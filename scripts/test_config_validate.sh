@@ -14,6 +14,7 @@ valid_port() { is_tcp_port "$1"; }
 rejects() { if is_tcp_port "$1"; then return 1; fi; }
 rejects_uint() { if is_uint "$1"; then return 1; fi; }
 rejects_wait() { if is_mute_wait "$1"; then return 1; fi; }
+rejects_host() { if is_connect_host "$1"; then return 1; fi; }
 # A digit regex in front of a $(( )) accepts a value that wraps in it.
 no_digit_regex() { if grep -q '=~ \^\[0-9\]' "$1"; then return 1; fi; }
 
@@ -68,9 +69,74 @@ assert "mute_client_audio.sh reads the mute window through is_mute_wait" \
 
 # The knobs that reach a $(( )) have to go through is_uint, not a bare digit
 # regex, or a wrapping value is still let into the arithmetic.
-for f in one_shot_join.sh zero_nre_join_loop.sh; do
+for f in one_shot_join.sh zero_nre_join_loop.sh launch_client.sh; do
 	assert "$f has no bare digit-regex guard left" \
 		no_digit_regex "$ROOT/scripts/$f"
+done
+
+# The mute poller's shutdown grace is a window like the poll window: a bare
+# digit regex in front of the (( )) and the sleep accepted "08" (a base error
+# inside the comparison, so the raw value reached sleep) and any 20-digit
+# value (wraps to 1 and passes the lower bound), leaving a watchdog with no
+# window it can use.
+assert "accepts the default stop grace" is_poll_stop_grace 5
+assert "accepts a leading zero in the stop grace" is_poll_stop_grace 007
+assert "accepts the stop-grace ceiling" is_poll_stop_grace 300
+rejects_grace() { if is_poll_stop_grace "$1"; then return 1; fi; }
+assert "rejects a stop grace of 0" rejects_grace 0
+assert "rejects a stop grace over the ceiling" rejects_grace 301
+assert "rejects a wrapping stop grace" rejects_grace 18446744073709551617
+assert "rejects an empty stop grace" rejects_grace ''
+assert "launch_client.sh reads the stop grace through is_poll_stop_grace" \
+	grep -q 'if ! is_poll_stop_grace "$MUTE_POLL_STOP_GRACE_SEC"' "$ROOT/scripts/launch_client.sh"
+
+# A leading zero is accepted as decimal, so every checked value has to be read
+# back in the form the arithmetic, the sleeps and the argv all take. Left as
+# written, 08 passes is_mute_wait and then aborts the helper on an octal base
+# error, and CLIENT_MUTE_TIMEOUT=08 fails after the check said it was fine.
+canon_uint_ok() { [[ "$(uint_value "$1")" == "$2" ]]; }
+# Every named knob is read back in canonical form, in the script that reads it.
+canonicalizes() {
+	local f="$1" knob
+	shift
+	for knob in "$@"; do
+		grep -q "^$(printf '%s' "$knob")=\"\$(uint_value \"\$$knob\")\"$" "$ROOT/$f" || return 1
+	done
+}
+assert "uint_value strips a leading zero" canon_uint_ok 060 60
+assert "uint_value keeps an all-zero value" canon_uint_ok 0 0
+assert "uint_value canonicalizes 08 to 8" canon_uint_ok 08 8
+assert "uint_value canonicalizes a port" canon_uint_ok 027025 27025
+for f in one_shot_join.sh zero_nre_join_loop.sh restart_pair.sh \
+	launch_client.sh mute_client_audio.sh; do
+	assert "$f reads its numbers back through uint_value" \
+		grep -q 'uint_value' "$ROOT/scripts/$f"
+done
+assert "one_shot_join.sh canonicalizes every numeric knob" \
+	canonicalizes scripts/one_shot_join.sh PORT TIMEOUT_SEC SETTLE_SEC
+assert "zero_nre_join_loop.sh canonicalizes every numeric knob" \
+	canonicalizes scripts/zero_nre_join_loop.sh PORT TIMEOUT_SEC MAX_ATTEMPTS
+assert "restart_pair.sh canonicalizes PORT" \
+	canonicalizes scripts/restart_pair.sh PORT
+assert "launch_client.sh canonicalizes both launcher numbers" \
+	canonicalizes scripts/launch_client.sh MUTE_WAIT MUTE_POLL_STOP_GRACE_SEC
+assert "mute_client_audio.sh canonicalizes the poll window" \
+	canonicalizes scripts/mute_client_audio.sh WAIT_SECONDS
+
+# A host is a single token in every grammar the client accepts, so all three
+# harnesses apply one rule and differ only in what a bad value costs: a usage
+# error in restart_pair.sh (it tears the pair down first), a warning and the
+# loopback default in the two join harnesses.
+assert "accepts a hostname" is_connect_host 127.0.0.1
+assert "accepts a bracketed IPv6 host" is_connect_host '[::1]'
+assert "rejects a host holding a space" rejects_host 'a b'
+assert "rejects a host holding a tab" rejects_host $'a\tb'
+assert "rejects an empty host" rejects_host ''
+for f in one_shot_join.sh zero_nre_join_loop.sh restart_pair.sh; do
+	assert "$f validates HOST through is_connect_host" \
+		grep -q 'if ! is_connect_host "$HOST"' "$ROOT/scripts/$f"
+	assert "$f keeps no whitespace-regex host guard of its own" \
+		not_grep 'HOST" =~ \[\[:space:\]\]' "$ROOT/scripts/$f"
 done
 
 for f in one_shot_join.sh zero_nre_join_loop.sh restart_pair.sh; do
@@ -113,6 +179,16 @@ for knob in TIMEOUT_SEC MAX_ATTEMPTS; do
 	assert "zero_nre_join_loop.sh validates $knob through is_bounded_uint" \
 		grep -q "if ! is_bounded_uint \"\$$knob\"" "$ROOT/scripts/zero_nre_join_loop.sh"
 done
+
+# zero_nre_join_loop.sh starts the server it scores, so it pins the target of
+# every cycle to that server. Left unpinned, an exported 7DTD_CONNECT in the
+# operator's shell wins over HOST/PORT in the child (one_shot_join.sh's
+# documented precedence) and the NRE score is read from a join to some other
+# server, which can report a clean PASS for a loop that never joined this one.
+assert "zero_nre_join_loop.sh pins the cycle target to the server it started" \
+	grep -q '7DTD_CONNECT="$CYCLE_TARGET"' "$ROOT/scripts/zero_nre_join_loop.sh"
+assert "zero_nre_join_loop.sh builds the cycle target from HOST and PORT" \
+	grep -q 'CYCLE_TARGET="$HOST:$PORT"' "$ROOT/scripts/zero_nre_join_loop.sh"
 
 # Seeded fuzz over the numeric knobs. They reach the harness from the
 # environment, so their length and their digits are caller-controlled, and the
