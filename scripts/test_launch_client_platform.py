@@ -779,7 +779,10 @@ def test_compat_derives_from_game_library(tmp_path: Path) -> None:
 
 def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
     """Without a usable Proton the steam -applaunch fallback must still carry
-    -noeac, the forwarded -connect= arg, and the canonical 7DTD_CONNECT env."""
+    -noeac, the GFX_API flag, the forwarded -connect= arg, and the canonical
+    7DTD_CONNECT env. GFX_API is honoured on both launch paths: Unity takes
+    the first -force-* argument it is given, so a path that dropped the flag
+    would leave GFX_API silently doing nothing there."""
     _setup(tmp_path)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -805,6 +808,7 @@ def test_steam_fallback_keeps_connect_and_env(tmp_path: Path) -> None:
         "-applaunch",
         "251570",
         "-noeac",
+        "-force-d3d11",
         "-skipintro",
         "-SkipNewsScreen=true",
         "-disablenativeinput",

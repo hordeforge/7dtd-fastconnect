@@ -17,7 +17,9 @@
 # normalizes order/metadata so two builds of one tree produce identical
 # bytes. See scripts/repro_zip.sh for the full contract. A sibling .buildinfo
 # beside the zip records the commit, SDK, epoch, and sha256 needed to rebuild
-# it.
+# it. Before the run reports success it reads the archive back and requires it
+# to hold exactly the staged tree, so a wrong or truncated zip fails here
+# rather than at the point someone uploads it.
 set -euo pipefail
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -32,9 +34,10 @@ the archive's sha256 so the zip can be reproduced later.
 
 The version is the tag HEAD sits on (vX.Y.Z -> X.Y.Z); VERSION=x.y.z
 overrides it. Any commit past that tag ships as its short commit id rather
-than claiming a release. Requires a local client
+than claiming a release. The written archive is read back and compared with
+the staged payload before success is reported. Requires a local client
 install (the build compiles against the shipped Assembly-CSharp.dll) and
-zip on PATH.
+zip/unzip on PATH.
 
 Exit status: 0 zip written | 1 setup or build failure | 2 usage error.
 
@@ -57,11 +60,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Feature-test like every other external tool in this repo: fail fast, before
 # the multi-minute build, instead of a bare "zip: command not found" at the
-# final zip step.
-if ! command -v zip >/dev/null 2>&1; then
-	echo "ERROR: zip not found on PATH; install zip to package." >&2
-	exit 1
-fi
+# final zip step. unzip is the verifier below, so it is tested here too rather
+# than after the build has already spent its minutes.
+for tool in zip unzip; do
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		echo "ERROR: $tool not found on PATH; install zip/unzip to package." >&2
+		exit 1
+	fi
+done
 
 make -C "$ROOT" build
 
@@ -101,6 +107,23 @@ mkdir -p "$STAGE"
 trap 'rm -rf "$STAGE"' EXIT INT TERM
 "$ROOT/scripts/stage_mod.sh" "$ROOT/dist/7dtd-fastconnect" "$STAGE"
 "$ROOT/scripts/repro_zip.sh" "$STAGE" "$OUT"
+
+# Read the archive back and require it to hold exactly the staged tree. A zip
+# that lost an entry, gained one, or is unreadable is not a release, and the
+# only check on it until now was a human running `unzip -l` from
+# docs/RELEASING.md after the run reported success. Both listings have their
+# directory entries' trailing slash stripped first, since zip records one and
+# find does not. Comparing the sorted lists (LC_ALL=C on both sides) pins
+# both directions: a missing payload file and a leaked build leftover both
+# fail.
+archived="$(unzip -Z1 "$OUT" | sed 's|/$||' | LC_ALL=C sort)"
+staged="$(cd "$STAGE" && find . -mindepth 1 | sed 's|^\./||;s|/$||' | LC_ALL=C sort)"
+if [[ "$archived" != "$staged" ]]; then
+	echo "ERROR: archive contents do not match the staged payload:" >&2
+	diff <(printf '%s\n' "$staged") <(printf '%s\n' "$archived") >&2 || true
+	rm -f "$OUT"
+	exit 1
+fi
 
 # What a rebuild needs to reproduce the zip: the exact inputs, the toolchain
 # that compiled them, and the bytes that came out. Written beside the archive,

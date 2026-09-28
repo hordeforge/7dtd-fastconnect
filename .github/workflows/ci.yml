@@ -1,5 +1,18 @@
 name: ci
-on: [push, pull_request]
+# badges/ is the branch the coverage-badge job below writes: it holds
+# coverage.svg and no source, so a run over it gates nothing. Its pushes
+# arrive with GITHUB_TOKEN and would not trigger a run anyway; the ignore
+# keeps a manual push there from spending a full `make test` on one SVG.
+#
+# tags is named next to it because defining only branches-ignore would drop
+# tag pushes from the trigger entirely (GitHub: a push filter that names one
+# ref kind does not fire for the other). A release zip is built from the
+# tagged commit, so that commit gets the gate here too.
+on:
+  push:
+    branches-ignore: [badges]
+    tags: ["v*"]
+  pull_request:
 # One run per ref at a time: a superseded commit cancels the earlier run, so
 # two main pushes can never race the coverage-badge push (non-fast-forward on
 # the badges branch would turn main red).

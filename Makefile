@@ -108,6 +108,7 @@ GATES := \
 	scripts/test_connect_target_parse.sh \
 	scripts/test_repro_zip.sh \
 	scripts/test_stage_mod.sh \
+	scripts/test_package_verify.sh \
 	scripts/test_player_name_override.sh \
 	scripts/test_force_load_sync_override.sh \
 	scripts/test_automation_mode.sh \

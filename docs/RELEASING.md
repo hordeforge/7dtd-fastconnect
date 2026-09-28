@@ -30,7 +30,8 @@ zip. The archive bytes are reproducible: entry mtimes come from
 - A stock client install with EAC off, at the stock path or wherever `GAME`
   points (`make build` fails with a compile error naming the missing reference
   assembly otherwise).
-- `zip` on PATH.
+- `zip` and `unzip` on PATH (`unzip` reads the finished archive back to check
+  it).
 - `uv sync --group dev` for `make test`.
 
 ## Steps
@@ -100,9 +101,13 @@ zip. The archive bytes are reproducible: entry mtimes come from
 
 6. **Verify the artifact before uploading it.**
 
+   `make package` already reads the written archive back and fails if it does
+   not hold exactly the staged payload, so a run that printed `Packaged ->`
+   shipped a checked zip. Confirm the record and install it:
+
    ```bash
-   unzip -l dist/7dtd-fastconnect-0.12.0.zip   # exactly the payload, one folder
    cat  dist/7dtd-fastconnect-0.12.0.buildinfo
+   unzip -l dist/7dtd-fastconnect-0.12.0.zip   # exactly the payload, one folder
    unzip -o dist/7dtd-fastconnect-0.12.0.zip -d "$GAME/Mods"
    ```
 

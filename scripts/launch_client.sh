@@ -412,7 +412,7 @@ echo "Proton not found; using steam -applaunch $STEAM_APPID (set UseEAC false in
 echo "Connect: $(sanitize_log_text "${CONNECT:-"(none)"}")"
 # Steam does not reliably pass -connect=; pass the canonical name through
 # `env` because bash cannot export a name starting with a digit.
-env 7DTD_CONNECT="${CONNECT:-}" steam -applaunch "$STEAM_APPID" -noeac "${EXTRA_ARGS[@]}" "$@" &
+env 7DTD_CONNECT="${CONNECT:-}" steam -applaunch "$STEAM_APPID" -noeac "${GFX_ARGS[@]}" "${EXTRA_ARGS[@]}" "$@" &
 steam_pid=$!
 start_mute_poll
 launch_status=0

@@ -17,3 +17,15 @@ updates:
       python-dev-tools:
         patterns:
           - "*"
+  # The mod's build references the net48 reference assemblies through a
+  # PackageReference, and the resolved graph is locked in
+  # Source/ConnectMod/packages.lock.json (make build runs with
+  # RestoreLockedMode, so restore fails rather than drifts). Without this
+  # ecosystem that pin is the one dependency in the tree no updater ever
+  # offers a change for. The lockfile is what the PR has to update; a bump
+  # that cannot restore in locked mode fails in the PR's own build.
+  - package-ecosystem: "nuget"
+    directory: "/Source/ConnectMod"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
