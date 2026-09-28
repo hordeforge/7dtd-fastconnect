@@ -60,6 +60,12 @@ mkdir -p "$SCRATCH"
 # prune rules below, so a new output cannot be added to one and missed by the
 # other. Extend it whenever a cycle writes another file into SCRATCH.
 CYCLE_ARTIFACTS=('stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt' 'zdtd-server-*.log')
+# How many files of one pattern survive the count cap. The newest win, by the
+# file-time tests bash has built in (-nt/-ot) rather than by an external tool
+# printing an mtime: GNU find's -printf and head's `head -n -20` are absent on
+# BSD/macOS, and the 2>/dev/null that used to hide the find error turned that
+# into a prune that never pruned.
+CYCLE_KEEP=20
 # Bound disk growth: keep only recent cycles. Defer pruning failures
 # (read-only FS) so a full cache never aborts the join.
 name_args=()
@@ -67,16 +73,34 @@ for pat in "${CYCLE_ARTIFACTS[@]}"; do
   name_args+=(-o -name "$pat")
 done
 find "$SCRATCH" -maxdepth 1 -type f \( "${name_args[@]:1}" \) -mtime +3 -delete 2>/dev/null || true
-# Also cap count: keep at most 20 newest of each pattern so a tight loop
-# with mtime < 3 days cannot fill the disk.
-for pat in "${CYCLE_ARTIFACTS[@]}"; do
-  old="$(find "$SCRATCH" -maxdepth 1 -type f -name "$pat" -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n -20 | cut -d' ' -f2-)" || true
-  # Read line-by-line instead of an unquoted expansion: a filename holding
-  # whitespace or glob metacharacters must reach rm as one argument.
-  while IFS= read -r f; do
-    [[ -z "$f" ]] && continue
+# Also cap count: keep at most CYCLE_KEEP newest of each pattern so a tight
+# loop with mtime < 3 days cannot fill the disk.
+prune_old_artifacts() {
+  local keep=() drop=() f i oldest
+  # NUL-delimited read: a filename holding whitespace or glob metacharacters
+  # must reach rm as one argument, and a newline in one must not split it.
+  while IFS= read -r -d '' f; do
+    if ((${#keep[@]} < CYCLE_KEEP)); then
+      keep+=("$f")
+      continue
+    fi
+    oldest=0
+    for ((i = 1; i < ${#keep[@]}; i++)); do
+      [[ "${keep[i]}" -ot "${keep[oldest]}" ]] && oldest=$i
+    done
+    if [[ "$f" -nt "${keep[oldest]}" ]]; then
+      drop+=("${keep[oldest]}")
+      keep[oldest]="$f"
+    else
+      drop+=("$f")
+    fi
+  done < <(find "$SCRATCH" -maxdepth 1 -type f -name "$1" -print0 2>/dev/null)
+  for f in ${drop[@]+"${drop[@]}"}; do
     rm -f -- "$f" 2>/dev/null || true
-  done <<<"$old"
+  done
+}
+for pat in "${CYCLE_ARTIFACTS[@]}"; do
+  prune_old_artifacts "$pat"
 done
 
 PORT="${PORT:-27025}"
@@ -139,7 +163,7 @@ STEAM_ROOT="${STEAM_ROOT:-$HOME/.local/share/Steam}"
 # non-default Steam library layout.
 CLIENT_GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 COMPAT="$(resolve_compat "$CLIENT_GAME" "$STEAM_APPID" "$STEAM_ROOT" "${COMPAT:-}")"
-CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/steamuser/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
+CLIENT_LOG_SRC="$COMPAT/pfx/drive_c/users/$(resolve_prefix_user "$COMPAT")/AppData/Roaming/7DaysToDie/logs/output_log_client_7dtd_connect.txt"
 CLIENT_LOG_OUT="$SCRATCH/stock-join-${CYCLE}.log"
 SERVER_LOG_OUT="$SCRATCH/zdtd-server-${CYCLE}.log"
 LIFE_OUT="$SCRATCH/client-lifecycle-${CYCLE}.txt"

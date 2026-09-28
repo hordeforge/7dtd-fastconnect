@@ -137,16 +137,22 @@ fi
 # that compiled them, and the bytes that came out. Written beside the archive,
 # never into it, so the payload stays the files the game loads.
 BUILDINFO="${OUT%.zip}.buildinfo"
-# sha256sum is the one field with no fallback, and the group below takes the
-# status of its last command, so a missing or failing sha256sum would write an
-# empty digest and still report a packaged artifact. Digest first, out of band,
-# so a failure is visible.
-SHA256="$(sha256sum "$OUT" | cut -d' ' -f1)" || {
-	echo "ERROR: could not hash $OUT (sha256sum failed); the build record would be a lie" >&2
+# shasum is the BSD/macOS spelling of the same digest; coreutils' sha256sum
+# does not exist there, and a missing one would have written an empty sha256
+# into the build record that claims to make the zip reproducible. Neither tool
+# present is a setup failure, not a record with a blank field. The digest is
+# taken out of band, before the record is written, so a failing hash is
+# visible instead of leaving an empty field behind.
+if command -v sha256sum >/dev/null 2>&1; then
+	SHA256="$(sha256sum "$OUT" | cut -d' ' -f1)"
+elif command -v shasum >/dev/null 2>&1; then
+	SHA256="$(shasum -a 256 "$OUT" | cut -d' ' -f1)"
+else
+	echo "ERROR: neither sha256sum nor shasum found on PATH; cannot record the archive digest" >&2
 	exit 1
-}
+fi
 if [[ -z "$SHA256" ]]; then
-	echo "ERROR: sha256sum produced no digest for $OUT" >&2
+	echo "ERROR: no sha256 digest produced for $OUT" >&2
 	exit 1
 fi
 # Written through a temp file and renamed, so an interrupted write cannot

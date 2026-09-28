@@ -19,6 +19,35 @@ resolve_compat() {
   printf '%s\n' "${compat:-$root/steamapps/compatdata/$appid}"
 }
 
+# Echo the Windows account name a Proton prefix runs as: the "users/<name>"
+# component every log path in this repo is built from.
+#   resolve_prefix_user <compatdata-prefix>
+# Proton creates pfx/drive_c/users/steamuser, so that is the answer whenever it
+# is there. A prefix created under a different account (a hand-made one, or one
+# a launcher built with its own user name) has exactly one other user dir, and
+# that is the one the client writes its log to: naming steamuser there made the
+# launcher mkdir a log path no client ever writes and the join harnesses poll an
+# empty file, reporting a timeout for a cycle that had joined. With no
+# single answer, steamuser stays the value, so a fresh prefix behaves as before.
+resolve_prefix_user() {
+  local compat="${1:?resolve_prefix_user: compatdata prefix required}"
+  local users="$1/pfx/drive_c/users" found=() d
+  if [[ -d "$users/steamuser" ]]; then
+    printf 'steamuser\n'
+    return 0
+  fi
+  if [[ -d "$users" ]]; then
+    for d in "$users"/*/; do
+      if [[ -d "$d" ]]; then found+=("${d%/}"); fi
+    done
+  fi
+  if ((${#found[@]} == 1)); then
+    printf '%s\n' "${found[0]##*/}"
+  else
+    printf 'steamuser\n'
+  fi
+}
+
 # Kill the leftover Proton/wine stack after the game exe itself is gone:
 # orphaned wineservers and pressure-vessel containers leak threads/NPROC
 # across cycles until the client wedges at "Initializing Steam", so every

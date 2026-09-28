@@ -1030,3 +1030,53 @@ def test_harnesses_resolve_log_prefix_through_shared_helper() -> None:
         src = (ROOT / "scripts" / name).read_text(encoding="utf-8")
         assert "proton_paths.sh" in src, name
         assert "resolve_compat" in src, name
+
+
+def _resolve_prefix_user(compat: str) -> str:
+    """Run scripts/proton_paths.sh resolve_prefix_user in a clean bash."""
+    script = f"source {shlex.quote(str(PROTON_PATHS))} && resolve_prefix_user " + shlex.quote(
+        compat
+    )
+    return subprocess.run(
+        ["bash", "-c", script],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    ).stdout.strip()
+
+
+def test_resolve_prefix_user_prefers_steamuser(tmp_path: Path) -> None:
+    """Proton's own prefix account, present alongside another, is the answer."""
+    users = tmp_path / "pfx" / "drive_c" / "users"
+    (users / "steamuser").mkdir(parents=True)
+    (users / "runner").mkdir()
+    assert _resolve_prefix_user(str(tmp_path)) == "steamuser"
+
+
+def test_resolve_prefix_user_uses_the_account_the_prefix_has(tmp_path: Path) -> None:
+    """A prefix whose account is not steamuser: every log path in the repo is
+    built from this name, so a hardcoded steamuser made the launcher write a
+    path no client writes and the harnesses poll an empty one."""
+    (tmp_path / "pfx" / "drive_c" / "users" / "deck").mkdir(parents=True)
+    assert _resolve_prefix_user(str(tmp_path)) == "deck"
+
+
+def test_resolve_prefix_user_falls_back_to_steamuser(tmp_path: Path) -> None:
+    """A fresh prefix (nothing under users/) and an ambiguous one both keep the
+    Proton default, so a first run behaves exactly as before."""
+    assert _resolve_prefix_user(str(tmp_path)) == "steamuser"
+    users = tmp_path / "pfx" / "drive_c" / "users"
+    (users / "alice").mkdir(parents=True)
+    (users / "bob").mkdir()
+    assert _resolve_prefix_user(str(tmp_path)) == "steamuser"
+
+
+def test_every_script_builds_the_log_path_from_the_resolved_user() -> None:
+    """No script may hardcode the prefix account again: the launcher, the join
+    harness and the NRE loop must all name the same user, or one of them reads
+    a log the other never wrote."""
+    for name in ("launch_client.sh", "one_shot_join.sh", "zero_nre_join_loop.sh"):
+        src = (ROOT / "scripts" / name).read_text(encoding="utf-8")
+        assert "resolve_prefix_user" in src, name
+        assert "users/steamuser" not in src, name

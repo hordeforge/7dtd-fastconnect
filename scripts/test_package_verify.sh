@@ -31,6 +31,7 @@ build:
 	mkdir -p dist/7dtd-fastconnect
 	printf 'dll' > dist/7dtd-fastconnect/7dtd-fastconnect.dll
 	printf '<xml/>\n' > dist/7dtd-fastconnect/ModInfo.xml
+	printf 'MIT\n' > dist/7dtd-fastconnect/LICENSE
 	@echo stub-build-ok
 dotnet-version:
 	@echo 8.0.100
@@ -47,7 +48,7 @@ payload_entries() {
 }
 
 # 1. The honest path: the run reports success and the archive holds exactly
-# the two payload files under the mod folder.
+# the three payload files under the mod folder.
 VERSION=1.2.3 "$REPO/scripts/package.sh" >"$WORK/ok.log" 2>&1
 ok_rc=$?
 assert "a good run exits 0" test "$ok_rc" -eq 0
@@ -56,9 +57,12 @@ assert "a good run names the zip after the override" test -f "$ok_zip"
 assert "a good run's archive holds only the payload" \
 	test "$(payload_entries "$ok_zip")" = "7dtd-fastconnect/
 7dtd-fastconnect/7dtd-fastconnect.dll
+7dtd-fastconnect/LICENSE
 7dtd-fastconnect/ModInfo.xml"
 assert "a good run writes the build record" \
 	test -f "$REPO/dist/7dtd-fastconnect-1.2.3.buildinfo"
+assert "the build record carries the archive digest" \
+	grep -Eq '^sha256: [0-9a-f]{64}$' "$REPO/dist/7dtd-fastconnect-1.2.3.buildinfo"
 
 # 2. An archive that lost an entry must fail the run, and must not be left
 # behind: a half-correct zip that reports success is worse than no zip. The
@@ -66,17 +70,20 @@ assert "a good run writes the build record" \
 # comparison is proven to catch a missing payload file rather than the code
 # merely being present.
 mkdir -p "$WORK/binzip"
+REAL_ZIP="$(command -v zip)"
 cat >"$WORK/binzip/zip" <<'STUB'
 #!/usr/bin/env bash
 # Drop the manifest from the entry list on stdin, then hand the real zip the
 # same arguments, so the archive disagrees with the staged tree the verifier
-# compares it against while the packer itself still succeeds.
-sed '/ModInfo\.xml/d' | exec /usr/bin/zip "$@"
+# compares it against while the packer itself still succeeds. The real path
+# comes from the gate through REAL_ZIP: naming /usr/bin/zip here would bind
+# the gate to one distribution's layout.
+sed '/ModInfo\.xml/d' | exec "$REAL_ZIP" "$@"
 STUB
 chmod +x "$WORK/binzip/zip"
 
 set +e
-PATH="$WORK/binzip:$PATH" VERSION=4.5.6 "$REPO/scripts/package.sh" \
+PATH="$WORK/binzip:$PATH" REAL_ZIP="$REAL_ZIP" VERSION=4.5.6 "$REPO/scripts/package.sh" \
 	>"$WORK/bad.log" 2>&1
 bad_rc=$?
 set -e
