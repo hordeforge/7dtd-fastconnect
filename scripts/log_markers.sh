@@ -21,15 +21,17 @@
 # have to span more than LOG_MARK_OVERLAP of a single line to be missed,
 # which does not happen in game logs; the window also bounds the worst case
 # when polls arrive faster than bytes are appended. External truncation (size
-# shrinking below the offset) falls back to a full scan.
+# shrinking below the largest size ever seen) drops every memoized verdict and
+# falls back to a full scan.
 #
 # A poll that finds the file exactly the size this pattern last scanned to
 # skips the scan outright: the window is byte-identical, so the verdict cannot
 # differ, and re-grepping it every 2s is the bulk of a join cycle's cost. The
 # join log is bursty (minutes of setup around a few seconds of world load), so
 # most polls land on a log that has not grown. This assumes append-only as
-# above: replacing the file with different content of the same size would go
-# unnoticed, and a truncation to 0 does not (it scans from zero).
+# above: a log shorter than the longest one seen is a truncate or replace and
+# drops every memoized verdict, but content replaced by a file of exactly the
+# same size stays unnoticed.
 
 declare -A SEEN_MARK=()
 
@@ -39,12 +41,19 @@ LOG_MARK_OVERLAP=262144
 # Byte offset up to which each queried pattern has been scanned.
 declare -A MARK_OFFSET=()
 
+# Largest size LOG_MARK_FILE has ever been seen at. A poll below it means the
+# log shrank, which append-only writing never does, so the file was truncated
+# or replaced and every memoized verdict refers to bytes that are gone.
+MARK_MAX_SIZE=0
+
 # Drops all memoized positives and the resume offsets; required whenever
 # LOG_MARK_FILE is truncated or replaced so a stale match or a stale offset
-# cannot leak into a new cycle.
+# cannot leak into a new cycle. A shrink below MARK_MAX_SIZE does the same on
+# its own, so a truncation between two polls cannot leave a positive behind.
 log_marks_reset() {
 	SEEN_MARK=()
 	MARK_OFFSET=()
+	MARK_MAX_SIZE=0
 }
 
 # Returns 0 when the ERE has ever matched LOG_MARK_FILE, 1 otherwise.
@@ -67,6 +76,18 @@ log_seen() {
 	size="$(wc -c <"$LOG_MARK_FILE" 2>/dev/null)" || return 1
 	size="${size//[[:space:]]/}"
 	[[ "$size" =~ ^[0-9]+$ ]] || return 1
+	# Shorter than the log has ever been: truncated or replaced, so the
+	# positive another pattern memoized came from bytes that no longer exist
+	# and must not be reported as a match in the new file. Checked before the
+	# idle fast path below, because a replacement of the same length looks
+	# like an un-grown log. Offsets go too: every one of them points into the
+	# old file, so keeping them would skip the replacement's opening bytes.
+	if ((size < MARK_MAX_SIZE)); then
+		log_marks_reset
+	fi
+	if ((size > MARK_MAX_SIZE)); then
+		MARK_MAX_SIZE=$size
+	fi
 	local off="${MARK_OFFSET[$re]:-0}"
 	# No bytes appended since this pattern's last scan: the window that scan
 	# covered is byte-identical, so grep would return the same verdict. The

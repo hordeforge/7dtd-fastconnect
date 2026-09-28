@@ -36,6 +36,13 @@ in the affected sections instead of being papered over.
   did. The `-connect=` and `7DTD_CONNECT` warning paths sanitize through
   LogText, so those echoes reached the client log with a bidi override
   intact, unlike the shell twin in `scripts/log_sanitize.sh`.
+- A truncated client log no longer keeps a marker cached as seen. `log_seen`
+  recovered its scan offset when the log shrank below it but left the memoized
+  match, so a poll after a truncate could report a join from the previous log's
+  bytes. A log shorter than the longest one seen now drops every memoized
+  verdict, and `one_shot_join.sh` invalidates the memo at the truncation it
+  performs. A file replaced by one of exactly the same size is still
+  indistinguishable from an un-grown log.
 - A whitespace-only `CLIENT_MUTE` (or `SEVEN_DAYS_TO_DIE_CLIENT_MUTE`) reads as
   the documented default, mute on, instead of as an opt-out. The launcher
   compared the trimmed value, where a blank value and an opt-out both resolve

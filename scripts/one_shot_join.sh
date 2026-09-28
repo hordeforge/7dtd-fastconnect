@@ -267,6 +267,9 @@ kill_clients || true
 # Truncate client log so we only see this cycle.
 mkdir -p "$(dirname "$CLIENT_LOG_SRC")"
 : >"$CLIENT_LOG_SRC"
+# Invalidate the marker memo at the write that invalidates it, not only by
+# relying on no poll having run yet in this process.
+log_marks_reset
 
 log "launching client connect=$(sanitize_log_text "$CONNECT")"
 # Launch in background; capture proton/game children via pgrep after a beat.

@@ -96,6 +96,23 @@ truncated_log_resets_offset() {
 	log_seen 'PlayerSpawnedInWorld'
 }
 
+# A truncation after a positive was memoized must drop that positive: the
+# matched bytes are gone, so reporting the marker for the replacement log
+# would report a join that never happened in this cycle.
+truncation_drops_a_memoized_positive() {
+	log_marks_reset
+	printf 'NET: PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
+	log_seen 'PlayerSpawnedInWorld' || return 1
+	# Truncate and write a shorter log, so the shrink is the only evidence of
+	# the truncation.
+	printf 'NET: nothing here at all\n' >"$LOG_MARK_FILE"
+	local rc=0
+	log_seen 'PlayerSpawnedInWorld' || rc=1
+	# The replacement's own marker is found from byte zero, not skipped.
+	log_seen 'nothing here at all' || return 1
+	return "$rc"
+}
+
 # A pattern queried conditionally (only after another marker matched) must not
 # skip bytes just because other patterns' scans advanced past them in between:
 # each pattern resumes from its own offset, so growth carrying a match between
@@ -204,6 +221,7 @@ assert "distinct patterns do not collide" distinct_patterns_do_not_collide
 assert "partial line matches only once complete" partial_line_does_not_match_until_complete
 assert "scan offset advances and boundary match is found" offset_advances_and_boundary_match_is_found
 assert "truncated log falls back to full scan" truncated_log_resets_offset
+assert "truncation drops a memoized positive" truncation_drops_a_memoized_positive
 assert "conditionally queried pattern skips no bytes" conditionally_queried_pattern_misses_nothing
 assert "large-window match survives" match_in_a_large_window_is_not_lost_to_sigpipe
 assert "idle poll skips the rescan" idle_poll_skips_the_rescan
