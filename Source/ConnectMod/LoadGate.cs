@@ -26,9 +26,11 @@ namespace SdtdConnect
 
         // Stock updateLoadState's start bar.
         internal static int NeededChunkObjects(bool fixedSizeCache)
-            => fixedSizeCache
-                ? 0
-                : GameUtils.GetViewDistance() * GameUtils.GetViewDistance() - StartBarSlackChunks;
+        {
+            if (fixedSizeCache) return 0;
+            int viewDist = GameUtils.GetViewDistance();
+            return viewDist * viewDist - StartBarSlackChunks;
+        }
 
         internal static bool TerrainReady
             => DistantTerrain.Instance == null || DistantTerrain.Instance.IsTerrainReady;

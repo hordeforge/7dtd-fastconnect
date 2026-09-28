@@ -238,7 +238,7 @@ namespace SdtdConnect
 
         static IEnumerator DrainWorldLoad(IEnumerator root)
         {
-            FieldInfo forceSync = ForceSyncField();
+            FieldInfo forceSync = BootUnblock.ForceLoadSyncField();
             bool canRestore = forceSync != null;
             bool previousForceSync = canRestore && (bool)forceSync.GetValue(null);
             if (canRestore) forceSync.SetValue(null, true);
@@ -335,17 +335,11 @@ namespace SdtdConnect
 
         static bool _forceSyncHeld, _forceSyncPrevious;
 
-        // Reflection target shared with BootUnblock.ForceLoadSyncField: one
-        // lookup and one missing-field warning serve both the automation
-        // set-once path and this hold/release wrapper, so the two cannot
-        // disagree after a game update renames the field.
-        static FieldInfo ForceSyncField() => BootUnblock.ForceLoadSyncField();
-
         static void HoldForceLoadSync()
         {
             try
             {
-                FieldInfo field = ForceSyncField();
+                FieldInfo field = BootUnblock.ForceLoadSyncField();
                 if (field == null || _forceSyncHeld) return;
                 _forceSyncPrevious = (bool)field.GetValue(null);
                 field.SetValue(null, true);
@@ -357,7 +351,7 @@ namespace SdtdConnect
         static void ReleaseForceLoadSync()
         {
             if (!_forceSyncHeld) return;
-            try { ForceSyncField().SetValue(null, _forceSyncPrevious); }
+            try { BootUnblock.ForceLoadSyncField().SetValue(null, _forceSyncPrevious); }
             catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync release failed: " + ex.Message); }
             _forceSyncHeld = false;
         }

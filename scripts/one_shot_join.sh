@@ -32,13 +32,20 @@ source "$ROOT/scripts/proton_paths.sh"
 source "$ROOT/scripts/config_validate.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
-# Bound disk growth: one_shot creates per-cycle logs that would otherwise
-# accumulate forever across repeated harness runs. Keep only recent cycles.
-# Defer pruning failures (read-only FS) so a full cache never aborts the join.
-find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-*.log' -o -name 'launch-*.log' -o -name 'client-lifecycle-*.txt' -o -name 'zdtd-server-*.log' \) -mtime +3 -delete 2>/dev/null || true
+# Every per-cycle artifact this script writes into SCRATCH. One list, two
+# prune rules below, so a new output cannot be added to one and missed by the
+# other. Extend it whenever a cycle writes another file into SCRATCH.
+CYCLE_ARTIFACTS=('stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt' 'zdtd-server-*.log')
+# Bound disk growth: keep only recent cycles. Defer pruning failures
+# (read-only FS) so a full cache never aborts the join.
+name_args=()
+for pat in "${CYCLE_ARTIFACTS[@]}"; do
+  name_args+=(-o -name "$pat")
+done
+find "$SCRATCH" -maxdepth 1 -type f \( "${name_args[@]:1}" \) -mtime +3 -delete 2>/dev/null || true
 # Also cap count: keep at most 20 newest of each pattern so a tight loop
 # with mtime < 3 days cannot fill the disk.
-for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt' 'zdtd-server-*.log'; do
+for pat in "${CYCLE_ARTIFACTS[@]}"; do
   old="$(find "$SCRATCH" -maxdepth 1 -type f -name "$pat" -printf '%T@ %p\n' 2>/dev/null | sort -n | head -n -20 | cut -d' ' -f2-)" || true
   # Read line-by-line instead of an unquoted expansion: a filename holding
   # whitespace or glob metacharacters must reach rm as one argument.

@@ -27,20 +27,18 @@ no_unquoted_prune() {
 	! grep -qE 'rm -f \$old' "$src"
 }
 
-# Every per-cycle artifact the script writes into SCRATCH must be covered by
-# both prune rules (-mtime sweep and count cap), or repeated cycles with a
-# fresh CYCLE accumulate server logs forever. The writer lines below name each
-# file; keep them in sync when adding an output.
+# Every per-cycle artifact the script writes into SCRATCH must be in the
+# single CYCLE_ARTIFACTS list both prune rules read, or repeated cycles with a
+# fresh CYCLE accumulate server logs forever. Keep the list in sync when
+# adding an output.
 prune_covers_all_writes() {
 	local pat
 	for pat in 'stock-join-*.log' 'launch-*.log' 'client-lifecycle-*.txt' 'zdtd-server-*.log'; do
 		grep -qF -- "'$pat'" "$src" || return 1
 	done
-	# The -mtime find and the count-cap loop must list the same set.
-	local find_block loop_block
-	find_block="$(grep -c 'zdtd-server-\*\.log' "$src")"
-	loop_block="$(grep -oF "for pat in 'stock-join-*.log'" "$src" | wc -l)"
-	[[ "$find_block" -eq 2 && "$loop_block" -eq 1 ]]
+	# Both prune rules must consume that one list, not restate the patterns.
+	[[ "$(grep -c 'CYCLE_ARTIFACTS=' "$src")" -eq 1 ]] &&
+		[[ "$(grep -oc 'for pat in "\${CYCLE_ARTIFACTS\[@\]}"' "$src")" -eq 2 ]]
 }
 
 assert "one_shot_join.sh guards CYCLE before filename use" cycle_guard

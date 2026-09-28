@@ -108,29 +108,27 @@ static class TestMain
     }
 
     sealed class FakeUser : SdtdConnect.Platform.IUser { }
-    static readonly System.Reflection.BindingFlags BootStatic =
+    static readonly System.Reflection.BindingFlags PrivateStatic =
         System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
 
     // BootUnblock caches its env decision and its one-shot state in statics;
     // reset them so every forcesync case starts from a fresh process state.
     static void ResetBootUnblock()
     {
-        typeof(BootUnblock).GetField("_forceSyncSet", BootStatic).SetValue(null, false);
-        typeof(BootUnblock).GetField("_forceSyncOptOutLogged", BootStatic).SetValue(null, false);
-        typeof(BootUnblock).GetField("_forceSyncEnabled", BootStatic).SetValue(null, null);
+        typeof(BootUnblock).GetField("_forceSyncSet", PrivateStatic).SetValue(null, false);
+        typeof(BootUnblock).GetField("_forceSyncOptOutLogged", PrivateStatic).SetValue(null, false);
+        typeof(BootUnblock).GetField("_forceSyncEnabled", PrivateStatic).SetValue(null, null);
         LoadManager.forceLoadSync = false;
     }
 
-    static readonly System.Reflection.FieldInfo CrossWaitStartField =
-        typeof(ConnectReady).GetField("_crossWaitStart",
-            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-    static readonly System.Reflection.FieldInfo CrossProceedLoggedField =
-        typeof(ConnectReady).GetField("_crossProceedLogged",
-            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-    static readonly System.Reflection.BindingFlags NativeProceedLoggedFlags =
-        System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
-    static readonly System.Reflection.FieldInfo NativeProceedLoggedField =
-        typeof(ConnectReady).GetField("_nativeProceedLogged", NativeProceedLoggedFlags);
+    static readonly System.Reflection.FieldInfo CrossWaitStartField = ConnectReadyField("_crossWaitStart");
+    static readonly System.Reflection.FieldInfo CrossProceedLoggedField = ConnectReadyField("_crossProceedLogged");
+    static readonly System.Reflection.FieldInfo NativeProceedLoggedField = ConnectReadyField("_nativeProceedLogged");
+
+    static System.Reflection.FieldInfo ConnectReadyField(string name)
+    {
+        return typeof(ConnectReady).GetField(name, PrivateStatic);
+    }
 
     static float CrossWaitStart
     {
