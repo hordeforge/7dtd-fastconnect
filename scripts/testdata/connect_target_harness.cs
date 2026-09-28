@@ -47,6 +47,16 @@
 //                   same host must parse for every valid appended port), and
 //                   single-line source through the env wrapper. The seed is
 //                   printed so any failure reproduces offline.
+//   - `fuzz-text` : the same generator shape over the identity path
+//                   (TextUtil code-point counting / NFC / pair-safe
+//                   truncation, PlayerNames.Normalize and Cap,
+//                   LogText.EchoForMessage, EnvFlags truthiness): an
+//                   unpaired-surrogate and combining-mark generator asserting
+//                   the cap contract (within the stock limit, a prefix of the
+//                   input, never half a pair, idempotent) against an
+//                   independent code-point count, so a name that reached the
+//                   server under a spelling the operator never typed is a
+//                   failure, not a surprise.
 //
 // Exit status is nonzero when any assertion fails.
 using System;
@@ -931,6 +941,11 @@ static class TestMain
             return RunFuzz();
         }
 
+        if (mode == "fuzz-text")
+        {
+            return RunFuzzText();
+        }
+
         Console.Error.WriteLine("unknown mode: " + mode);
         return 2;
     }
@@ -1198,9 +1213,404 @@ static class TestMain
         return Done();
     }
 
+    // ------------------------------------------------------------------
+    // Fuzz target for the identity path (TextUtil / PlayerNames /
+    // LogText.EchoForMessage / EnvFlags), the mod's second untrusted-input
+    // surface. A display name arrives from the 7DTD_FASTCONNECT_NAME
+    // override, a steam://run URL or an OS account name, and is stored,
+    // normalized, length-capped and sent to the server, where it lands in
+    // the server log and the player list. Everything here counts code
+    // points rather than UTF-16 units and cuts on a pair boundary, which is
+    // where a truncation bug turns into a name the player did not type, so
+    // each generated value is checked against invariants that must hold for
+    // ALL inputs, not against a fixed table. The generator is built from
+    // UTF-16 unit pieces so it can emit an unpaired surrogate, which a
+    // char-based generator cannot.
+    // ------------------------------------------------------------------
+    const int FuzzTextSeed = 20260928;
+    static int _fuzzTextReported;
+
+    // State the generator has to reach, so a lane that stopped producing
+    // interesting inputs fails instead of reporting a clean run over nothing.
+    static int _fuzzTextCut;     // a cap that actually shortened a value
+    static int _fuzzTextPair;    // a value carrying an astral character
+    static int _fuzzTextAway;    // a name that normalized away to nothing
+    static int _fuzzTextNfc;     // a value NFC rewrote (an NFD run)
+
+    static void CheckFuzzText(string name, bool cond)
+    {
+        if (cond) return;
+        _fails++;
+        if (_fuzzTextReported < 20)
+        {
+            _fuzzTextReported++;
+            Console.WriteLine("FAIL " + name);
+        }
+    }
+
+    // Code-point count computed by walking the string a different way from
+    // TextUtil (skip a low surrogate that follows a high one, rather than
+    // advancing the index inside the loop). Agreement is the assertion, so a
+    // defect in one counting rule cannot hide in the other.
+    static int OracleCodePointCount(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return 0;
+        int count = 0;
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (char.IsLowSurrogate(value[i]) && i > 0 && char.IsHighSurrogate(value[i - 1]))
+                continue;
+            count++;
+        }
+        return count;
+    }
+
+    static bool EndsOnHighSurrogate(string value)
+    {
+        return value != null && value.Length > 0 && char.IsHighSurrogate(value[value.Length - 1]);
+    }
+
+    static bool IsPrefixOf(string prefix, string whole)
+    {
+        return prefix != null && whole != null
+            && prefix.Length <= whole.Length
+            && string.CompareOrdinal(whole, 0, prefix, 0, prefix.Length) == 0;
+    }
+
+    static bool IsLogSafeText(string value)
+    {
+        if (value == null) return true;
+        foreach (char c in value)
+        {
+            if (char.IsControl(c) || c == '\u2028' || c == '\u2029' || IsInvisibleFormat(c))
+                return false;
+        }
+        return true;
+    }
+
+    // UTF-16 unit pieces. An unpaired surrogate, a valid pair, a combining
+    // mark whose base makes NFC shorter, the characters LogText flattens, and
+    // ordinary safe text.
+    static readonly string[] FuzzTextUnits =
+    {
+        "a", "Z", "7", "_", " ", "\t", "\n", "\0", "\u00e9", "\u4e2d",
+        "\U0001F600", "\u0301", "e\u0301", "\ud83d", "\ude00", "\ud83d\ude00",
+        "\u2028", "\u2029", "\u202E", "\uFEFF", "\u0085", "\u00ad", "\uFFFD",
+        "\ud800", "\udfff"
+    };
+
+    static string GenText(Random r, int i)
+    {
+        switch (i % 8)
+        {
+            case 0:
+            {
+                var sb = new StringBuilder();
+                int n = r.Next(0, 24);
+                for (int k = 0; k < n; k++) sb.Append(FuzzTextUnits[r.Next(FuzzTextUnits.Length)]);
+                return sb.ToString();
+            }
+            case 1:
+            {
+                // Safe ASCII only: the shape that must pass through untouched.
+                var sb = new StringBuilder();
+                int n = r.Next(0, 40);
+                for (int k = 0; k < n; k++) sb.Append((char)('a' + r.Next(26)));
+                return sb.ToString();
+            }
+            case 2:
+            {
+                // Exactly the cap in code points, ending on an astral
+                // character: the boundary the cut has to land on without
+                // splitting the pair.
+                var sb = new StringBuilder();
+                while (OracleCodePointCount(sb.ToString()) < PlayerNames.MaxLength - 1)
+                    sb.Append((char)('a' + r.Next(26)));
+                sb.Append("\ud83d\ude00");
+                return sb.ToString();
+            }
+            case 3:
+            {
+                // One code point short of the cap, then a pair: the cap must
+                // drop the whole character, not half of it.
+                var sb = new StringBuilder();
+                while (OracleCodePointCount(sb.ToString()) < PlayerNames.MaxLength - 1)
+                    sb.Append((char)('a' + r.Next(26)));
+                sb.Append('a');
+                sb.Append("\ud83d");
+                sb.Append("\ude00");
+                sb.Append((char)('a' + r.Next(26)));
+                return sb.ToString();
+            }
+            case 4:
+            {
+                // A lone surrogate with real text on both sides, so a cap
+                // that cuts inside the pair leaves a lone one behind.
+                var sb = new StringBuilder();
+                int n = r.Next(0, 20);
+                for (int k = 0; k < n; k++) sb.Append((char)('a' + r.Next(26)));
+                sb.Append(r.Next(2) == 0 ? "\ud83d" : "\ude00");
+                int m = r.Next(0, 20);
+                for (int k = 0; k < m; k++) sb.Append((char)('a' + r.Next(26)));
+                return sb.ToString();
+            }
+            case 5:
+            {
+                // A long combining-mark run: NFC composes the whole run into
+                // one code point, so the cap is reached far later in code
+                // points than in characters.
+                var sb = new StringBuilder();
+                int n = r.Next(1, 40);
+                for (int k = 0; k < n; k++) { sb.Append('e'); sb.Append('\u0301'); }
+                return sb.ToString();
+            }
+            case 6:
+            {
+                // Padding and invisible characters around a name: Normalize
+                // trims, and the invisible ones are flattened rather than
+                // kept, so the stored identity differs from the input.
+                return "  \u200b\t\u202e" + GenText(r, 1) + "\u00ad  ";
+            }
+            default:
+            {
+                // Nothing but characters the log rule flattens: the name
+                // normalizes away to empty, and the caller must see that as
+                // the same signal as an absent name.
+                var sb = new StringBuilder();
+                int n = r.Next(1, 12);
+                for (int k = 0; k < n; k++)
+                {
+                    int pick = r.Next(4);
+                    if (pick == 0) sb.Append('\u200B');
+                    else if (pick == 1) sb.Append('\uFEFF');
+                    else if (pick == 2) sb.Append('\u202E');
+                    else sb.Append('\t');
+                }
+                return sb.ToString();
+            }
+        }
+    }
+
+    static void FuzzOneText(string raw, int i)
+    {
+        string label = "text='" + EscapeForLog(raw) + "'";
+        int rawPoints = OracleCodePointCount(raw);
+
+        // TextUtil.CodePointCount: the unit every cap in the mod is counted
+        // in. It must agree with the independent walk above, never exceed the
+        // UTF-16 length, and be zero exactly for an empty value.
+        int count;
+        try { count = TextUtil.CodePointCount(raw); }
+        catch (Exception ex) { CheckFuzzText(label + " CodePointCount threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
+        CheckFuzzText(label + " code-point count matches the oracle", count == rawPoints);
+        CheckFuzzText(label + " code-point count within the UTF-16 length", count <= (raw == null ? 0 : raw.Length));
+        CheckFuzzText(label + " code-point count zero only when empty", (count == 0) == string.IsNullOrEmpty(raw));
+
+        // TextUtil.NormalizeFormC: NFC, so two spellings of one name are one
+        // identity. It must be total (an unpaired surrogate is a value .NET
+        // refuses to normalize), idempotent, and never longer in code points
+        // than the input it replaces.
+        string nfc;
+        try { nfc = TextUtil.NormalizeFormC(raw); }
+        catch (Exception ex) { CheckFuzzText(label + " NormalizeFormC threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
+        CheckFuzzText(label + " NFC is a fixed point",
+            nfc == null || TextUtil.NormalizeFormC(nfc) == nfc);
+        CheckFuzzText(label + " NFC never grows the code-point count",
+            nfc == null || TextUtil.CodePointCount(nfc) <= rawPoints);
+        if (nfc != null && nfc != raw) _fuzzTextNfc++;
+        CheckFuzzText(label + " NFC preserves null/empty", (nfc == null) == (raw == null) && (nfc == "") == (raw == ""));
+
+        // TextUtil.TruncateToCodePoints across the boundary cases: 0, one
+        // under the cap, exactly the cap, over the cap, and one over the
+        // input's own length. Every one must stay within n code points, stay
+        // a prefix of the input, and never end on half a pair.
+        int[] limits =
+        {
+            0, 1, PlayerNames.MaxLength - 1, PlayerNames.MaxLength,
+            PlayerNames.MaxLength + 1, rawPoints, rawPoints + 2
+        };
+        for (int li = 0; li < limits.Length; li++)
+        {
+            int n = limits[li];
+            string cut;
+            try { cut = TextUtil.TruncateToCodePoints(raw, n); }
+            catch (Exception ex)
+            {
+                CheckFuzzText(label + " TruncateToCodePoints threw", false);
+                Console.WriteLine("     " + ex.GetType().Name);
+                continue;
+            }
+            string at = label + " truncate(" + n + ")";
+            CheckFuzzText(at + " stays within the cap",
+                TextUtil.CodePointCount(cut) <= n || n < 0);
+            CheckFuzzText(at + " is a prefix of the input", IsPrefixOf(cut, raw));
+            // A cut never ends on half a pair. A value that already carried
+            // an unpaired high surrogate comes back untouched, so the cap is
+            // not what put it there.
+            CheckFuzzText(at + " does not split a surrogate pair",
+                !EndsOnHighSurrogate(cut) || cut == raw);
+            // A cap of at least the input's own length is the identity: the
+            // caller must get its own string back, not a rewritten one.
+            if (n >= rawPoints)
+                CheckFuzzText(at + " leaves a short value untouched", cut == raw);
+            else if (cut.Length != raw.Length)
+                _fuzzTextCut++;
+            // Truncating an already-truncated value changes nothing, so a
+            // name capped twice (fallback over override) is the one name.
+            try
+            {
+                CheckFuzzText(at + " is a fixed point",
+                    TextUtil.TruncateToCodePoints(cut, n) == cut);
+            }
+            catch (Exception ex)
+            {
+                CheckFuzzText(at + " re-truncate threw", false);
+                Console.WriteLine("     " + ex.GetType().Name);
+            }
+        }
+
+        // PlayerNames.Cap: the stored identity. Within the stock cap, in one
+        // normalization form, and a fixed point, so the override and the
+        // fallback can never disagree.
+        string capped;
+        try { capped = PlayerNames.Cap(raw); }
+        catch (Exception ex) { CheckFuzzText(label + " Cap threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
+        CheckFuzzText(label + " cap is null only for a null name", (capped == null) == (raw == null));
+        CheckFuzzText(label + " cap fits the stock limit",
+            capped == null || TextUtil.CodePointCount(capped) <= PlayerNames.MaxLength);
+        // The cap cuts what it was handed, so a cut (any output that is not
+        // the normalized value itself) never ends on half a pair. A value
+        // that already carried an unpaired high surrogate comes back whole,
+        // which is the input's state, not one the cap added.
+        string capInput = TextUtil.NormalizeFormC(raw);
+        CheckFuzzText(label + " a capped name is not left half a pair",
+            capped == capInput || !EndsOnHighSurrogate(capped));
+        if (capped != null)
+        {
+            CheckFuzzText(label + " cap is a fixed point", PlayerNames.Cap(capped) == capped);
+            CheckFuzzText(label + " cap is already NFC", TextUtil.NormalizeFormC(capped) == capped);
+        }
+
+        // PlayerNames.Normalize: what a caller actually stores. Flattened,
+        // trimmed, capped, and null for an absent value.
+        string name;
+        try { name = PlayerNames.Normalize(raw); }
+        catch (Exception ex) { CheckFuzzText(label + " Normalize threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
+        if (string.IsNullOrEmpty(raw))
+        {
+            CheckFuzzText(label + " absent name normalizes to null", name == null);
+        }
+        else
+        {
+            CheckFuzzText(label + " name fits the stock limit",
+                name == null || TextUtil.CodePointCount(name) <= PlayerNames.MaxLength);
+            CheckFuzzText(label + " name carries nothing the log rule flattens", IsLogSafeText(name));
+            CheckFuzzText(label + " name is trimmed", name == null || name == name.Trim());
+            CheckFuzzText(label + " name is capped and normalized already",
+                name == null || PlayerNames.Cap(name) == name);
+            // A name of nothing but flattened characters normalizes away;
+            // Resolve falls back for it, and the caller sees null so the
+            // fallback runs.
+            CheckFuzzText(label + " a name that flattens away is null",
+                (name == null) == (LogText.SanitizeForLog(raw).Trim().Length == 0));
+            if (name == null) _fuzzTextAway++;
+            if (raw.IndexOf('\uD83D') >= 0 || raw.IndexOf('\uD800') >= 0) _fuzzTextPair++;
+        }
+
+        // LogText.EchoForMessage: the one-line echo the F1 console and the
+        // rejection messages show. Safe text short enough to fit comes back
+        // trimmed; a cut one never leaves half a pair or an unflat
+        // character.
+        string echo;
+        try { echo = LogText.EchoForMessage(raw); }
+        catch (Exception ex) { CheckFuzzText(label + " EchoForMessage threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
+        CheckFuzzText(label + " echo carries nothing the log rule flattens", IsLogSafeText(echo));
+        // Same rule on the echo: a cut (anything but the flattened, trimmed
+        // value itself) never ends on half a pair.
+        string echoInput = LogText.SanitizeForLog(raw).Trim();
+        CheckFuzzText(label + " a cut echo is not left half a pair",
+            echo == echoInput || !EndsOnHighSurrogate(echo));
+        if (raw != null && IsLogSafeText(raw) && rawPoints <= 40)
+            CheckFuzzText(label + " a short safe echo is the trimmed value",
+                echo == LogText.SanitizeForLog(raw).Trim());
+
+        // EnvFlags: the boolean knobs, read as text. A knob is on exactly
+        // when it is non-blank and not an opt-out token, the documented
+        // tokens resolve the documented way in any case and with padding,
+        // an undocumented one reads as on, and nothing throws. The table is
+        // indexed off the iteration so every entry is exercised.
+        bool optOut, setOn, known;
+        try
+        {
+            optOut = EnvFlags.IsOptOut(raw);
+            setOn = EnvFlags.IsSetOn(raw);
+            known = EnvFlags.IsKnownBool(raw);
+        }
+        catch (Exception ex) { CheckFuzzText(label + " EnvFlags threw", false); Console.WriteLine("     " + ex.GetType().Name); return; }
+        CheckFuzzText(label + " a knob is on exactly when it is non-blank and not an opt-out",
+            setOn == (!string.IsNullOrWhiteSpace(raw) && !optOut));
+        CheckFuzzText(label + " a blank knob is neither on nor off",
+            string.IsNullOrWhiteSpace(raw) == (!setOn && !optOut));
+        CheckFuzzText(label + " a blank knob is a known value",
+            !string.IsNullOrWhiteSpace(raw) || known);
+        int slot = Math.Abs(i) % FuzzBoolTokens.Length;
+        string tok = FuzzBoolTokens[slot];
+        CheckFuzzText(label + " the token table resolves as documented",
+            EnvFlags.IsOptOut(tok) == FuzzBoolTokensOptOut[slot]
+            && EnvFlags.IsSetOn(tok) == !FuzzBoolTokensOptOut[slot]
+            && EnvFlags.IsKnownBool(tok) == FuzzBoolTokensKnown[slot]);
+    }
+
+    // The documented boolean vocabulary in both directions and in any case,
+    // then the undocumented values the warning exists for: they read as on,
+    // and IsKnownBool says so. FuzzBoolTokensOptOut and FuzzBoolTokensKnown
+    // carry the documented verdict for each entry.
+    static readonly string[] FuzzBoolTokens =
+    {
+        "0", "false", "FALSE", "no", "No", "off", "OFF", " off ", "\t0\t",
+        "1", "true", "TRUE", "yes", "YES", "on", "On", " on ", "\tyes\t",
+        "2", "maybe", "-1", "00", "o", "yess", "2 "
+    };
+
+    static readonly bool[] FuzzBoolTokensOptOut =
+    {
+        true, true, true, true, true, true, true, true, true,
+        false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false
+    };
+
+    static readonly bool[] FuzzBoolTokensKnown =
+    {
+        true, true, true, true, true, true, true, true, true,
+        true, true, true, true, true, true, true, true, true,
+        false, false, false, false, false, false, false
+    };
+
+    static int RunFuzzText()
+    {
+        const int iterations = 24000;
+        var rng = new Random(FuzzTextSeed);
+        int before = _fails;
+        for (int i = 0; i < iterations; i++)
+            FuzzOneText(GenText(rng, i), i);
+        int found = _fails - before;
+        Console.WriteLine("fuzz-text: seed=" + FuzzTextSeed + " iterations=" + iterations
+            + " cuts=" + _fuzzTextCut + " astral=" + _fuzzTextPair
+            + " normalized_away=" + _fuzzTextAway + " nfc_rewrites=" + _fuzzTextNfc
+            + " violations=" + found);
+        // A generator that stopped reaching a state would make the run
+        // vacuous without any invariant failing, so the states the lane
+        // exists to cover are asserted as reached.
+        CheckFuzzText("fuzz-text reached a cap that shortened a value", _fuzzTextCut > 0);
+        CheckFuzzText("fuzz-text reached an astral character", _fuzzTextPair > 0);
+        CheckFuzzText("fuzz-text reached a name that normalized away", _fuzzTextAway > 0);
+        CheckFuzzText("fuzz-text reached a value NFC rewrites", _fuzzTextNfc > 0);
+        return Done();
+    }
+
     static void Env(string name, string value)
     {
-        Environment.SetEnvironmentVariable(name, value); // null unsets
+        Environment.SetEnvironmentVariable(name, value); // null subs
     }
 
     static int Done()

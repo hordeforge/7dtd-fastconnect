@@ -30,6 +30,13 @@
 #   - Fuzz: seeded grammar-biased generator asserting invariants over
 #     TryParse/MergePortArg/LogText.SanitizeForLog/TryFromLaunchContext (totality,
 #     bounded ports, single-line log/source, cross-port merge consistency)
+#   - Fuzz (identity path): a second seeded generator over TextUtil /
+#     PlayerNames / LogText.EchoForMessage / EnvFlags, built from UTF-16 unit
+#     pieces so it can emit an unpaired surrogate and a combining-mark run.
+#     Asserts the cap contract (within the stock limit, a prefix of the input,
+#     never half a surrogate pair, idempotent) against an independent
+#     code-point count, so a display name that would reach the server under a
+#     spelling the operator never typed fails the gate
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/test_common.sh"
@@ -104,6 +111,7 @@ expect_argv() {
 
 assert "TryParse / MergePortArg table" run_mode parse
 assert "fuzz invariants over the launch-target grammar" run_mode fuzz
+assert "fuzz invariants over the identity path (cap, NFC, echo, env truthiness)" run_mode fuzz-text
 assert "launch-context env resolution" run_mode launchctx
 assert "log-safe flattening of launch targets" run_mode sanitize
 assert "EnvFlags opt-out/opt-in truthiness table" run_mode envflags
