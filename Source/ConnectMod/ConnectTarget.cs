@@ -232,7 +232,7 @@ namespace SdtdConnect
             port = DefaultPort;
             source = null;
 
-            string env = Environment.GetEnvironmentVariable(EnvVar);
+            string env = EnvFlags.Read(EnvVar);
             if (!string.IsNullOrWhiteSpace(env))
             {
                 if (TryParse(env, out host, out port, out string envError))

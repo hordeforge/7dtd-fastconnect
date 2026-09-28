@@ -28,6 +28,8 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/proton_paths.sh"
+# Shared value checks (is_tcp_port): see scripts/config_validate.sh.
+source "$ROOT/scripts/config_validate.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 # Bound disk growth: one_shot creates per-cycle logs that would otherwise
@@ -48,9 +50,10 @@ done
 
 PORT="${PORT:-27025}"
 HOST="${HOST:-127.0.0.1}"
-# PORT feeds both --port argv and an ERE ("::${PORT}\b"), so keep it numeric
-# like TIMEOUT_SEC below; metacharacters would silently skew the listener probe.
-if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+# PORT feeds both --port argv and an ERE ("::${PORT}\b"), so it must be a real
+# TCP port like TIMEOUT_SEC below: metacharacters would skew the listener
+# probe, and a number outside 1..65535 could never match it at all.
+if ! is_tcp_port "$PORT"; then
   echo "WARN: PORT invalid ('$PORT'); using 27025." >&2
   PORT=27025
 fi

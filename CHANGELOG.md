@@ -19,6 +19,14 @@ in the affected sections instead of being papered over.
   hands the client through `7DTD_CONNECT`, the knob the other two harnesses
   already honour and the README lists for them. A value carrying whitespace is
   a usage error (exit 2), checked before anything is torn down.
+- A boolean env var holding an undocumented token now logs a warning naming
+  the variable and the value (`7DTD_CONNECT_DEBUG=ture`). The reading is
+  unchanged (unknown means on); the log just stops looking like a deliberate
+  setting. `1` / `true` / `yes` / `on` are now documented opt-in tokens.
+- `PORT` is checked against the real TCP range (1-65535) by the three join
+  harnesses, through the shared `scripts/config_validate.sh`. A value the
+  client could never join is reported at startup instead of surfacing later as
+  a listen or join timeout; `restart_pair.sh` calls it a usage error (exit 2).
 
 ### Changed
 
@@ -42,6 +50,15 @@ in the affected sections instead of being papered over.
   `PlayerNames` fallback; the value itself (an OS account name, host name, or
   operator-supplied label) no longer lands in a log that gets pasted into bug
   reports.
+- `launch_client.sh` trims and case-folds every enum value (`GFX_API`,
+  `CLIENT_PLATFORM`, `CLIENT_MUTE`), so `GFX_API=Vulkan` and `GFX_API=" vulkan "`
+  select the documented backend instead of aborting as usage errors. Unknown
+  values still abort.
+- `CLIENT_MUTE_TIMEOUT` is validated by the launcher that announces the poll
+  window, so a bad value names itself in the launch log.
+- Every env read in the mod goes through one guarded helper. An environment
+  that cannot be read now falls back to the default instead of throwing out of
+  a static initializer while the mod loads.
 
 ### Fixed
 

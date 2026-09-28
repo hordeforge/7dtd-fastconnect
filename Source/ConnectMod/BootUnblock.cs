@@ -46,16 +46,10 @@ namespace SdtdConnect
         internal static bool ForceLoadSyncEnabled()
         {
             if (_forceSyncEnabled.HasValue) return _forceSyncEnabled.Value;
-            string value = null;
-            // A blocked environment read leaves value null, which IsOptOut
-            // below treats exactly like an unset variable: the automation
-            // default. Nothing further can act on the exception.
-            try { value = Environment.GetEnvironmentVariable(ForceLoadSyncEnv); }
-            catch (Exception) { }
             // Opt-out flag shape: unset/blank keeps the automation default
-            // (enabled); only an explicit 0/false/no/off opts out. IsOptOut
-            // treats unreadable env (null) the same as unset.
-            _forceSyncEnabled = !EnvFlags.IsOptOut(value);
+            // (enabled); only an explicit 0/false/no/off opts out. An
+            // unreadable environment counts as unset, same as blank.
+            _forceSyncEnabled = !EnvFlags.VarIsOptOut(ForceLoadSyncEnv);
             return _forceSyncEnabled.Value;
         }
 

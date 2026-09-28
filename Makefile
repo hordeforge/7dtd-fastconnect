@@ -49,6 +49,7 @@ test:
 	$(ROOT)/scripts/test_automation_mode.sh
 	$(ROOT)/scripts/test_local_host_world_load.sh
 	$(ROOT)/scripts/test_mute_client_audio.sh
+	$(ROOT)/scripts/test_config_validate.sh
 	$(ROOT)/scripts/test_unmute_client_audio.sh
 	$(ROOT)/scripts/test_cli_help.sh
 	$(ROOT)/scripts/test_monotonic_deadlines.sh

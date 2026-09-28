@@ -32,6 +32,12 @@ EOF
   exit 0
 fi
 
+# Env values arrive with whatever spacing and case the caller's shell had, and
+# every documented enum value here is lowercase. Both normalizers are shared so
+# each enum accepts the same shape instead of one being stricter by accident.
+trim() { local v="${1-}"; v="${v#"${v%%[![:space:]]*}"}"; printf '%s' "${v%"${v##*[![:space:]]}"}"; }
+lower() { printf '%s' "${1,,}"; }
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MUTE_HELPER="$SCRIPT_DIR/mute_client_audio.sh"
 source "$SCRIPT_DIR/proton_paths.sh"
@@ -87,7 +93,7 @@ EXTRA_ARGS=(-skipintro -SkipNewsScreen=true -disablenativeinput)
 # pipeline needs in order to check that a shader renders on more than one
 # graphics API. Set GFX_API=vulkan, glcore, d3d11 or d3d12 - or none, to let the
 # game choose.
-GFX_API="${GFX_API:-d3d11}"
+GFX_API="$(lower "$(trim "${GFX_API:-d3d11}")")"
 case "$GFX_API" in
   d3d11|d3d12|vulkan|glcore) GFX_ARGS=(-force-"$GFX_API") ;;
   none) GFX_ARGS=() ;;
@@ -107,13 +113,17 @@ fi
 # 7DTD_CONNECT_* flags). A blank value is not an opt-out: it trims to empty and
 # keeps the unset default, mute on, which is what EnvFlags.IsSetOn does with a
 # whitespace-only value.
-MUTE_CLIENT="${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}"
-MUTE_MODE="${MUTE_CLIENT#"${MUTE_CLIENT%%[![:space:]]*}"}"
-MUTE_MODE="${MUTE_MODE%"${MUTE_MODE##*[![:space:]]}"}"
-case "${MUTE_MODE,,}" in
+MUTE_CLIENT="$(lower "$(trim "${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}")")"
+case "$MUTE_CLIENT" in
   0 | false | no | off) MUTE_CLIENT="" ;;
 esac
-MUTE_WAIT="${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}"
+MUTE_WAIT="$(trim "${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}")"
+# Validated here, not only in the helper: the launcher is what announces the
+# poll window it starts, and the helper's own guard is for standalone use.
+if ! [[ "$MUTE_WAIT" =~ ^[0-9]+$ ]] || ((MUTE_WAIT < 1)); then
+  echo "WARN: CLIENT_MUTE_TIMEOUT invalid ('$MUTE_WAIT'); using 60." >&2
+  MUTE_WAIT=60
+fi
 
 # Optional no-Steam client mode (see ../7dtd-loadgen/docs/STOCK_AUTH.md Option A):
 # CLIENT_PLATFORM=local backs up the game's platform.cfg, selects the Local
@@ -126,10 +136,8 @@ LOCAL_PLATFORM=0
 # documented value (same shape as the MUTE_CLIENT opt-out above). An
 # unrecognized non-empty value warns instead of silently launching with Steam
 # auth: the join would then fail much later with opaque auth errors.
-PLATFORM_MODE="${CLIENT_PLATFORM:-}"
-PLATFORM_MODE="${PLATFORM_MODE#"${PLATFORM_MODE%%[![:space:]]*}"}"
-PLATFORM_MODE="${PLATFORM_MODE%"${PLATFORM_MODE##*[![:space:]]}"}"
-case "${PLATFORM_MODE,,}" in
+PLATFORM_MODE="$(lower "$(trim "${CLIENT_PLATFORM:-}")")"
+case "$PLATFORM_MODE" in
   "") ;;
   1 | local | lan) LOCAL_PLATFORM=1 ;;
   *)

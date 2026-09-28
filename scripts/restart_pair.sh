@@ -27,12 +27,19 @@ if (( $# < 1 )); then
   echo "usage: $(basename "$0") <world-dir> [port]" >&2
   exit 2
 fi
+SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
+# Shared Proton knowledge: prefix derivation and the wine-stack sweep.
+source "$SCRIPTDIR/proton_paths.sh"
+# Shared value checks (is_tcp_port): see scripts/config_validate.sh.
+source "$SCRIPTDIR/config_validate.sh"
+
 WORLD="$1"
 PORT="${2:-27025}"
-# PORT goes to --port argv; a non-numeric value is a usage error (exit 2,
-# same convention as launch_client.sh GFX_API), not a fallback.
-if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
-  echo "ERROR: port must be numeric, got '$PORT'" >&2
+# PORT goes to --port argv and into the client's 7DTD_CONNECT, so a value the
+# client could never join is a usage error (exit 2, same convention as
+# launch_client.sh GFX_API), not a fallback.
+if ! is_tcp_port "$PORT"; then
+  echo "ERROR: port must be 1-65535, got '$PORT'" >&2
   exit 2
 fi
 # HOST joins the pair relaunch; the README lists it among the harness knobs and
@@ -47,9 +54,6 @@ if [[ "$HOST" =~ [[:space:]] ]]; then
 fi
 GAME_SRV="${GAME_SRV:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
 LOGDIR="${LOGDIR:-$HOME/.cache/zdtd-scratch}"
-SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
-# Shared Proton knowledge: prefix derivation and the wine-stack sweep.
-source "$SCRIPTDIR/proton_paths.sh"
 # Default root of the sibling zdtd checkout (same convention as
 # one_shot_join.sh / zero_nre_join_loop.sh); empty when it is not checked out
 # next to this repo. Override with ZDTD= when it lives elsewhere; the -x check

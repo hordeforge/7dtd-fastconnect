@@ -580,6 +580,34 @@ def test_invalid_gfx_api_aborts_before_launch(tmp_path: Path) -> None:
     assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
 
 
+@pytest.mark.parametrize(
+    "api,flag",
+    [("Vulkan", "-force-vulkan"), (" vulkan ", "-force-vulkan"), ("NONE", "")],
+)
+def test_gfx_api_value_is_trimmed_and_case_folded(
+    tmp_path: Path,
+    api: str,
+    flag: str,
+) -> None:
+    """Launcher enums all take the same shape: a value typed as VULKAN or
+    ' vulkan ' is the documented value, not a usage error."""
+    _setup(tmp_path)
+    r = _launch(tmp_path, extra_env={"GFX_API": api})
+    assert r.returncode == 0, r.stderr
+    forced = [a for a in _argv(tmp_path) if a.startswith("-force-")]
+    assert forced == ([flag] if flag else [])
+
+
+def test_invalid_mute_timeout_warns_and_falls_back(tmp_path: Path) -> None:
+    """CLIENT_MUTE_TIMEOUT is checked in the launcher that announces the poll
+    window, so a bad value names itself instead of only failing later."""
+    _setup(tmp_path)
+    r = _launch(tmp_path, mute=True, extra_env={"CLIENT_MUTE_TIMEOUT": "soon"})
+    assert r.returncode == 0, r.stderr
+    assert "CLIENT_MUTE_TIMEOUT invalid ('soon'); using 60" in r.stderr
+    assert "polling up to 60s" in r.stdout
+
+
 def test_compat_derives_from_game_library(tmp_path: Path) -> None:
     """A game installed under a second-disk library gets its Proton prefix
     (<library>/compatdata/<appid>) derived from GAME, so the direct-Proton

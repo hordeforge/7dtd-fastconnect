@@ -254,8 +254,10 @@ Every runtime knob in one place; the sections above carry the detail. Rules
 that hold for all of them:
 
 - Unset and empty mean the default. Boolean opt-outs accept `0` / `false` /
-  `no` / `off` (any case, surrounding whitespace ignored); any other non-empty
-  value opts in.
+  `no` / `off` (any case, surrounding whitespace ignored), and opt-ins `1` /
+  `true` / `yes` / `on`; any other non-empty value still opts in but logs a
+  warning naming the variable and the value, so a typo cannot look like a
+  deliberate setting.
 - Values echoed to logs are flattened to one line (no control characters).
 - Invalid enum values either abort with the valid set (`GFX_API`) or warn and
   fall back (`CLIENT_PLATFORM`, numeric timeouts); nothing is silently ignored.
@@ -279,7 +281,9 @@ Threat model and known gaps: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 The join harnesses (`one_shot_join.sh`, `zero_nre_join_loop.sh`,
 `restart_pair.sh`) take their own knobs (`PORT`, `HOST`, `TIMEOUT_SEC`,
 `CYCLE`, `START_SERVER`, `ZDTD_BIN`, ...): each validates its value at startup
-and names the fallback it uses.
+and names the fallback it uses. `PORT` must be a real TCP port (1-65535, the
+same range the client accepts for `7DTD_CONNECT`); `restart_pair.sh` treats
+anything else as a usage error, the other two fall back to 27025.
 
 ## With zdtd
 

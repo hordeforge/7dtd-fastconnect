@@ -34,7 +34,7 @@ fi
 WAIT_SECONDS="${1:-${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}}"
 
 if ! [[ "$WAIT_SECONDS" =~ ^[0-9]+$ ]] || ((WAIT_SECONDS < 1)); then
-	echo "WARN: CLIENT_MUTE_TIMEOUT invalid; using 60." >&2
+	echo "WARN: mute wait '${WAIT_SECONDS}' invalid; using 60." >&2
 	WAIT_SECONDS=60
 fi
 

@@ -87,10 +87,10 @@ assert "helper warns it is leaving audio unmuted" grep -q 'leaving audio unmuted
 
 run_helper_without_pulse abc
 assert "non-numeric timeout still exits 0 without pactl/jq" test "$HELPER_RC" -eq 0
-assert "non-numeric timeout warns about CLIENT_MUTE_TIMEOUT" grep -q 'CLIENT_MUTE_TIMEOUT invalid' <<<"$out"
+assert "non-numeric timeout warns and names the value" grep -q "mute wait 'abc' invalid" <<<"$out"
 
 run_helper_without_pulse 0
-assert "non-positive timeout rejected as invalid" grep -q 'CLIENT_MUTE_TIMEOUT invalid' <<<"$out"
+assert "non-positive timeout rejected as invalid" grep -q "mute wait '0' invalid" <<<"$out"
 assert "non-positive timeout still degrades to exit 0" test "$HELPER_RC" -eq 0
 
 finish

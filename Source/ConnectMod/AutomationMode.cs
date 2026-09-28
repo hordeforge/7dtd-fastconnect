@@ -16,9 +16,12 @@ namespace SdtdConnect
 
         static bool Detect()
         {
-            string value = Environment.GetEnvironmentVariable(EnvVar);
+            string value = EnvFlags.Read(EnvVar);
             if (!string.IsNullOrWhiteSpace(value))
+            {
+                EnvFlags.WarnUnknownValue(EnvVar, value);
                 return EnvFlags.IsSetOn(value);
+            }
 
             return ConnectTarget.TryFromLaunchContext(out _, out _, out _);
         }

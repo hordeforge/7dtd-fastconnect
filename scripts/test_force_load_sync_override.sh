@@ -22,9 +22,9 @@ force_sync_order() {
 assert "names the force-load-sync override" \
     grep -q 'ForceLoadSyncEnv = "7DTD_CONNECT_FORCE_LOAD_SYNC"' "$SOURCE"
 assert "opt-out flag shape: unset/blank stays enabled, only explicit off disables" \
-    grep -q '_forceSyncEnabled = !EnvFlags.IsOptOut(value)' "$SOURCE"
+    grep -q '_forceSyncEnabled = !EnvFlags.VarIsOptOut(ForceLoadSyncEnv)' "$SOURCE"
 assert "delegates opt-outs to the shared env parser" \
-    grep -q 'EnvFlags.IsOptOut(value)' "$SOURCE"
+    grep -q 'EnvFlags.VarIsOptOut(' "$SOURCE"
 # The opt-out truthiness table itself (zero, false/no/off in any case) and the
 # default-on / snapshot-once / once-logged behavior are asserted against the
 # compiled production source by the forcesync mode of

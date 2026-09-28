@@ -486,6 +486,45 @@ static class TestMain
             Env(flag, "1");
             Check("VarIsSetOn true for one", EnvFlags.VarIsSetOn(flag));
 
+            // Opt-out shape (7DTD_CONNECT_FORCE_LOAD_SYNC): the same tokens,
+            // read the other way around.
+            Env(flag, "off");
+            Check("VarIsOptOut true for off", EnvFlags.VarIsOptOut(flag));
+            Env(flag, "1");
+            Check("VarIsOptOut false for one", !EnvFlags.VarIsOptOut(flag));
+            Env(flag, null);
+            Check("VarIsOptOut false when unset", !EnvFlags.VarIsOptOut(flag));
+
+            // A typo in either direction keeps the documented "unknown means
+            // on" behavior but must say so: '7DTD_CONNECT_DEBUG=ture' silently
+            // enabling verbose traces is exactly the silent misconfiguration
+            // the warning exists for.
+            Check("IsKnownBool accepts blank", EnvFlags.IsKnownBool("   "));
+            Check("IsKnownBool accepts on", EnvFlags.IsKnownBool(" On "));
+            Check("IsKnownBool accepts yes", EnvFlags.IsKnownBool("yes"));
+            Check("IsKnownBool accepts off", EnvFlags.IsKnownBool("OFF"));
+            Check("IsKnownBool rejects unknown text", !EnvFlags.IsKnownBool("ture"));
+
+            Env(flag, "1");
+            string cleanLog = CaptureStderr(delegate { EnvFlags.VarIsSetOn(flag); });
+            Check("documented token warns nothing", cleanLog.Length == 0);
+            Env(flag, "ture");
+            string typoLog = CaptureStderr(delegate { EnvFlags.VarIsSetOn(flag); });
+            Check("misspelled token warns with the name and value",
+                typoLog.Contains(flag) && typoLog.Contains("ture"));
+            Check("misspelled token still reads as on", EnvFlags.VarIsSetOn(flag));
+            Check("opt-out shape warns on the same typo",
+                CountOccurrences(CaptureStderr(delegate { EnvFlags.VarIsOptOut(flag); }),
+                    flag) == 1);
+
+            // A value with a newline must not forge a second log line.
+            Env(flag, "ture\nFAKE-MARKER");
+            string forgedLog = CaptureStderr(delegate { EnvFlags.VarIsSetOn(flag); });
+            Check("warned value is flattened to one line",
+                forgedLog.IndexOf("\nFAKE", StringComparison.Ordinal) < 0);
+
+            Env(flag, null);
+
             return Done();
         }
 

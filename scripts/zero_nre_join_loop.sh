@@ -27,6 +27,8 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/proton_paths.sh"
+# Shared value checks (is_tcp_port): see scripts/config_validate.sh.
+source "$ROOT/scripts/config_validate.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 # Bound accumulation: zero_nre creates per-attempt logs that would grow without
@@ -141,9 +143,9 @@ fi
 log "start max_attempts=$MAX_ATTEMPTS"
 
 # Validate before start_zdtd: a bad value would abort after the server is up.
-# PORT lands in --port argv and an ERE ("::${PORT}\b"), so it gets the same
-# numeric guard as TIMEOUT_SEC/MAX_ATTEMPTS here.
-if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+# PORT lands in --port argv and an ERE ("::${PORT}\b"), so it must be a real
+# TCP port; TIMEOUT_SEC/MAX_ATTEMPTS get the numeric guard below.
+if ! is_tcp_port "$PORT"; then
   log "WARN: PORT invalid ('$PORT'); using 27025"
   PORT=27025
 fi

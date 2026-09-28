@@ -115,7 +115,7 @@ namespace SdtdConnect
         /// </summary>
         static void ApplyPlayerNameOverride()
         {
-            string requested = Environment.GetEnvironmentVariable(PlayerNameEnv);
+            string requested = EnvFlags.Read(PlayerNameEnv);
             bool fromEnv = !string.IsNullOrWhiteSpace(requested);
             if (!fromEnv)
             {
