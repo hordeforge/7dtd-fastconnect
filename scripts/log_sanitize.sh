@@ -33,21 +33,29 @@ readonly LOG_CONTROL_CHARS=$'\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008\u0
 
 sanitize_log_text() {
 	local text="$1" i c cp hex
+	# Each pass is a whole-value pattern substitution, so the value is walked
+	# once per character in each table: 54 of them for a value that has
+	# nothing to flatten, which is the common case (a sanitized log line is
+	# mostly ordinary text). A presence test first skips the substitution
+	# when the character is absent, and it is the same match the
+	# substitution itself makes, so the two agree in every locale: the guard
+	# never changes what the pass would have written, only whether the walk
+	# is worth doing.
 	for ((i = 0; i < ${#LOG_INVISIBLE_FORMAT_CHARS}; i++)); do
 		c="${LOG_INVISIBLE_FORMAT_CHARS:i:1}"
-		text="${text//"$c"/}"
+		[[ $text == *"$c"* ]] && text="${text//"$c"/}"
 	done
 	for ((i = 0; i < ${#LOG_CONTROL_CHARS}; i++)); do
 		c="${LOG_CONTROL_CHARS:i:1}"
-		text="${text//"$c"/ }"
+		[[ $text == *"$c"* ]] && text="${text//"$c"/ }"
 	done
 	for ((i = 0x80; i <= 0x9f; i++)); do
 		printf -v hex '%04x' "$i"
 		printf -v cp "\\u$hex"
-		text="${text//"$cp"/ }"
+		[[ $text == *"$cp"* ]] && text="${text//"$cp"/ }"
 	done
 	for cp in $'\u2028' $'\u2029'; do
-		text="${text//"$cp"/ }"
+		[[ $text == *"$cp"* ]] && text="${text//"$cp"/ }"
 	done
 	printf '%s' "$text"
 }
