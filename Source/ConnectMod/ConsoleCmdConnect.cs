@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace SdtdConnect
@@ -37,6 +38,15 @@ namespace SdtdConnect
             // TryParse when the grammar changes.
             string raw = ConnectTarget.MergePortArg(
                 _params[0], _params.Count >= 2 ? _params[1] : null);
+
+            // A third token has no place in the grammar (host [port]). Saying so
+            // is the same rule MergePortArg applies to a port the host already
+            // carries: a silently swallowed token lands the join somewhere the
+            // operator did not ask for.
+            if (_params.Count > 2)
+                ConsoleOutput.Out("[7dtd-fastconnect] connect: ignoring extra argument(s) '"
+                    + LogText.EchoForMessage(string.Join(" ", _params.GetRange(2, _params.Count - 2)))
+                    + "'; the command takes host [port]");
 
             if (!ConnectTarget.TryParse(raw, out string host, out int port, out string err))
             {

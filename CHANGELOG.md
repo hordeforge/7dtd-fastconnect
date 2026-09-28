@@ -75,6 +75,29 @@ and enum handling, so a patch bump would claim none of that.
   temp file in the same directory and renamed, the same rule the backup
   already used; a swap that cannot be written leaves the Steam config in
   place and says so.
+- `7DTD_PLAYER_NAME` is honoured in every mode, not only in automation boot
+  mode. It was applied inside the `AutomationMode.Enabled` block, so a client
+  launched without a join target (the Local-platform launch the variable
+  exists for) silently kept the stored `PlayerName` pref. The no-env
+  fallback that stores a generated name stays automation-only, so an
+  ordinary client launch still leaves the stored identity alone.
+- `LogText.SanitizeForLog` flattens U+2028 and U+2029, so the leaf every
+  echoed env value and F1 console echo passes through no longer lets a
+  Unicode line separator split a log line. It is now the same character set
+  as `ConnectTarget.SanitizeForLog` and the shell twin
+  `sanitize_log_text`, which is what R3 in `docs/THREAT_MODEL.md` claims.
+- `PlayerNames.Resolve()` sanitizes the OS account / machine name it stores,
+  the same rule the `7DTD_PLAYER_NAME` path already used. An account name
+  carrying a control or bidi character reached the server and its logs
+  unflattened.
+- A rejected `7DTD_CONNECT` no longer reads as fatal when a later launch
+  source resolves. The warning ends with "auto-join disabled", which is true
+  of the rejected value alone, but the argv scan continues and a valid
+  `-connect=` then joined; one follow-up line names the source that won.
+- The F1 `connect` command names extra tokens it cannot use instead of
+  dropping them. `connect 127.0.0.1 27025 9999` joined 27025 silently, the
+  same shape as the dropped-port-argument warning `MergePortArg` already
+  emits.
 - Client-log evidence copied into the join control log is sanitized and
   prefixed. `one_shot_join.sh` appended the client log's join lines to
   `client-lifecycle-<cycle>.txt` verbatim, and the client log carries

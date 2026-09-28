@@ -47,9 +47,9 @@ namespace SdtdConnect
         }
 
         /// <summary>
-        /// Environment user name, trimmed and length-capped; never empty.
-        /// Falls back to machine name so two clients on different hosts never
-        /// resolve to the same identity (the server rejects duplicates).
+        /// Environment user name, sanitized, trimmed and length-capped; never
+        /// empty. Falls back to machine name so two clients on different hosts
+        /// never resolve to the same identity (the server rejects duplicates).
         /// </summary>
         internal static string Resolve()
         {
@@ -64,7 +64,13 @@ namespace SdtdConnect
                 try { name = Environment.MachineName; } catch (Exception) { }
             }
             if (string.IsNullOrWhiteSpace(name)) name = "player";
-            return Cap(name.Trim());
+            // Normalize, not Cap: the resolved name is stored and reaches the
+            // server, so it gets the same character rule as the env override
+            // (an OS account name carrying a newline or a bidi override would
+            // forge a line in the server's logs exactly as one would here).
+            // An account name that is nothing but such characters normalizes
+            // away, and the "player" fallback covers that.
+            return Normalize(name) ?? "player";
         }
     }
 }

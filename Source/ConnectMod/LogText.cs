@@ -27,7 +27,7 @@ namespace SdtdConnect
         // char.IsControl covers C0, DEL and C1 but not the Unicode line and
         // paragraph separators, which a log reader lays out as a line break
         // even though grep does not: the same forged-marker shape, one layer
-        // down.
+        // down. The shell twin (scripts/log_sanitize.sh) flattens the same set.
         static bool IsLineBreaking(char c)
         {
             return char.IsControl(c) || c == '\u2028' || c == '\u2029';

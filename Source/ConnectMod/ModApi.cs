@@ -51,7 +51,6 @@ namespace SdtdConnect
 
                 try
                 {
-                    ApplyPlayerNameOverride();
                     GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                     GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
                     // EULA gate blocks MainMenu (scroll+accept); force accepted for automation.
@@ -59,8 +58,24 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[7dtd-fastconnect] player name / Discord / EULA prefs set failed: " + ex.Message);
+                    Log.Warning("[7dtd-fastconnect] Discord / EULA prefs set failed: " + ex.Message);
                 }
+            }
+
+            // 7DTD_PLAYER_NAME is an operator ask, not automation plumbing, so
+            // it is honoured in every mode: gating it on automation mode made
+            // the variable silently do nothing for a client launched without a
+            // join target, which is exactly the Local-platform launch README
+            // documents it for. The no-env fallback (store a name the stock
+            // dedi would otherwise reject) stays automation-only, so an
+            // ordinary client launch still leaves the stored pref alone.
+            try
+            {
+                ApplyPlayerNameOverride();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-fastconnect] player name override failed: " + ex.GetType().Name + ": " + ex.Message);
             }
 
             try
@@ -116,10 +131,12 @@ namespace SdtdConnect
         }
 
         /// <summary>
-        /// Picks the value stored in the stock PlayerName pref before auto-join:
+        /// Picks the value stored in the stock PlayerName pref:
         /// 7DTD_PLAYER_NAME when it normalizes to something non-empty, else
-        /// PlayerNames.Resolve(). A pref that already holds a name is left
-        /// alone unless the env asked for a different one. The server still
+        /// (automation only) PlayerNames.Resolve() when the stored pref is
+        /// empty. Outside automation a pref that already holds a name is left
+        /// alone and an unset env writes nothing, so an ordinary client launch
+        /// still leaves the stored identity alone. The server still
         /// authenticates and persists whatever is stored; this only chooses
         /// which identity the client presents.
         /// </summary>
@@ -129,6 +146,7 @@ namespace SdtdConnect
             bool fromEnv = !string.IsNullOrWhiteSpace(requested);
             if (!fromEnv)
             {
+                if (!AutomationMode.Enabled) return;
                 // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline,
                 // so store a non-empty PlayerName even without the env set.
                 // A prefs read that throws (store not loaded yet) carries the

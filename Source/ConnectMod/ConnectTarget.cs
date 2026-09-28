@@ -44,6 +44,22 @@ namespace SdtdConnect
         // steam://run URL chooses -connect= text), and join harnesses grep
         // the client log for fixed markers, so the reported source has to be
         // the line a reader and a grep both agree on.
+        //
+        // The rejection warning ends with "auto-join disabled", which is what a
+        // rejected value means on its own. A rejected env var does not stop the
+        // argv scan, so a later -connect= can still resolve and the same log
+        // then reads as "disabled" right next to a live join. One follow-up
+        // line names the source that won; latched, so the re-reads the boot
+        // probe and the menu open make do not repeat it.
+        static bool _acceptedAfterRejectionLogged;
+
+        static void NoteAcceptedAfterRejection(string source)
+        {
+            if (!_badTargetWarned || _acceptedAfterRejectionLogged) return;
+            _acceptedAfterRejectionLogged = true;
+            Log.Out("[7dtd-fastconnect] auto-join target accepted from " + source
+                + "; the rejected launch-context value above was ignored, not fatal");
+        }
 
         static void WarnIgnoredTarget(string sourceLabel, string raw, string error)
         {
@@ -231,6 +247,7 @@ namespace SdtdConnect
                 if (TryParse(env, out host, out port, out string envError))
                 {
                     source = EnvVar + "=" + LogText.SanitizeForLog(env.Trim());
+                    NoteAcceptedAfterRejection(source);
                     return true;
                 }
                 WarnIgnoredTarget(EnvVar, env.Trim(), envError);
@@ -265,6 +282,7 @@ namespace SdtdConnect
                     source = a.Contains("=")
                         ? LogText.SanitizeForLog(a)
                         : LogText.SanitizeForLog(a) + " " + LogText.SanitizeForLog(val);
+                    NoteAcceptedAfterRejection(source);
                     return true;
                 }
                 // Only the flag name; the value is already in the message.
