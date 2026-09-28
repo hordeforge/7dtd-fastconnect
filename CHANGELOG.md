@@ -36,6 +36,12 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Added
 
+- The F1 `connect` command now reports how the attempt ended. It said only
+  `connecting to <ip:port>`, and a join that never landed was indistinguishable
+  from a slow one until the 30 s window refused the retry with a message
+  naming a connect that was no longer running. A watched request now answers
+  once, `connected to <ip:port>` or the window closing with nothing behind it
+  and what to check next.
 - `docs/PRIVACY.md` maps the personal data the mod touches: the player display
   name (source, the pref it is stored in, the server it reaches, and the fact
   that it never reaches the client log), the synthetic platform id the
@@ -92,6 +98,12 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Changed
 
+- A rejected `connect` target echoed what the console read inside parentheses,
+  which the port reason already used for the offending half, so the line read
+  `port must be a number from 1 to 65535 (got 'notaport') (got
+  '127.0.0.1:notaport')`. The outer echo is now labeled `typed '...'`. A token
+  the grammar has no place for is also logged as a failure rather than a note,
+  matching every other thing a player typed that did not happen.
 - Four copies of one thing became one, with no behaviour change.
   `EnvFlags` spelled the boolean token table twice, once per direction, behind
   four predicates; it now has a single `Parse` over one table, and the opt-in

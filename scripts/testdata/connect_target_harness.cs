@@ -58,8 +58,14 @@
 //                   server under a spelling the operator never typed is a
 //                   failure, not a surprise.
 //
+//   - `console`  : the F1 console commands driven through their real
+//                   Execute() entry point against a recording SdtdConsole:
+//                   what a player is told for no arguments, a rejected
+//                   target, a dropped extra token, a dial that never lands
+//                   and one that does, plus the diag state machine
 // Exit status is nonzero when any assertion fails.
 using System;
+using System.Collections.Generic;
 using System.Text;
 using SdtdConnect;
 
@@ -398,6 +404,130 @@ static class TestMain
         return Done();
     }
 
+    // The F1 console is the only interactive UI this mod has, so it is driven
+    // through the real Execute() entry point and read back from a recording
+    // SdtdConsole: these are the exact lines a player sees.
+    static List<string> RunF1(ConsoleCmdAbstract cmd, params string[] args)
+    {
+        var console = new SdtdConsole();
+        SingletonMonoBehaviour<SdtdConsole>.Instance = console;
+        cmd.Execute(new List<string>(args), new CommandSenderInfo());
+        return console.Lines;
+    }
+
+    static bool AnyContains(IEnumerable<string> lines, string needle)
+    {
+        foreach (string line in lines)
+            if (line != null && line.Contains(needle)) return true;
+        return false;
+    }
+
+    static int RunConsole()
+    {
+        var connect = new ConsoleCmdConnect();
+        var diag = new ConsoleCmdDiag();
+
+        // Nothing typed: the grammar comes back instead of a bare complaint.
+        List<string> lines = RunF1(connect);
+        Check("connect with no argument prints the usage",
+            AnyContains(lines, "connect <host> [port]"));
+        Check("connect with no argument names the default port",
+            AnyContains(lines, "27025"));
+        Check("connect with no argument says a second line follows",
+            AnyContains(lines, "once\n  the attempt ends"));
+        Check("connect with no argument dials nothing",
+            SingletonMonoBehaviour<ConnectionManager>.Instance == null);
+
+        // A rejected target names the fix and echoes what the console read,
+        // so a typo needs no second guess about which half was wrong.
+        lines = RunF1(connect, "127.0.0.1:notaport");
+        Check("a rejected port names the accepted range",
+            AnyContains(lines, "port must be a number from 1 to 65535"));
+        Check("a rejected port echoes the value the console read",
+            AnyContains(lines, "notaport"));
+        Check("a rejection does not nest one echo inside another",
+            !AnyContains(lines, ") (got"));
+
+        ResetConnectRequest();
+        var cm = new ConnectionManager();
+        SingletonMonoBehaviour<ConnectionManager>.Instance = cm;
+        GameManager.Instance = new GameManager { bStaticDataLoaded = true };
+        UnityEngine.Time.realtimeSinceStartup = 100f;
+
+        // A token the grammar has no place for is a mistake the player made,
+        // and the join still lands on the host that was typed.
+        lines = RunF1(connect, "127.0.0.1", "27025", "extra");
+        Check("an extra argument is announced as dropped",
+            AnyContains(lines, "ignoring extra argument(s) 'extra'"));
+        Check("an extra argument does not stop the join",
+            cm.ConnectCalls == 1);
+        Check("a dial reports the target it is connecting to",
+            AnyContains(lines, "connecting to 127.0.0.1:27025"));
+
+        // The outcome line: a request the client never saw land is over after
+        // its window, and the player has to be told so. Without the report the
+        // console only ever said the attempt started.
+        UnityEngine.Time.realtimeSinceStartup += ConnectRequestWindowSec + 1f;
+        var failed = new SdtdConsole();
+        SingletonMonoBehaviour<SdtdConsole>.Instance = failed;
+        ConnectTarget.ObserveConnectRequest();
+        Check("a request that never landed reports the failure",
+            AnyContains(failed.Lines, "connect to 127.0.0.1:27025 did not connect within"));
+        Check("a failed request names the next thing to do",
+            AnyContains(failed.Lines, "connect <host> [port]` again"));
+        var quiet = new SdtdConsole();
+        SingletonMonoBehaviour<SdtdConsole>.Instance = quiet;
+        ConnectTarget.ObserveConnectRequest();
+        Check("the failure is reported once, not every frame",
+            quiet.Lines.Count == 0);
+
+        // The retry after that failure must dial, not be refused as a
+        // duplicate of a connect that already ended.
+        lines = RunF1(connect, "127.0.0.1", "27025");
+        Check("a retry after a failed join dials the server", cm.ConnectCalls == 2);
+        Check("a retry after a failed join is not refused as a duplicate",
+            !AnyContains(lines, "already in flight"));
+
+        // A request that lands says so on the console, not only in the log.
+        cm.IsConnected = true;
+        var landed = new SdtdConsole();
+        SingletonMonoBehaviour<SdtdConsole>.Instance = landed;
+        ConnectTarget.ObserveConnectRequest();
+        Check("a landed request is reported on the console",
+            AnyContains(landed.Lines, "connected to 127.0.0.1:27025"));
+        var again = new SdtdConsole();
+        SingletonMonoBehaviour<SdtdConsole>.Instance = again;
+        ConnectTarget.ObserveConnectRequest();
+        Check("the outcome is reported once, not every frame",
+            again.Lines.Count == 0);
+        cm.IsConnected = false;
+
+        // diag: every state a player can reach, and a typo that must not read
+        // as a status query.
+        lines = RunF1(diag, "on");
+        Check("diag on enables", AnyContains(lines, "diag ON"));
+        lines = RunF1(diag);
+        Check("diag with no argument shows the state", AnyContains(lines, "diag ON"));
+        Check("diag with no argument also shows the usage",
+            AnyContains(lines, "diag [on|off|toggle|status]"));
+        lines = RunF1(diag, "bogus");
+        Check("an unknown diag argument names the word it read",
+            AnyContains(lines, "unknown argument 'bogus'"));
+        Check("an unknown diag argument lists the accepted words",
+            AnyContains(lines, "on, off, toggle or status"));
+        Check("an unknown diag argument still shows the state",
+            AnyContains(lines, "diag ON"));
+        lines = RunF1(diag, "off");
+        Check("diag off disables", AnyContains(lines, "diag OFF"));
+        lines = RunF1(diag, "toggle");
+        Check("diag toggle flips", AnyContains(lines, "diag ON (toggled)"));
+        lines = RunF1(diag, "STATUS");
+        Check("diag status is case-insensitive", AnyContains(lines, "diag ON"));
+
+        ResetConnectRequest();
+        return Done();
+    }
+
     static int Run()
     {
         string[] a = Environment.GetCommandLineArgs();
@@ -406,6 +536,11 @@ static class TestMain
         if (mode == "connectrequest")
         {
             return RunConnectRequest();
+        }
+
+        if (mode == "console")
+        {
+            return RunConsole();
         }
 
         if (mode == "connectready")
