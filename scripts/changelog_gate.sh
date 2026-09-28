@@ -14,14 +14,47 @@
 # Usage: changelog_gate.sh <version> [changelog]   (version with or without v)
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-}"
-CHANGELOG="${2:-$ROOT/CHANGELOG.md}"
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+	cat <<'EOF'
+Usage: changelog_gate.sh <version> [changelog]
 
-if [[ -z "$VERSION" ]]; then
-    echo "usage: changelog_gate.sh <version> [changelog]" >&2
-    exit 2
+Check that CHANGELOG.md carries real notes for the version being tagged and
+that the compare links at the foot of the file name it. The release gate
+(.github/workflows/release.yml) runs this on the tag.
+
+  changelog_gate.sh 0.13.0            this tree's CHANGELOG.md
+  changelog_gate.sh v0.13.0 notes.md   a named changelog file
+
+Exit status: 0 the version has notes and links | 1 the changelog is missing
+             or does not carry them | 2 usage error.
+
+Arguments:
+  <version>   the tag being cut, with or without a leading v (required)
+  [changelog] the changelog to check (default: this repo's CHANGELOG.md)
+EOF
+	exit 0
 fi
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Exact argc, not a lower bound: this gate's second argument already selects a
+# whole file, so a third word (a mistyped flag, a pasted command line) is a
+# dropped word the caller never sees. It is also why --help is answered above:
+# as a version it only ever reported "no `## [--help]` section".
+if (( $# < 1 || $# > 2 )); then
+	echo "usage: ${0##*/} <version> [changelog] (got $# argument(s))" >&2
+	exit 2
+fi
+
+VERSION="$1"
+# An empty argument is a usage error, not a version named "": the checks below
+# would otherwise report a changelog with no `## []` section, which reads as a
+# broken changelog rather than a blank argument.
+if [[ -z "$VERSION" ]]; then
+	echo "usage: ${0##*/} <version> [changelog] (version must not be empty)" >&2
+	exit 2
+fi
+CHANGELOG="${2:-$ROOT/CHANGELOG.md}"
 VERSION="${VERSION#v}"
 if [[ ! -f "$CHANGELOG" ]]; then
     echo "ERROR: no changelog at $CHANGELOG" >&2

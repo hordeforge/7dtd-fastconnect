@@ -19,7 +19,7 @@ run_help() {
 for script in launch_client.sh one_shot_join.sh zero_nre_join_loop.sh \
 	restart_pair.sh mute_client_audio.sh unmute_client_audio.sh \
 	repro_zip.sh package.sh stage_mod.sh assert_tool_pin.sh check_prereqs.sh \
-	check_game_root.sh; do
+	check_game_root.sh changelog_gate.sh; do
 	assert "$script --help exits 0" run_help "$ROOT/scripts/$script" --help
 	assert "$script -h exits 0" run_help "$ROOT/scripts/$script" -h
 	help_out="$("$ROOT/scripts/$script" --help 2>/dev/null)"
@@ -109,6 +109,22 @@ for script in package.sh one_shot_join.sh zero_nre_join_loop.sh \
 done
 assert "mute_client_audio.sh rejects a second argument" \
 	usage_rc "$ROOT/scripts/mute_client_audio.sh" 30 60
+
+# The two entry points that take positional arguments are exact-argc too: a
+# third word is dropped silently otherwise, and for changelog_gate.sh --help
+# read as a version name, so the run only ever reported the changelog had no
+# `## [--help]` section.
+assert "changelog_gate.sh no argument exits 2" \
+	usage_rc "$ROOT/scripts/changelog_gate.sh"
+assert "changelog_gate.sh third argument exits 2" \
+	usage_rc "$ROOT/scripts/changelog_gate.sh" 0.13.0 CHANGELOG.md --verison
+assert "changelog_gate.sh names the argument count it got" \
+	grep -q 'got 3 argument' <(usage_err "$ROOT/scripts/changelog_gate.sh" \
+		0.13.0 CHANGELOG.md --verison)
+assert "check_game_root.sh third argument exits 2" \
+	usage_rc "$ROOT/scripts/check_game_root.sh" /nowhere /nowhere --verison
+assert "check_game_root.sh still takes its two arguments" \
+	grep -q '^Usage: check_game_root.sh' <("$ROOT/scripts/check_game_root.sh" --help)
 
 # coverage_badge.py is the only Python entry point; it answers help the same way.
 assert "coverage_badge.py --help exits 0" run_help uv run --locked --group dev \

@@ -39,6 +39,15 @@ usage() {
 		'  GAME  the game install, the same override `make build GAME=` takes'
 }
 
+# Exact argc, like every other entry point here: a third word (a mistyped flag,
+# a pasted command line) is a usage error rather than a silently dropped path
+# that would leave the check reporting on an install nobody named.
+if (( $# > 2 )); then
+	echo "check_game_root.sh: takes at most 2 arguments; got $#" >&2
+	usage >&2
+	exit 2
+fi
+
 case "${1-}" in
 -h | --help)
 	usage
