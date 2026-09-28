@@ -23,6 +23,10 @@ harness_sources() {
 		"$root/Source/ConnectMod/AutomationMode.cs" \
 		"$root/Source/ConnectMod/BootUnblock.cs" \
 		"$root/Source/ConnectMod/ProbeFailure.cs" \
+		"$root/Source/ConnectMod/DiagToggle.cs" \
+		"$root/Source/ConnectMod/ConsoleOutput.cs" \
+		"$root/Source/ConnectMod/ConsoleCmdConnect.cs" \
+		"$root/Source/ConnectMod/ConsoleCmdDiag.cs" \
 		"$root/scripts/testdata/connect_target_stubs.cs" \
 		"$root/scripts/testdata/connect_target_harness.cs"
 }

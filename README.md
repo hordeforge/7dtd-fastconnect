@@ -165,6 +165,14 @@ A rejected target echoes the argument the console read and names the fix
 (`port must be a number from 1 to 65535`, `missing host; expected host[:port]`),
 so a typo needs no second guess about which half of the input was wrong.
 
+An attempt started at the console is answered once the outcome is known, so
+the console never leaves a join half-reported:
+
+```text
+[7dtd-fastconnect] connected to 127.0.0.1:27025
+[7dtd-fastconnect] connect to 127.0.0.1:27025 did not connect within 30s; check the server is listening on that address, then run `connect <host> [port]` again
+```
+
 One connect attempt runs at a time: a second request while the first is still
 dialling is refused with `a connect to <ip:port> is already in flight`, so the
 auto-join and a typed command cannot start two attempts at once. The refusal

@@ -9,7 +9,7 @@ namespace SdtdConnect
         public override string[] getCommands() => new[] { "connect", "7dtdconnect", "joinip" };
 
         public override string getDescription() =>
-            "Connect to a server by IP (same as Connect to IP UI). Default port 27025.";
+            "Connect to a server by IP (same as Connect to IP UI). Default port 27025. Aliases: 7dtdconnect, joinip.";
 
         public override string getHelp() =>
             "connect <host> [port]\n" +
@@ -17,6 +17,8 @@ namespace SdtdConnect
             "    connect 127.0.0.1\n" +
             "    connect 127.0.0.1 27025\n" +
             "    connect 127.0.0.1:27025\n" +
+            "  The reply names the target it dialled; a second line follows once\n" +
+            "  the attempt ends (connected, or the window closing with no session).\n" +
             "  Env auto-join: 7DTD_CONNECT=127.0.0.1:27025\n" +
             "  Launch arg: -connect=127.0.0.1:27025\n" +
             "  Note: C# client mods require EAC off (-noeac).";
@@ -44,16 +46,19 @@ namespace SdtdConnect
             // carries: a silently swallowed token lands the join somewhere the
             // operator did not ask for.
             if (_params.Count > 2)
-                ConsoleOutput.Out("[7dtd-fastconnect] connect: ignoring extra argument(s) '"
+                ConsoleOutput.Fail("[7dtd-fastconnect] connect: ignoring extra argument(s) '"
                     + LogText.EchoForMessage(string.Join(" ", _params.GetRange(2, _params.Count - 2)))
                     + "'; the command takes host [port]");
 
             if (!ConnectTarget.TryParse(raw, out string host, out int port, out string err))
             {
                 // Echo what was typed: the reason names the part that is
-                // wrong, the echo says which part the console read.
+                // wrong, the echo says which part the console read. The echo
+                // is labeled rather than parenthesized because a reason that
+                // already quotes the offending half ("got '27025x'") would
+                // otherwise read as two echoes of one message.
                 ConsoleOutput.Fail("[7dtd-fastconnect] connect failed: " + err
-                    + " (got '" + LogText.EchoForMessage(raw) + "')");
+                    + " [typed '" + LogText.EchoForMessage(raw) + "']");
                 return;
             }
 
@@ -62,7 +67,13 @@ namespace SdtdConnect
             // so one log records a connect the same way from either entry
             // point.
             if (ConnectTarget.TryConnect(host, port, out string msg))
+            {
+                // The outcome line: the console is the only place a person
+                // waits for an answer, and TryConnect's own message only says
+                // the attempt started.
+                ConnectTarget.WatchConsoleRequest(host + ":" + port);
                 ConsoleOutput.Out("[7dtd-fastconnect] " + msg);
+            }
             else
                 ConsoleOutput.Fail("[7dtd-fastconnect] connect failed: " + msg);
         }

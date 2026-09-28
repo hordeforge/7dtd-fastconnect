@@ -19,7 +19,10 @@ namespace SdtdConnect
             // Ahead of the diag gate and never logged: a connect request that
             // landed has to be observed while the session is live, or the
             // request latch only clears when its own 30 s window expires.
-            ConnectTarget.NoteConnectedIfSessionLive();
+            // The same call answers a request typed at the F1 console, so the
+            // player who typed it is told how it ended without reopening the
+            // console.
+            ConnectTarget.ObserveConnectRequest();
 
             if (!DiagToggle.Enabled) return;
             if (Time.realtimeSinceStartup < _nextLog) return;

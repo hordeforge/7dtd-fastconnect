@@ -399,6 +399,16 @@ namespace SdtdConnect
         // NoteConnected, however long the handshake took.
         const float ConnectRequestWindowSec = 30f;
 
+        // The request a person typed at the F1 console, pending an outcome
+        // line. The auto-join path reports to the log, which a harness run is
+        // scored from; the console is where someone waits for a reply, and
+        // "connecting to <ip:port>" alone leaves a join that never landed
+        // indistinguishable from a slow one, until the window refuses the
+        // retry with a message naming a connect that is no longer running.
+        // Armed by the console command for a request that dialled; one report
+        // answers one typed request.
+        static string _consoleRequestTarget;
+
         /// <summary>
         /// Records that a request this mod made reached the server.
         /// </summary>
@@ -409,12 +419,13 @@ namespace SdtdConnect
 
         /// <summary>
         /// Turns a request from in-flight into connected when the client is in
-        /// a live session. The join gate stops polling the moment it fires a
-        /// request, so it cannot be the only observer: the frame hook that
-        /// runs for the whole session is, and without it the refusal only
+        /// a live session, then reports the outcome of a request the player
+        /// typed at the F1 console. The join gate stops polling the moment it
+        /// fires a request, so it cannot be the only observer: the frame hook
+        /// that runs for the whole session is, and without it the refusal only
         /// lifts when the 30 s window expires, long after the join landed.
         /// </summary>
-        internal static void NoteConnectedIfSessionLive()
+        internal static void ObserveConnectRequest()
         {
             try
             {
@@ -427,6 +438,55 @@ namespace SdtdConnect
                 // latch carries its own window, so a miss here costs at most
                 // that window.
             }
+            ExpireStaleRequest();
+            ReportConsoleRequestOutcome();
+        }
+
+        /// <summary>
+        /// Releases a request the client never reported back once its window
+        /// closes: the attempt is over as far as this client can tell, so a
+        /// retry must not be refused as its duplicate. The frame observer and
+        /// the next request both go through this, so they cannot disagree
+        /// about when it happened.
+        /// </summary>
+        static void ExpireStaleRequest()
+        {
+            if (_request != ConnectRequest.InFlight) return;
+            if (UnityEngine.Time.realtimeSinceStartup - _requestStartedAt < ConnectRequestWindowSec) return;
+            _request = ConnectRequest.Idle;
+        }
+
+        /// <summary>
+        /// Arms the console outcome line for a request that dialled. Only the
+        /// F1 command calls this: a request refused before dialling has an
+        /// outcome already, printed when it was refused.
+        /// </summary>
+        internal static void WatchConsoleRequest(string target)
+        {
+            _consoleRequestTarget = target;
+        }
+
+        /// <summary>
+        /// Answers a watched console request exactly once: connected, or the
+        /// attempt is over with no connection behind it. A request still
+        /// inside its window says nothing, because it is still dialling.
+        /// </summary>
+        internal static void ReportConsoleRequestOutcome()
+        {
+            string target = _consoleRequestTarget;
+            if (target == null) return;
+            if (_request == ConnectRequest.Connected)
+            {
+                _consoleRequestTarget = null;
+                ConsoleOutput.Out("[7dtd-fastconnect] connected to " + target);
+                return;
+            }
+            if (_request == ConnectRequest.InFlight) return;
+
+            _consoleRequestTarget = null;
+            ConsoleOutput.Fail("[7dtd-fastconnect] connect to " + target
+                + " did not connect within " + (int)ConnectRequestWindowSec
+                + "s; check the server is listening on that address, then run `connect <host> [port]` again");
         }
 
         /// <summary>Same path as stock "Connect by IP" UI (GameServerInfo IP + Port → ConnectionManager.Connect).</summary>
@@ -461,18 +521,16 @@ namespace SdtdConnect
                 if (_request == ConnectRequest.Connected)
                     _request = ConnectRequest.Idle;
 
+                // Release first, then report: a player who reads the failure
+                // before retrying finds the retry unblocked, and the refusal
+                // below never names a connect that has already ended.
+                ExpireStaleRequest();
+                ReportConsoleRequestOutcome();
                 if (_request == ConnectRequest.InFlight)
                 {
-                    if (UnityEngine.Time.realtimeSinceStartup - _requestStartedAt < ConnectRequestWindowSec)
-                    {
-                        message = "a connect to " + _requestTarget
-                            + " is already in flight; wait for it to finish";
-                        return false;
-                    }
-                    // Nothing reported back for longer than the window: the
-                    // attempt is over as far as this client can tell, so a
-                    // retry must not be refused as a duplicate.
-                    _request = ConnectRequest.Idle;
+                    message = "a connect to " + _requestTarget
+                        + " is already in flight; wait for it to finish";
+                    return false;
                 }
 
                 if (!ResolveHostIPv4(host, out string ip, out message))

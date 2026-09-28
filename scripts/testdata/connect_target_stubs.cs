@@ -137,3 +137,28 @@ namespace SdtdConnect
             () => throw new NotImplementedException();
     }
 }
+
+// The F1 console surface, in the game's global namespace the way the real
+// types live. Recording rather than throwing is deliberate here: the console
+// commands are the only interactive UI this mod has, and the gate below
+// drives them through their real entry point to assert what a player reads.
+public abstract class ConsoleCmdAbstract
+{
+    public abstract string[] getCommands();
+    public abstract string getDescription();
+    public abstract string getHelp();
+    public abstract void Execute(
+        System.Collections.Generic.List<string> _params, CommandSenderInfo _senderInfo);
+    public virtual bool AllowedInMainMenu => false;
+    public virtual bool IsExecuteOnClient => false;
+}
+
+public class CommandSenderInfo { }
+
+public class SdtdConsole
+{
+    public readonly System.Collections.Generic.List<string> Lines =
+        new System.Collections.Generic.List<string>();
+
+    public void Output(string line) { Lines.Add(line); }
+}
