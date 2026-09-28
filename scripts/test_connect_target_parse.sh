@@ -19,6 +19,9 @@
 #     AutomationMode and force-load-sync), not just source-text greps
 #   - ConnectReady: gate state machine incl. already-connected short-circuit
 #     and warn-once expiry notes
+#   - ConnectTarget.TryConnect: one attempt at a time (a repeat request while
+#     an attempt is dialling is refused before it reaches the client), and the
+#     latch releases for a real retry
 #   - PlayerNames: fallback identity invariants (never empty, trimmed, capped)
 #   - ProbeFailure: announce-once latch, keyed per probe name so one dead
 #     probe cannot mute another
@@ -105,6 +108,7 @@ assert "launch-context env resolution" run_mode launchctx
 assert "log-safe flattening of launch targets" run_mode sanitize
 assert "EnvFlags opt-out/opt-in truthiness table" run_mode envflags
 assert "ConnectReady gate state machine" run_mode connectready
+assert "connect-request latch (one attempt at a time, released for a retry)" run_mode connectrequest
 assert "PlayerNames fallback invariants (never empty, capped, trimmed)" run_mode playernames
 assert "ProbeFailure announce-once latch (per probe name)" run_mode probefailure
 assert "force-load-sync default-on / opt-out / snapshot contract" run_mode forcesync

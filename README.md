@@ -150,6 +150,12 @@ A rejected target echoes the argument the console read and names the fix
 (`port must be a number from 1 to 65535`, `missing host; expected host[:port]`),
 so a typo needs no second guess about which half of the input was wrong.
 
+One connect attempt runs at a time: a second request while the first is still
+dialling is refused with `a connect to <ip:port> is already in flight`, so the
+auto-join and a typed command cannot start two attempts at once. The refusal
+lifts when the join is up, when the client leaves that session, or after 30 s
+without a connection, so a failed join can simply be run again.
+
 ### Auto-join on main menu
 
 **Environment (preferred):**

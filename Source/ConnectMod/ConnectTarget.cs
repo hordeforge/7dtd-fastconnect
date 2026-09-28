@@ -358,6 +358,37 @@ namespace SdtdConnect
             }
         }
 
+        // One connect attempt at a time per process. ConnectionManager.Connect
+        // hands the target to LiteNetLib and returns; IsConnected reports the
+        // outcome only after the handshake, so every other check in TryConnect
+        // still passes while an attempt is running and a second request starts a
+        // second attempt against a server the first one is still dialling. Two
+        // callers reach TryConnect in one menu: the auto-join coroutine, and
+        // the F1 command, which a double keypress or a pasted repeat repeats.
+        enum ConnectRequest { Idle, InFlight, Connected }
+
+        static ConnectRequest _request = ConnectRequest.Idle;
+        static float _requestStartedAt;
+        static string _requestTarget;
+
+        // How long a request the client never reports a connection holds the
+        // latch. A local or dev-server attempt completes, or gives up, well
+        // inside this; the window only releases a request whose outcome the mod
+        // never saw, so a failed join can be retried instead of wedged. It is
+        // not a budget for a slow join: a request that lands is released by
+        // NoteConnected, however long the handshake took.
+        const float ConnectRequestWindowSec = 30f;
+
+        /// <summary>
+        /// Records that a request this mod made reached the server. The join
+        /// gate is the one place that polls the connection state, so it is what
+        /// turns a request from in-flight into connected.
+        /// </summary>
+        internal static void NoteConnected()
+        {
+            if (_request == ConnectRequest.InFlight) _request = ConnectRequest.Connected;
+        }
+
         /// <summary>Same path as stock "Connect by IP" UI (GameServerInfo IP + Port → ConnectionManager.Connect).</summary>
         public static bool TryConnect(string host, int port, out string message)
         {
@@ -375,6 +406,26 @@ namespace SdtdConnect
                 {
                     message = "already connected; disconnect first";
                     return false;
+                }
+
+                // A request that was seen to reach the server is not in flight
+                // any more, and the client is off that session now (the check
+                // above), so this is a new join rather than a repeat of it.
+                if (_request == ConnectRequest.Connected)
+                    _request = ConnectRequest.Idle;
+
+                if (_request == ConnectRequest.InFlight)
+                {
+                    if (UnityEngine.Time.unscaledTime - _requestStartedAt < ConnectRequestWindowSec)
+                    {
+                        message = "a connect to " + _requestTarget
+                            + " is already in flight; wait for it to finish";
+                        return false;
+                    }
+                    // Nothing reported back for longer than the window: the
+                    // attempt is over as far as this client can tell, so a
+                    // retry must not be refused as a duplicate.
+                    _request = ConnectRequest.Idle;
                 }
 
                 if (!ResolveHostIPv4(host, out string ip, out message))
@@ -416,6 +467,12 @@ namespace SdtdConnect
                 Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={LogText.SanitizeForLog(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
+                // Armed only once the attempt is under way: a Connect that
+                // threw never dialled anything, so it must not refuse the retry
+                // that follows it.
+                _request = ConnectRequest.InFlight;
+                _requestStartedAt = UnityEngine.Time.unscaledTime;
+                _requestTarget = ip + ":" + port;
                 message = $"connecting to {ip}:{port}";
                 return true;
             }

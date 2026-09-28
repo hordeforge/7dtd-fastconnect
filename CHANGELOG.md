@@ -167,6 +167,16 @@ and enum handling, so a patch bump would claim none of that.
   heading was reached, so a single-section changelog was never checked for
   content at all, and the newest-section error now distinguishes a changelog
   that runs ahead of the tag from one with no notes for it.
+- A second connect request while the first is still dialling is refused
+  instead of dialling again. `ConnectionManager.Connect` hands the target to
+  LiteNetLib and returns, and `IsConnected` reports the outcome only after
+  the handshake, so the auto-join coroutine landing on the same menu the
+  F1 `connect` command was typed into (or that command typed twice) started a
+  second attempt at a server the first one was still dialling. The latch is
+  released for a real retry: when the join gate observes the live connection,
+  when the client leaves that session, and when an attempt that never
+  reported back outlives a 30 s window, so a failed join can be re-run. Gate:
+  the `connectrequest` mode of `scripts/test_connect_target_parse.sh`.
 - `make install` and `make uninstall` refuse an empty or root-level
   `MODS_DIR`. Either value collapses `INSTALL_DIR` to a top-level path
   that `uninstall` deletes recursively; the guard fails before anything

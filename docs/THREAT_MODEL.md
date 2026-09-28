@@ -84,8 +84,8 @@ Every entry point reads data from outside the process boundary:
 | Hardcoded process args added by the launcher | scripts/launch_client.sh:83 (`-skipintro -SkipNewsScreen=true -disablenativeinput`) | Not operator input, but they change what the client loads; `-disablenativeinput` was added for Proton boot stability, not for a security control |
 | Client log file written by the game process | parsed by scripts/log_markers.sh:60-104 from one_shot_join.sh:325-365, copied at one_shot_join.sh:380, rescanned by zero_nre_join_loop.sh:210,216-221 | Process-to-harness boundary; content is semi-trusted |
 | Server-influenced client-log lines copied into the harness control log | scripts/join_evidence.sh:29-39 (`write_join_evidence`), called from one_shot_join.sh:391 | The server chooses the text: names, world strings and errors reach the client log verbatim, and the control log is the file the harnesses grep for markers |
-| Outbound network connect | ConnectTarget.cs:339-409 (`ConnectionManager.Connect` at :395) after DNS resolution :281-336 | The only network traffic this repo initiates |
-| Engine load pipeline (Local host) | Source/ConnectMod/LocalHostWorldLoadPatches.cs:368-383 patches `World.LoadWorld`, `GameManager.createWorld`, `GameManager.StartAsServer` | No external input; the wrapping coroutines read engine internals by reflection (:310-346) and change global load settings (:72-84,280-308) |
+| Outbound network connect | ConnectTarget.cs:388-482 (`ConnectionManager.Connect` at :464) after DNS resolution :299-354 | The only network traffic this repo initiates |
+| Engine load pipeline (Local host) | Source/ConnectMod/LocalHostWorldLoadPatches.cs:414-430 patches `World.LoadWorld`, `GameManager.createWorld`, `GameManager.StartAsServer` | No external input; the wrapping coroutines read engine internals by reflection (:365-392) and change global load settings (:72-84,344-363) |
 
 Deployment surface: GitHub Actions workflows run `make test` / coverage /
 tag-gating with least privilege and SHA-pinned actions
@@ -152,12 +152,12 @@ no setuid, no elevated installer (`make install` copies files into the game's
   crafted control characters forge log lines and harness markers (R3).
 - *Repudiation*: weak. Launch echoes do record source labels ("auto-join from
   7DTD_CONNECT=...", ModApi.cs:204; "Connect by IP ... (requested host=...)",
-  ConnectTarget.cs:393), so the origin of a join is visible in the log.
+  ConnectTarget.cs:462), so the origin of a join is visible in the log.
 - *Information disclosure*: the join handshake reveals player identity to
   whichever host the target names. Nothing else leaves the process: the mod
   writes no files and opens no listener.
-- *DoS*: hostname resolution is bounded at 5 s (ConnectTarget.cs:291-303) and
-  the auto-join ready-wait at 45 s monotonic (ModApi.cs:234-246); a wedged
+- *DoS*: hostname resolution is bounded at 5 s (ConnectTarget.cs:306-316) and
+  the auto-join ready-wait at 45 s monotonic (ModApi.cs:236-246); a wedged
   resolver cannot freeze the menu thread indefinitely.
 - *Elevation of privilege*: none available; the mod runs entirely inside the
   game process with no additional authority.
@@ -228,10 +228,10 @@ no setuid, no elevated installer (`make install` copies files into the game's
 
 | Control | Covers | Location |
 |---|---|---|
-| Control-character flattening of echoed env/argv (log-forging defense) | R3 | C#: LogText.SanitizeForLog (LogText.cs:65-79), the single implementation of the character rule (LogText.cs:18-40); every launch-context value ConnectTarget echoes goes through it (ConnectTarget.cs:68-69,98,159-160,249,283-284,315,321,350,411,422), as do EnvFlags.cs:63, the console echo path (ConsoleCmdConnect.cs:48,56) and PlayerNames.cs:34. It covers the invisible-format characters and the U+2028/U+2029 separators a log reader lays out as a line break. Shell twin `sanitize_log_text` (scripts/log_sanitize.sh:27-42) flattens the same C1 and separator set and drops the same format characters; used at launch_client.sh:145,389,411 and one_shot_join.sh:259,317. Pinned by scripts/test_log_sanitize.sh, fuzzed over a seeded generator in scripts/test_log_sanitize_fuzz.sh, and behavioral tests in scripts/test_connect_target_parse.sh |
-| Port range validation 1..65535 | malformed targets falling back to default port | ConnectTarget.cs:15-16,134-137. Shell twin `is_tcp_port` (scripts/config_validate.sh:66-75), read by one_shot_join.sh:82, zero_nre_join_loop.sh:191 and restart_pair.sh:49; `is_bounded_uint` (scripts/config_validate.sh:42-58) in the same file covers the seconds and attempt knobs, which reach `$(( ))` and `sleep(1)`. Both are fuzzed against the rule they state in scripts/test_config_validate.sh |
+| Control-character flattening of echoed env/argv (log-forging defense) | R3 | C#: LogText.SanitizeForLog (LogText.cs:65-79), the single implementation of the character rule (LogText.cs:18-40); every launch-context value ConnectTarget echoes goes through it (ConnectTarget.cs:68-69,98,159-160,249,283-284,315,321,350,462,479), as do EnvFlags.cs:63, the console echo path (ConsoleCmdConnect.cs:48,56) and PlayerNames.cs:34. It covers the invisible-format characters and the U+2028/U+2029 separators a log reader lays out as a line break. Shell twin `sanitize_log_text` (scripts/log_sanitize.sh:27-42) flattens the same C1 and separator set and drops the same format characters; used at launch_client.sh:145,389,411 and one_shot_join.sh:259,317. Pinned by scripts/test_log_sanitize.sh, fuzzed over a seeded generator in scripts/test_log_sanitize_fuzz.sh, and behavioral tests in scripts/test_connect_target_parse.sh |
+| Port range validation 1..65535 | malformed targets falling back to default port | ConnectTarget.cs:15-16,134-137. Shell twin `is_tcp_port` (scripts/config_validate.sh:66-75), read by one_shot_join.sh:82, zero_nre_join_loop.sh:200 and restart_pair.sh:49; `is_bounded_uint` (scripts/config_validate.sh:42-58) in the same file covers the seconds and attempt knobs, which reach `$(( ))` and `sleep(1)`. Both are fuzzed against the rule they state in scripts/test_config_validate.sh |
 | Grammar normalization (scheme strip, bracketed IPv6, dangling colons) shared by console/env/argv paths | parser drift between entry points | ConnectTarget.cs:125-131,163-193,209-282; console reuses it (ConsoleCmdConnect.cs:36-41) |
-| DNS timeout bound (5 s) | menu-thread freeze via wedged resolver | ConnectTarget.cs:347-399 |
+| DNS timeout bound (5 s) | menu-thread freeze via wedged resolver | ConnectTarget.cs:299-354 |
 | Connect-ready gate capped at 45 s monotonic | unbounded wait on a never-settling platform login | ModApi.cs:230-269; Source/ConnectMod/ConnectReady.cs |
 | Automation gating of identity/auth Harmony patches | limits R1 to automation launches | `[AutomationPatch]` attribute (AutomationMode.cs:5-8) skipped unless enabled (ModApi.cs:70-72); gate auto-on only with a launch target or explicit env (AutomationMode.cs:17-24) |
 | Local-host load patches scoped to non-automation Local sessions | R1-style identity/auth changes must not reach ordinary host play; the load wrapper is the one engine change that does (boundary 6) | LocalHostWorldLoadPatches.cs:51-53 |

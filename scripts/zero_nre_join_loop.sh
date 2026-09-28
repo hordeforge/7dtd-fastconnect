@@ -192,6 +192,15 @@ count_nre_after_join() {
 }
 
 : >"$SCRATCH/zero_nre_loop.log"
+# The per-attempt client-log copies are the evidence every verdict below is
+# read from, and the fallback that fills a missing one writes to the same path
+# one_shot_join.sh writes. A copy left behind by an earlier run of this loop
+# is therefore indistinguishable from one this run produced, so an attempt
+# whose own copy failed was scored against a previous run's join and could
+# report SUCCESS for a cycle that never happened. Removing them up front makes
+# a rerun start from the same empty set the first run did; a missing copy then
+# means "no evidence", which is what the 9998 below says it means.
+rm -f "$SCRATCH"/stock-join-zn*.log
 # zero_nre_summary.txt appends per attempt across runs, so its mtime never
 # goes stale and the -mtime prune above can never fire on it. Trim to the
 # newest lines once per run instead; per-run growth is a handful of lines.

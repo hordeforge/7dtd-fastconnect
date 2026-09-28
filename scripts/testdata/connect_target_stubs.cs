@@ -7,7 +7,9 @@
 // These types are NOT shipped and NOT referenced by the mod build. Every
 // member that the tested paths must never reach throws
 // NotImplementedException: if a future edit makes an exercised path call into
-// a stub, the tests fail loudly instead of passing against fake behavior.
+// a stub, the tests fail loudly instead of passing against fake behavior. The
+// connect path is exercised deliberately, so GameServerInfo/ConnectionManager
+// record calls instead of throwing (see the connect-request gate).
 using System;
 
 namespace UnityEngine
@@ -66,19 +68,23 @@ namespace SdtdConnect
 
     public class GameServerInfo
     {
-        public void SetValue(GameInfoString k, string v) { throw new NotImplementedException(); }
-        public void SetValue(GameInfoInt k, int v) { throw new NotImplementedException(); }
-        public void SetValue(GameInfoBool k, bool v) { throw new NotImplementedException(); }
+        public int SetValueCalls;
+        public void SetValue(GameInfoString k, string v) { SetValueCalls++; }
+        public void SetValue(GameInfoInt k, int v) { SetValueCalls++; }
+        public void SetValue(GameInfoBool k, bool v) { SetValueCalls++; }
     }
 
     public class ConnectionManager
     {
         // Plain state, not a throwing property: ConnectReady's gate reads it
-        // on every poll. The connect actions below still throw, so no test
-        // can accidentally "join" against stubs.
+        // on every poll. Connect records the call instead of throwing so the
+        // connect-request latch can be exercised (a second request must not
+        // reach the client a second time); every other game action the tested
+        // paths must never reach still throws.
         public bool IsConnected;
-        public GameServerInfo LastGameServerInfo { set { throw new NotImplementedException(); } }
-        public void Connect(GameServerInfo gsi) { throw new NotImplementedException(); }
+        public int ConnectCalls;
+        public GameServerInfo LastGameServerInfo { get; set; }
+        public void Connect(GameServerInfo gsi) { ConnectCalls++; }
     }
 
     public class GameManager

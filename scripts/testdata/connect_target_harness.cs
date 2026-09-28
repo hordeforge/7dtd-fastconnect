@@ -20,6 +20,11 @@
 //                   case (static-readonly detection): unset resolves from the
 //                   launch context, explicit values ride EnvFlags truthiness,
 //                   and an explicit opt-out beats a detected target
+//   - `connectrequest`: ConnectTarget.TryConnect one-attempt-at-a-time latch:
+//                   a repeat request while an attempt is dialling is refused
+//                   before it reaches the client, and the latch releases for a
+//                   real retry (observed connection, left the session, or an
+//                   attempt that never reported back outliving its window)
 //   - `connectready`: ConnectReady.IsReady gate state machine driven by a
 //                   manually advanced monotonic clock: gate chain order,
 //                   bounded cross-user wait measured from FIRST null-id
@@ -291,10 +296,86 @@ static class TestMain
         return Done();
     }
 
+    static readonly System.Reflection.FieldInfo ConnectRequestField =
+        typeof(ConnectTarget).GetField("_request", PrivateStatic);
+
+    // The production window, read from the source so a change to it is a
+    // change to what this gate proves, not a number copied over here.
+    static readonly float ConnectRequestWindowSec = (float)
+        typeof(ConnectTarget).GetField("ConnectRequestWindowSec", PrivateStatic).GetRawConstantValue();
+
+    static void ResetConnectRequest()
+    {
+        ConnectRequestField.SetValue(null, Enum.ToObject(ConnectRequestField.FieldType, 0));
+    }
+
+    // One connect attempt at a time. ConnectionManager.Connect returns before
+    // the handshake, so a second request made in that gap (the auto-join
+    // coroutine landing on the same menu the operator typed the F1 command
+    // into, or that command typed twice) must be refused, not dialled a
+    // second time. The latch has to release again for a real retry: once the
+    // gate observes the live connection, once the client leaves it, and once
+    // an attempt that never reported back outlives the window.
+    static int RunConnectRequest()
+    {
+        ResetConnectRequest();
+        var cm = new ConnectionManager();
+        SingletonMonoBehaviour<ConnectionManager>.Instance = cm;
+        GameManager.Instance = new GameManager();
+        // The gate reads the connection state only past the static-data check,
+        // and a client able to connect is past it.
+        GameManager.Instance.bStaticDataLoaded = true;
+        UnityEngine.Time.unscaledTime = 100f;
+        string msg, reason;
+
+        Check("a first request dials the server",
+            ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == 1);
+        Check("a repeat of the same request is refused before it dials",
+            !ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == 1);
+        Check("the refusal names the request already in flight",
+            msg != null && msg.Contains("127.0.0.1:27025"));
+        // A second target is a second attempt too, and racing a dialling
+        // client is how a join lands on the wrong server.
+        Check("a second, different request is refused as well",
+            !ConnectTarget.TryConnect("10.0.0.5", 27026, out msg) && cm.ConnectCalls == 1);
+
+        // A request that reached the server is released by the gate, the one
+        // poller of the connection state, and the live session is refused for
+        // its own reason.
+        cm.IsConnected = true;
+        Check("the gate releases a request it sees connected",
+            !Ready(out reason) && reason == "already-connected");
+        Check("an established session is refused by name",
+            !ConnectTarget.TryConnect("127.0.0.1", 27025, out msg)
+            && msg == "already connected; disconnect first"
+            && cm.ConnectCalls == 1);
+
+        // Back at the main menu: that session is over, so joining again is a
+        // new join, not the repeat the latch turns away.
+        cm.IsConnected = false;
+        Check("a join after leaving the session is not a duplicate",
+            ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == 2);
+
+        // A request whose outcome the client never saw (server down, kick
+        // before the handshake) is released by the window, or the retry after
+        // a failed join would be refused as a duplicate forever.
+        UnityEngine.Time.unscaledTime += ConnectRequestWindowSec + 1f;
+        Check("a request that never reported back expires into a retry",
+            ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == 3);
+
+        ResetConnectRequest();
+        return Done();
+    }
+
     static int Run()
     {
         string[] a = Environment.GetCommandLineArgs();
         string mode = a.Length > 1 ? a[1] : "";
+
+        if (mode == "connectrequest")
+        {
+            return RunConnectRequest();
+        }
 
         if (mode == "connectready")
         {
