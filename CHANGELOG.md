@@ -32,6 +32,15 @@ in the affected sections instead of being papered over.
   operator-supplied label) no longer lands in a log that gets pasted into bug
   reports.
 
+### Fixed
+
+- `make package` ships only the mod payload. The zip was built by copying the
+  whole `dist/7dtd-fastconnect` build output, which MSBuild never prunes, so
+  the release archive could carry `7dtd-fastconnect.pdb` and files a build had
+  renamed or dropped. `scripts/stage_mod.sh` now copies the two files
+  `make install` installs and fails if the build did not produce them, so a
+  partial build cannot be zipped under a release name.
+
 ## [0.12.0] - 2026-09-11
 
 ### Fixed

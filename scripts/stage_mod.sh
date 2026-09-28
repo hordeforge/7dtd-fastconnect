@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Copy the shipped mod payload from the build output into a staging tree.
+#
+# Usage: stage_mod.sh <build_dir> <stage_root>
+#
+# <build_dir> is what MSBuild writes (dist/7dtd-fastconnect); <stage_root>
+# is the tree repro_zip.sh zips. The zip must contain the mod folder
+# 7dtd-fastconnect/ at its top level, so files land in
+# <stage_root>/7dtd-fastconnect/.
+#
+# The payload is an explicit list, not a directory copy: MSBuild leaves its
+# whole output tree in place and never prunes what an earlier build wrote, so
+# copying the directory ships the symbol file and any file a build since
+# renamed or dropped. A missing payload file is fatal here, so a failed or
+# partial build cannot be zipped under a release name.
+set -euo pipefail
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+	echo "Usage: stage_mod.sh <build_dir> <stage_root>"
+	cat <<'EOF'
+
+Copy the shipped mod payload (7dtd-fastconnect.dll, ModInfo.xml) from the
+build output into <stage_root>/7dtd-fastconnect/. Exits 1 if the build output
+lacks any of them, so a partial build is never packaged.
+
+Exit status: 0 files staged | 1 setup or payload failure | 2 usage error.
+
+Key env vars: none
+EOF
+	exit 0
+fi
+
+if (( $# != 2 )); then
+	echo "usage: $0 <build_dir> <stage_root> (got $# argument(s))" >&2
+	exit 2
+fi
+BUILD_DIR="$1"
+STAGE_ROOT="$2"
+
+MOD_DIR_NAME=7dtd-fastconnect
+# The mod payload: the assembly the game loads plus the manifest it reads.
+# Keep in sync with `make install`, which installs the same two files.
+PAYLOAD=(7dtd-fastconnect.dll ModInfo.xml)
+
+if [[ ! -d "$BUILD_DIR" ]]; then
+	echo "ERROR: build output '$BUILD_DIR' does not exist; run make build first" >&2
+	exit 1
+fi
+if [[ ! -d "$STAGE_ROOT" ]]; then
+	echo "ERROR: stage root '$STAGE_ROOT' does not exist" >&2
+	exit 1
+fi
+
+for f in "${PAYLOAD[@]}"; do
+	if [[ ! -f "$BUILD_DIR/$f" ]]; then
+		echo "ERROR: '$BUILD_DIR/$f' missing; build did not produce the mod payload" >&2
+		exit 1
+	fi
+done
+
+STAGE="$STAGE_ROOT/$MOD_DIR_NAME"
+mkdir -p "$STAGE"
+for f in "${PAYLOAD[@]}"; do
+	# -p keeps the mode; the zip normalizes timestamps via SOURCE_DATE_EPOCH.
+	cp -p "$BUILD_DIR/$f" "$STAGE/$f"
+done

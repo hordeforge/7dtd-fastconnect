@@ -43,6 +43,7 @@ coverage:
 test:
 	$(ROOT)/scripts/test_connect_target_parse.sh
 	$(ROOT)/scripts/test_repro_zip.sh
+	$(ROOT)/scripts/test_stage_mod.sh
 	$(ROOT)/scripts/test_player_name_override.sh
 	$(ROOT)/scripts/test_force_load_sync_override.sh
 	$(ROOT)/scripts/test_automation_mode.sh

@@ -3,6 +3,8 @@
 #
 # The zip contains the 7dtd-fastconnect/ mod folder at its top level, so
 # unzipping it inside <game>/Mods installs the mod (Mods/7dtd-fastconnect/).
+# It holds the mod payload only (scripts/stage_mod.sh), never the build's
+# symbol file or leftovers from an earlier build.
 #
 # Version: taken from the newest git tag (vX.Y.Z -> X.Y.Z), or overridden
 # with VERSION=x.y.z. Requires a local client install: the build compiles
@@ -74,6 +76,6 @@ OUT="$ROOT/dist/7dtd-fastconnect-$VERSION.zip"
 STAGE="$ROOT/dist/.package-stage-$$"
 mkdir -p "$STAGE"
 trap 'rm -rf "$STAGE"' EXIT INT TERM
-cp -a "$ROOT/dist/7dtd-fastconnect" "$STAGE/"
+"$ROOT/scripts/stage_mod.sh" "$ROOT/dist/7dtd-fastconnect" "$STAGE"
 "$ROOT/scripts/repro_zip.sh" "$STAGE" "$OUT"
 echo "Packaged -> $OUT (epoch $SOURCE_DATE_EPOCH)"
