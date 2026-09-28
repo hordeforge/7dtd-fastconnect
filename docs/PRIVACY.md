@@ -68,10 +68,27 @@ the launcher output, the per-cycle control log and the server log. They are
 pruned to the 20 newest of each kind and dropped after three days
 (`scripts/one_shot_join.sh:59`, `scripts/zero_nre_join_loop.sh:56`). A control
 log also holds up to 80 lines copied from the client log
-(`scripts/join_evidence.sh:27`), which can carry names, world strings and
-errors the server chose. Clear a scratch directory by deleting it; nothing
-outside it is written by these scripts except the stock `platform.cfg` swap
-that `launch_client.sh` restores on exit.
+(`scripts/join_evidence.sh:35`), and the server-log tail the harnesses print
+when the server never listened.
+
+Those copied lines pass through `redact_personal_log_text`
+(`scripts/join_evidence.sh`), which replaces the values the stock log prints
+for a person with `<redacted>`, keeping the label so the line still reads as
+evidence:
+
+| Copied line | Redacted | Kept |
+|---|---|---|
+| `PlayerLogin: <name>` | the display name | the label |
+| `Client IP: <addr>` | the peer address | the label |
+| `PlayerId(<entity>, <id>)` | the platform user id | the entity id |
+| `Player '<name>' died` / `killed by '<name>'` | both names | the verb |
+| `Player <name> disconnected after N minutes` | the name | the verb |
+
+The formats are the stock ones, read out of the shipped `Assembly-CSharp.dll`.
+The redaction covers the control log and the printed server tail, not the
+copies of the raw logs, which stay on the machine that ran the harness. Clear a
+scratch directory by deleting it; nothing outside it is written by these scripts
+except the stock `platform.cfg` swap that `launch_client.sh` restores on exit.
 
 ## Rights a user has here
 
@@ -81,5 +98,6 @@ on the machine that runs it, not requests to an operator:
 - **Access**: the stored name is a pref in the stock client profile.
 - **Rectification**: `7DTD_PLAYER_NAME`, or the stock main-menu field.
 - **Erasure**: clear the pref, delete the scratch directory, delete the client
-  log. Server-side records (player list, saved player data) belong to the
-  server operator and are outside this repo.
+  log. The control log and the printed server tail hold redacted copies only, so
+  deleting the raw logs removes the values; server-side records (player list,
+  saved player data) belong to the server operator and are outside this repo.

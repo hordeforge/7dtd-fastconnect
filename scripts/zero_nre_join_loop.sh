@@ -54,6 +54,10 @@ source "$ROOT/scripts/log_sanitize.sh"
 # script reads a log copy on disk, not the live append-only log the cache
 # serves.
 source "$ROOT/scripts/log_markers.sh"
+# Copying log lines out of a log file, flattened and identity-redacted:
+# see scripts/join_evidence.sh (needs sanitize_log_text from log_sanitize.sh
+# above).
+source "$ROOT/scripts/join_evidence.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 # Bound accumulation: zero_nre creates per-attempt logs that would grow without
@@ -165,7 +169,7 @@ start_zdtd() {
     # still-writing ss.
     if ! kill -0 "$server_pid" 2>/dev/null; then
       log "server pid $server_pid exited before listening on $PORT"
-      tail -30 "$SCRATCH/zdtd-server-zero-nre.log" || true
+      copy_log_tail "$SCRATCH/zdtd-server-zero-nre.log" - 30 server || true
       return 1
     fi
     listeners="$(ss -tln 2>/dev/null || true)"
@@ -176,7 +180,7 @@ start_zdtd() {
     sleep 0.25
   done
   log "server failed to listen"
-  tail -30 "$SCRATCH/zdtd-server-zero-nre.log" || true
+  copy_log_tail "$SCRATCH/zdtd-server-zero-nre.log" - 30 server || true
   return 1
 }
 

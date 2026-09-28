@@ -328,7 +328,10 @@ if [[ "$START_SERVER" == "1" ]]; then
   done
   if ! port_listening; then
     log "server failed to listen on $PORT"
-    tail -40 "$SERVER_LOG_OUT" | tee -a "$LIFE_OUT" || true
+    # Same path as the client evidence: flattened, identity values redacted and
+    # prefixed, so a server-supplied line cannot read as a harness marker and
+    # the control log stays free of the names and addresses the server printed.
+    copy_log_tail "$SERVER_LOG_OUT" "$LIFE_OUT" 40 server
     exit 3
   fi
   # brief settle for LiteNet
