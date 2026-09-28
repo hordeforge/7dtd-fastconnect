@@ -50,6 +50,7 @@ make help     # list every target
 make test     # offline gates (env naming, mute helper, platform swap/restore)
 make gate GATE=scripts/test_<name>.sh   # one gate, for the edit-test loop
 make build    # requires local client install (game Assembly-CSharp)
+make check-game-root   # names the missing install before build/install/package
 make package  # build + zip dist/7dtd-fastconnect-<tag>.zip (needs a client install)
 make install
 env 7DTD_CONNECT=127.0.0.1:27025 ./scripts/launch_client.sh

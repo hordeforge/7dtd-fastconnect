@@ -24,6 +24,8 @@ CI runs `make test` on every push and PR. Packaged builds are attached to
 GitHub releases (`make package` produces `dist/7dtd-fastconnect-<tag>.zip`).
 Release notes and upgrade notes: [CHANGELOG.md](CHANGELOG.md). How to cut one,
 and how to roll one back: [docs/RELEASING.md](docs/RELEASING.md).
+Contributing (setup, the edit-test loop, what a change has to pass):
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 **Versioning:** the project is `0.x`. A minor bump (`0.Y.0`) may change
 behavior, including the launcher and harness CLI and the environment variables
@@ -110,6 +112,12 @@ make help     # list the targets
 make doctor   # the tools `make test` needs, and what is missing here
 make test     # every gate CI runs: the full local verification
 ```
+
+`make build`, `make install`, and `make package` are the only targets that need
+a game install. They check it first (`make check-game-root`) and name the
+missing file, because the build references the game's assemblies by HintPath
+and a HintPath that resolves to nothing surfaces as a CS0246 error per game
+type rather than as a missing install.
 
 One gate at a time, for the edit-test loop. `make gate` takes a shell gate or a
 Python gate; a `.py` gate goes to pytest, never straight to the interpreter, so
@@ -377,7 +385,8 @@ without the server checked out.
 
 Every lifecycle entry point in `scripts/` (`launch_client.sh`, the three join
 harnesses, `mute_client_audio.sh`, `unmute_client_audio.sh`, `repro_zip.sh`,
-`package.sh`, `stage_mod.sh`, `assert_tool_pin.sh`; `scripts/test_cli_help.sh`
+`package.sh`, `stage_mod.sh`, `assert_tool_pin.sh`, `check_game_root.sh`;
+`scripts/test_cli_help.sh`
 enumerates them) follows one contract: `-h` / `--help` prints the usage on
 stdout and exits 0 before touching disk or spawning a process, an argument a
 script cannot accept exits 2 with the usage on stderr, and a setup or runtime

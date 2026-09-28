@@ -28,7 +28,7 @@ ifneq ($(DOTNET_ROOT),)
   export PATH := $(DOTNET_ROOT):$(PATH)
 endif
 
-.PHONY: build install uninstall clean test gate coverage package help dotnet-version check-mods-dir doctor
+.PHONY: build install uninstall clean test gate coverage package help dotnet-version check-mods-dir check-game-root doctor
 
 # The SDK the build actually resolved under the DOTNET_ROOT search above, so
 # the package build record names the compiler instead of whatever dotnet the
@@ -75,6 +75,7 @@ help:
 	@echo "  gate       one gate: make gate GATE=scripts/test_<name>.sh (a .py gate"
 	@echo "             goes to pytest; GATE_ARGS=-k<expr> selects one test)"
 	@echo "  doctor     check the toolchain \`make test\` needs, naming what is missing"
+	@echo "  check-game-root  check the game install build/install/package compile against"
 	@echo "  build      build the mod DLL into dist/ (needs the game install)"
 	@echo "  install    build, then copy into \$$GAME/Mods/7dtd-fastconnect"
 	@echo "  uninstall  remove that installed copy"
@@ -88,7 +89,7 @@ help:
 # Runs dotnet from ROOT so global.json (the SDK pin) is always the one in this
 # tree, and with the C locale and UTC so no host locale or timezone can reach
 # the compiler or the resources it embeds.
-build:
+build: check-game-root
 	cd "$(ROOT)" && LC_ALL=C TZ=UTC dotnet build \
 		"Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
 		-p:RestoreLockedMode=true \
@@ -138,7 +139,8 @@ GATES := \
 	scripts/test_zero_nre_server_stop.sh \
 	scripts/test_make_tool_pin.sh \
 	scripts/test_tool_manifest.sh \
-	scripts/test_prereqs.sh
+	scripts/test_prereqs.sh \
+	scripts/test_game_root_preflight.sh
 
 # The toolchain the gates below need, before any of them runs: a gate that
 # cannot find zip or jq exits 0, so without this the suite reports a green on a
@@ -214,6 +216,15 @@ check-mods-dir:
 		echo "ERROR: INSTALL_DIR '$(INSTALL_DIR)' is not two levels below /; refusing to touch it" >&2; \
 		exit 2; \
 	fi
+
+# The game install is the one requirement `make test` and `make doctor` do not
+# need, so it is checked here rather than in check_prereqs.sh, which has to
+# stay runnable on a machine without the game. A HintPath that resolves to
+# nothing is not a build error: the compile then fails with one CS0246 per
+# game type the mod touches, which reads as broken source rather than as a
+# missing install.
+check-game-root:
+	@"$(ROOT)/scripts/check_game_root.sh" "$(GAME)"
 
 clean:
 	rm -rf "$(ROOT)/dist" "$(ROOT)/Source/ConnectMod/bin" "$(ROOT)/Source/ConnectMod/obj"
