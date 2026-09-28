@@ -28,6 +28,11 @@ and enum handling, so a patch bump would claim none of that.
 - `PORT` outside 1-65535 is a usage error (exit 2) in the three join harnesses,
   where a value the client could never join used to run the harness to a listen
   or join timeout.
+- A port in `7DTD_CONNECT`, `-connect=` or `connect <host> <port>` is read as
+  decimal digits only. `+80`, ` 80`, `1,234` and non-ASCII digits are now the
+  rejection they are in the launcher's `PORT` check, which runs under
+  `LC_ALL=C`; the client's parse was culture-dependent, so a value the harness
+  would have refused was joined.
 
 ### Added
 
@@ -218,6 +223,12 @@ and enum handling, so a patch bump would claim none of that.
   when a later run failed, so a pass and a fail sat side by side with nothing
   to say which run each came from. Both verdict files are cleared at the start
   of a run, pinned by `test_zero_nre_verdict_reset.sh`.
+- An F1 `connect` that reached the server held the one-attempt-at-a-time latch
+  until its 30 s window expired, because only the auto-join poll (which the
+  console command has no counterpart of) reported the outcome. Leaving the
+  session and joining again inside that window was refused as a duplicate.
+  The connect path now records the outcome from the live connection it sees,
+  whoever started the attempt.
 - The console echo (`LogText.EchoForMessage`) cut a pasted value at 40 UTF-16
   code units, so a long paste of emoji or CJK could end in a lone surrogate
   and print as U+FFFD. It now counts code points, like `ConnectTarget`'s
@@ -232,6 +243,12 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Added
 
+- The game build the mod targets is recorded once in `pyproject.toml`
+  (`[tool.fastconnect] game-version`) and `test_version_sync.sh` fails when
+  `ConnectTarget.PlaceholderServerVersion` moves without it. That constant is
+  what the client advertises when its own version string cannot be read, and
+  nothing in the tree recorded it, so a game update left the previous build
+  on the wire.
 - `docs/PRIVACY.md` maps the personal data the mod touches: the player display
   name (source, the pref it is stored in, the server it reaches, and the fact
   that it never reaches the client log), the synthetic platform id the

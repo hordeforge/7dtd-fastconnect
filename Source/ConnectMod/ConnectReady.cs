@@ -74,14 +74,17 @@ namespace SdtdConnect
                 // early boot window, then proceed unauthenticated (stock accepts that
                 // on LiteNet when EAC off).
                 //
-                // This window is measured from process start, not from the first
-                // null-id sighting the way the cross-user wait above is measured.
-                // That asymmetry is deliberate: the native platform is expected to
-                // have its identity from boot, so a gate that first runs late has
-                // already seen the window close and there is nothing left to wait
-                // for. Re-arming per episode would instead add 16 s of blocking to
-                // a Steam-less Proton client, the case this mod mostly runs on,
-                // where the id never arrives at all.
+                // This window is measured from the client's own startup clock
+                // (Time.realtimeSinceStartup, so the reference is when the
+                // player started, not when this gate first ran), not from the
+                // first null-id sighting the way the cross-user wait above is
+                // measured. That asymmetry is deliberate: the native platform
+                // is expected to have its identity from boot, so a gate that
+                // first runs late has already seen the window close and there
+                // is nothing left to wait for. Re-arming per episode would
+                // instead add 16 s of blocking to a Steam-less Proton client,
+                // the case this mod mostly runs on, where the id never
+                // arrives at all.
                 const float nativeUserBootWindowSec = 16f;
                 try
                 {

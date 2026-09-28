@@ -37,6 +37,15 @@ dev = [
 # outrank [tool.*] sections here (first config found wins, no merging), so
 # keeping them out of this file avoids two drifting copies of each setting.
 
+# The game build this mod targets. It is the value the client advertises when
+# its own Constants.cVersionInformation cannot be read
+# (ConnectTarget.PlaceholderServerVersion), which is a wire field nothing else
+# in the tree records, so a game update that moves it without moving this key
+# would leave the client advertising the previous build. test_version_sync.sh
+# fails instead.
+[tool.fastconnect]
+game-version = "V.3.1.4"
+
 [tool.pytest.ini_options]
 testpaths = ["scripts"]
 # tmp_path stages whole fake game trees; the default base is /tmp, which is

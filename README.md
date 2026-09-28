@@ -157,6 +157,9 @@ connect 127.0.0.1:27025
 ```
 
 Aliases: `7dtdconnect`, `joinip`. Default port **27025** (zdtd ServerPort / Connect-to-IP port).
+The port is decimal digits, the same rule the harness `PORT` knob is checked
+against; a sign, a thousands separator or a non-ASCII digit is a rejection, not
+a value.
 
 A rejected target echoes the argument the console read and names the fix
 (`port must be a number from 1 to 65535`, `missing host; expected host[:port]`),
@@ -353,7 +356,7 @@ that hold for all of them:
 
 | Variable | Default | Controls |
 |---|---|---|
-| `7DTD_CONNECT` | unset | Auto-join target `host[:port]` once the main menu opens (same as `-connect=host:port`; port defaults to 27025) |
+| `7DTD_CONNECT` | unset | Auto-join target `host[:port]` once the main menu opens (same as `-connect=host:port`; port is decimal digits in 1-65535 and defaults to 27025) |
 | `7DTD_CONNECT_AUTOMATION` | auto: on when a join target is present | Force automation boot mode on/off explicitly |
 | `7DTD_CONNECT_FORCE_LOAD_SYNC` | on in automation mode | `0` keeps stock async loading while connect features stay active |
 | `7DTD_CONNECT_DEBUG` | off | Verbose `[7dtd-fastconnect]` traces from boot (same as F1 `diag on`) |

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 
@@ -24,7 +25,9 @@ namespace SdtdConnect
         // stale literal would advertise a mismatch against itself. The literal
         // below is therefore the fallback for an unreadable
         // Constants.cVersionInformation, and it has to be updated when the game
-        // version moves: nothing else in the tree records that version.
+        // version moves: the same value is recorded in pyproject.toml
+        // ([tool.fastconnect] game-version) and test_version_sync.sh fails if
+        // the two drift.
         const string PlaceholderGameType = "7DTD";
         const string PlaceholderGameName = "zdtd";
         const string PlaceholderLevelName = "Navezgane";
@@ -84,10 +87,16 @@ namespace SdtdConnect
             return raw;
         }
 
-        // Port-suffix rule shared by both grammar branches.
+        // Port-suffix rule shared by both grammar branches. Decimal digits
+        // only, read in the invariant culture, so the value is the same text
+        // for every client locale: the shell that launches the client
+        // (is_tcp_port, under LC_ALL=C) rejects "+80", " 80" and non-ASCII
+        // digits, and a port only a culture-sensitive parse would accept is a
+        // value the harness that set it could not have set.
         static bool TryParsePort(string text, out int port)
         {
-            return int.TryParse(text, out port) && port >= MinPort && port <= MaxPort;
+            return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out port)
+                && port >= MinPort && port <= MaxPort;
         }
 
         // The rejected port is echoed with the accepted range: "bad port"
@@ -404,6 +413,13 @@ namespace SdtdConnect
 
                 if (cm.IsConnected)
                 {
+                    // A request this mod made reached the server, whoever
+                    // started it: the auto-join poll (ConnectReady) normally
+                    // reports that, but the F1 command has no poll behind it,
+                    // and without this its attempt holds the latch until the
+                    // window expires, so the operator's next join is refused
+                    // as a duplicate of a session they had already left.
+                    NoteConnected();
                     message = "already connected; disconnect first";
                     return false;
                 }

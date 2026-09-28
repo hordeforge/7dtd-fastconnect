@@ -374,6 +374,27 @@ static class TestMain
             ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == 3);
 
         ResetConnectRequest();
+
+        // The F1 command has no connect-ready poll behind it, so the latch has
+        // to release on the operator's own attempt landing too: otherwise the
+        // next join is refused as a duplicate of a session already left, for
+        // as long as the window lasts.
+        cm.IsConnected = false;
+        int f1 = cm.ConnectCalls;
+        Check("an F1 attempt with no gate poller dials the server",
+            ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == f1 + 1);
+        Check("the same F1 attempt is still refused while it dials",
+            !ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == f1 + 1);
+        cm.IsConnected = true;
+        Check("an established session is refused by name with no poller",
+            !ConnectTarget.TryConnect("127.0.0.1", 27025, out msg)
+            && msg == "already connected; disconnect first"
+            && cm.ConnectCalls == f1 + 1);
+        cm.IsConnected = false;
+        Check("the next F1 join is not a duplicate of the session just left",
+            ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == f1 + 2);
+
+        ResetConnectRequest();
         return Done();
     }
 
@@ -442,6 +463,15 @@ static class TestMain
             CheckParse("h:abc", false, null, 0);
             CheckParse("[::1]:0", false, null, 0);
             CheckParse("[::1]:x", false, null, 0);
+            // Digits only, in every locale: a port a culture-sensitive parse
+            // would take is one the shell that launched the client rejects,
+            // so accepting it here joins a port the operator never set.
+            CheckParse("h:+80", false, null, 0);
+            CheckParse("h: 80", false, null, 0);
+            CheckParse("h:٨٠", false, null, 0);
+            CheckParse("h:1,234", false, null, 0);
+            CheckParse("h:0x50", false, null, 0);
+            CheckParse("h:0080", true, "h", 80);
 
             // Rejection text is the console's only feedback: it must say what
             // to type, not just that the input was rejected.
