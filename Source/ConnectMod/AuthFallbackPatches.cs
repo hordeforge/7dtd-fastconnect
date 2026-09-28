@@ -24,7 +24,7 @@ namespace SdtdConnect
             {
                 // Same empty-ticket fallback, but name the cause: a wedged
                 // Steamworks init must not look like plain "no Steam".
-                Log.Warning("[7dtd-fastconnect] steam GetAuthTicket probe failed (" + ex.GetType().Name + " " + ex.Message + "), returning empty ticket");
+                Log.Warning("[7dtd-fastconnect] steam GetAuthTicket probe failed (" + ex.GetType().Name + ": " + ex.Message + "), returning empty ticket");
                 __result = "";
                 return false;
             }
@@ -35,7 +35,7 @@ namespace SdtdConnect
         {
             if (__exception != null)
             {
-                Log.Warning("[7dtd-fastconnect] GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty ticket");
+                Log.Warning("[7dtd-fastconnect] GetAuthTicket Finalizer: " + __exception.GetType().Name + ": " + __exception.Message + " -> empty ticket");
                 __result = "";
                 return null;
             }
@@ -175,7 +175,7 @@ namespace SdtdConnect
                 // platform probe must not look like plain "not logged in",
                 // because both end in the same empty ticket.
                 Log.Warning("[7dtd-fastconnect] EOS auth-ticket login probe failed ("
-                    + ex.GetType().Name + " " + ex.Message + "), returning empty ticket");
+                    + ex.GetType().Name + ": " + ex.Message + "), returning empty ticket");
             }
             __result = "";
             return false;
@@ -184,7 +184,7 @@ namespace SdtdConnect
         {
             if (__exception != null)
             {
-                Log.Warning("[7dtd-fastconnect] EOS GetAuthTicket Finalizer: " + __exception.GetType().Name + " " + __exception.Message + " -> empty");
+                Log.Warning("[7dtd-fastconnect] EOS GetAuthTicket Finalizer: " + __exception.GetType().Name + ": " + __exception.Message + " -> empty");
                 __result = "";
                 return null;
             }

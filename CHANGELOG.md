@@ -54,6 +54,11 @@ in the affected sections instead of being papered over.
   second coverage run in one tree does not depend on the merger overwriting a
   file it already wrote, and a failed merge leaves no stale report for the
   badge to render.
+- A failure inside `ConnectReady.IsReady`'s cross-user or native-user probe,
+  and one inside the per-frame frame uncap, are announced once and then muted
+  instead of once per call. Both sit in loops (the 10 Hz join gate, and
+  `UpdateFPSCap`), so a throwing platform read wrote ten log lines a second
+  into the log the join harnesses grep.
 - `zero_nre_join_loop.sh` stops the server it started by pid and reaps it,
   instead of only sweeping processes named `zdtd`. A server launched through
   the `ZDTD_BIN` override whose binary is not named `zdtd` was invisible to
@@ -81,6 +86,22 @@ in the affected sections instead of being papered over.
   a listen or join timeout; `restart_pair.sh` calls it a usage error (exit 2).
 
 ### Changed
+
+- A rejected target or a failed connect from the F1 console is logged at error
+  severity, matching what the auto-join path already did for the same outcome.
+  The console still shows the message; only the log level changed, so a
+  client-log-only read no longer shows a clean run for a join that never
+  happened.
+- The connect-wait lines carry the seconds the gate held (`t=`) next to the
+  poll count, so a hung join is read from how long it waited rather than how
+  often it polled.
+- Every caught exception logged by the mod names its type next to the message
+  (`NullReferenceException: ...`), so a one-word message can be told apart
+  from a differently-shaped failure at the same call site. The `IsReady` gate
+  reason the join-wait line echoes uses the same shape.
+- The two `IsReady` expiry notes (a platform identity that never arrived, so
+  the join proceeds anyway) are logged at warning severity, since the join
+  they precede is the one that fails authentication.
 
 - The scripts that take no positional arguments (`package.sh`,
   `one_shot_join.sh`, `zero_nre_join_loop.sh`, `unmute_client_audio.sh`, and a

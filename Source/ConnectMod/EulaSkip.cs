@@ -55,7 +55,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] windowEula accept failed (" + logTag + "): " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] windowEula accept failed (" + logTag + "): " + ex.GetType().Name + ": " + ex.Message);
             }
             try
             {
@@ -67,7 +67,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] MainMenuOpened dispatch failed (" + logTag + "): " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] MainMenuOpened dispatch failed (" + logTag + "): " + ex.GetType().Name + ": " + ex.Message);
             }
             _gateHandled = true;
             return false;

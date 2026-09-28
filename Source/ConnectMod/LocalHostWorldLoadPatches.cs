@@ -80,7 +80,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] Local-host load priority raise failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] Local-host load priority raise failed: " + ex.GetType().Name + ": " + ex.Message);
             }
 
             try
@@ -123,7 +123,7 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[7dtd-fastconnect] Local-host load priority restore failed: " + ex.Message);
+                    Log.Warning("[7dtd-fastconnect] Local-host load priority restore failed: " + ex.GetType().Name + ": " + ex.Message);
                 }
             }
             Log.Out("[7dtd-fastconnect] Local-host startup completed");
@@ -148,7 +148,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] Local-host player prefab prewarm failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] Local-host player prefab prewarm failed: " + ex.GetType().Name + ": " + ex.Message);
                 yield break;
             }
 
@@ -278,7 +278,7 @@ namespace SdtdConnect
                 field.SetValue(null, true);
                 _forceSyncHeld = true;
             }
-            catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync hold failed: " + ex.Message); }
+            catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync hold failed: " + ex.GetType().Name + ": " + ex.Message); }
         }
 
         static void ReleaseForceLoadSync()
@@ -292,7 +292,7 @@ namespace SdtdConnect
                 FieldInfo field = BootUnblock.ForceLoadSyncField();
                 if (field != null) field.SetValue(null, _forceSyncPrevious);
             }
-            catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync release failed: " + ex.Message); }
+            catch (Exception ex) { Log.Warning("[7dtd-fastconnect] force-sync release failed: " + ex.GetType().Name + ": " + ex.Message); }
             _forceSyncHeld = false;
         }
 

@@ -11,11 +11,29 @@ namespace SdtdConnect
         /// </summary>
         internal static void Out(string line)
         {
+            Emit(line, logError: false);
+        }
+
+        /// <summary>
+        /// Same echo, logged at error severity. A rejected target or a failed
+        /// connect is a failure whether it was typed at the F1 console or
+        /// driven by the auto-join path, and both callers already separate the
+        /// two outcomes; logging the F1 one at info would leave the log
+        /// claiming a clean run for a join that never happened.
+        /// </summary>
+        internal static void Fail(string line)
+        {
+            Emit(line, logError: true);
+        }
+
+        static void Emit(string line, bool logError)
+        {
             // Console echo is best-effort: Output throws while the F1 console
             // is tearing down.
             try { SingletonMonoBehaviour<SdtdConsole>.Instance?.Output(line); }
             catch (Exception) { }
-            Log.Out(line);
+            if (logError) Log.Error(line);
+            else Log.Out(line);
         }
     }
 }

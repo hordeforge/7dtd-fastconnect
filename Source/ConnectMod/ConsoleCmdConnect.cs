@@ -42,15 +42,19 @@ namespace SdtdConnect
             {
                 // Echo what was typed: the reason names the part that is
                 // wrong, the echo says which part the console read.
-                ConsoleOutput.Out("[7dtd-fastconnect] connect failed: " + err
+                ConsoleOutput.Fail("[7dtd-fastconnect] connect failed: " + err
                     + " (got '" + LogText.EchoForMessage(raw) + "')");
                 return;
             }
 
-            // Success and failure both report `msg` to the console; the
-            // return value adds nothing here.
-            ConnectTarget.TryConnect(host, port, out string msg);
-            ConsoleOutput.Out("[7dtd-fastconnect] " + msg);
+            // Success and failure both report `msg`, at the severity the
+            // auto-join path uses for the same outcome (ModApi.ConnectAndLog),
+            // so one log records a connect the same way from either entry
+            // point.
+            if (ConnectTarget.TryConnect(host, port, out string msg))
+                ConsoleOutput.Out("[7dtd-fastconnect] " + msg);
+            else
+                ConsoleOutput.Fail("[7dtd-fastconnect] connect failed: " + msg);
         }
     }
 }

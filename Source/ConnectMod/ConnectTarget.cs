@@ -395,7 +395,8 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                message = "DNS failed for " + SanitizeForLog(host) + ": " + ex.Message;
+                message = "DNS failed for " + SanitizeForLog(host) + ": "
+                    + ex.GetType().Name + ": " + ex.Message;
                 return false;
             }
         }

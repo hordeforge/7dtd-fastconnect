@@ -67,7 +67,12 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] frame uncap failed (" + reason + "): " + ex.Message);
+                // Every-frame caller: UpdateFPSCap re-applies the cap between
+                // frames, so a throwing property setter would otherwise write
+                // one warning per frame, thousands per second while boot runs
+                // uncapped. The reason keys the latch, so a failure from one
+                // hook cannot mute the same failure from another.
+                ProbeFailure.Once("frame uncap (" + reason + ")", ex);
             }
         }
 
@@ -94,7 +99,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] forceLoadSync set failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] forceLoadSync set failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
     }

@@ -82,13 +82,14 @@ namespace SdtdConnect
                         if (!_nativeProceedLogged)
                         {
                             _nativeProceedLogged = true;
-                            Log.Out("[7dtd-fastconnect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
+                            Log.Warning("[7dtd-fastconnect] note: Native.User.PlatformUserId=null past boot window, proceeding anyway");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log.Out("[7dtd-fastconnect] native-user note: " + ex.Message);
+                    // Same poll-rate contract as the cross-user probe above.
+                    ProbeFailure.Once("native-user probe", ex);
                 }
 
                 if (!PermissionsManager.IsMultiplayerAllowed())
@@ -101,7 +102,11 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                reason = "IsReady ex: " + ex.Message;
+                // The reason is echoed by the caller's throttled wait line, so
+                // this stays one short string; the type name goes in because
+                // the message alone cannot tell a torn-down singleton from a
+                // null reference.
+                reason = "IsReady ex: " + ex.GetType().Name + ": " + ex.Message;
                 return false;
             }
         }
@@ -152,7 +157,8 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Out("[7dtd-fastconnect] cross-user note: " + ex.Message);
+                // Same poll-rate contract as the native-user probe below.
+                ProbeFailure.Once("cross-user probe", ex);
                 return true;
             }
         }

@@ -102,7 +102,21 @@ namespace SdtdConnect
         {
             public static PlatformManager NativePlatform;
             public static PlatformManager CrossplatformPlatform;
-            public IUser User;
+            IUser _user;
+            // Reads the user through a property so a test can make the read
+            // throw the way a torn-down platform does: ConnectReady's
+            // cross/native probes sit in a 10 Hz poll loop, and an unmuted
+            // per-poll exception would write ten log lines a second.
+            public bool ThrowOnUserGet;
+            public IUser User
+            {
+                get
+                {
+                    if (ThrowOnUserGet) throw new InvalidOperationException("platform torn down");
+                    return _user;
+                }
+                set { _user = value; }
+            }
         }
     }
 

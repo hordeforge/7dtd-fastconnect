@@ -33,7 +33,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] intro movie disable failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] intro movie disable failed: " + ex.GetType().Name + ": " + ex.Message);
             }
 
             if (AutomationMode.Enabled)
@@ -82,7 +82,7 @@ namespace SdtdConnect
                     catch (Exception ex)
                     {
                         fail++;
-                        Log.Warning("[7dtd-fastconnect] Harmony skip " + t.Name + ": " + ex.Message);
+                        Log.Warning("[7dtd-fastconnect] Harmony skip " + t.Name + ": " + ex.GetType().Name + ": " + ex.Message);
                     }
                 }
                 Log.Out("[7dtd-fastconnect] Harmony patches applied ok=" + ok + " fail=" + fail
@@ -90,7 +90,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Error("[7dtd-fastconnect] Harmony failed: " + ex.Message);
+                Log.Error("[7dtd-fastconnect] Harmony failed: " + ex.GetType().Name + ": " + ex.Message);
             }
 
             if (AutomationMode.Enabled)
@@ -111,7 +111,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Error("[7dtd-fastconnect] MainMenuOpened register failed: " + ex.Message);
+                Log.Error("[7dtd-fastconnect] MainMenuOpened register failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
 
@@ -168,7 +168,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] player name override failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] player name override failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
 
@@ -217,7 +217,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] SkipSpawnButton set failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] SkipSpawnButton set failed: " + ex.GetType().Name + ": " + ex.Message);
             }
 
             try
@@ -226,7 +226,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] coroutine failed, connecting immediately: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] coroutine failed, connecting immediately: " + ex.GetType().Name + ": " + ex.Message);
                 ConnectAndLog(host, port);
             }
         }
@@ -256,7 +256,8 @@ namespace SdtdConnect
                 if (polls == 0 || UnityEngine.Time.unscaledTime >= nextLog)
                 {
                     nextLog = UnityEngine.Time.unscaledTime + waitLogIntervalSec;
-                    Log.Out("[7dtd-fastconnect] connect wait polls=" + polls + " " + whyNot);
+                    Log.Out("[7dtd-fastconnect] connect wait t="
+                        + ElapsedSec(waitStart) + "s polls=" + polls + " " + whyNot);
                 }
                 polls++;
                 // Fresh waiter per poll: WaitForSecondsRealtime reset semantics
@@ -266,12 +267,27 @@ namespace SdtdConnect
                 ready = ConnectReady.IsReady(out whyNot);
             }
 
+            // Elapsed seconds on every wait line: a join that hangs is read from
+            // how long the gate held before it connected or gave up, and polls
+            // alone only say how often, not for how long.
             if (!ready)
-                Log.Warning("[7dtd-fastconnect] connect gate timeout polls=" + polls + " " + whyNot + "; trying anyway");
+                Log.Warning("[7dtd-fastconnect] connect gate timeout t=" + ElapsedSec(waitStart)
+                    + "s polls=" + polls + " " + whyNot + "; trying anyway");
             else if (polls > 0)
-                Log.Out("[7dtd-fastconnect] connect-ready after polls=" + polls);
+                Log.Out("[7dtd-fastconnect] connect-ready t=" + ElapsedSec(waitStart)
+                    + "s polls=" + polls);
 
             ConnectAndLog(host, port);
+        }
+
+        // Seconds on the mod's monotonic clock, one decimal: enough to place a
+        // join in a boot timeline, short enough to stay on one log line.
+        // Invariant culture so a comma-decimal locale cannot write "3,5s",
+        // which reads as part of a list in a log line.
+        static string ElapsedSec(float start)
+        {
+            return (UnityEngine.Time.unscaledTime - start)
+                .ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         static void ConnectAndLog(string host, int port)

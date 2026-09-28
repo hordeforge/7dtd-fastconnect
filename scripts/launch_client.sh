@@ -123,10 +123,15 @@ fi
 # 7DTD_CONNECT_* flags). A blank value is not an opt-out: it trims to empty and
 # keeps the unset default, mute on, which is what EnvFlags.IsSetOn does with a
 # whitespace-only value.
-MUTE_CLIENT="$(lower "$(trim "${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}")")"
-# Every value resolves to an explicit on/off here, because a whitespace-only
-# CLIENT_MUTE trims to the same empty string as the opt-out token and would
-# otherwise read as "mute off" below.
+# The fallback chain runs on the trimmed value, not the raw one: a
+# whitespace-only CLIENT_MUTE is not set, and reading it as set left
+# MUTE_CLIENT empty, which reads as the opt-out downstream and silenced a
+# client the operator never opted out of.
+MUTE_CLIENT="$(trim "${CLIENT_MUTE-}")"
+if [[ -z "$MUTE_CLIENT" ]]; then
+  MUTE_CLIENT="$(trim "${SEVEN_DAYS_TO_DIE_CLIENT_MUTE-}")"
+fi
+MUTE_CLIENT="$(lower "${MUTE_CLIENT:-1}")"
 case "$MUTE_CLIENT" in
   0 | false | no | off) MUTE_CLIENT="0" ;;
   *) MUTE_CLIENT="1" ;;

@@ -9,7 +9,7 @@ source "$ROOT/scripts/test_common.sh"
 
 assert "mute helper executable" test -x "$ROOT/scripts/mute_client_audio.sh"
 assert "launch_client references mute helper" grep -q 'mute_client_audio.sh' "$ROOT/scripts/launch_client.sh"
-assert "launch defaults mute on" grep -qE 'CLIENT_MUTE:-.*1|SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1' "$ROOT/scripts/launch_client.sh"
+assert "launch defaults mute on" grep -q 'MUTE_CLIENT:-1' "$ROOT/scripts/launch_client.sh"
 assert "README documents the CLIENT_MUTE=0 opt-out command" \
 	grep -qF 'CLIENT_MUTE=0 ./scripts/launch_client.sh' "$ROOT/README.md"
 assert "launch documents opt-out" grep -q 'CLIENT_MUTE=0' "$ROOT/scripts/launch_client.sh"

@@ -26,7 +26,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] MainMenu.Open prefix failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] MainMenu.Open prefix failed: " + ex.GetType().Name + ": " + ex.Message);
             }
         }
     }
@@ -99,13 +99,13 @@ namespace SdtdConnect
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[7dtd-fastconnect] background Login start failed: " + ex.Message);
+                    Log.Warning("[7dtd-fastconnect] background Login start failed: " + ex.GetType().Name + ": " + ex.Message);
                 }
                 return false;
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] CheckLogin patch failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] CheckLogin patch failed: " + ex.GetType().Name + ": " + ex.Message);
                 return true;
             }
         }
@@ -130,7 +130,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] news skip failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] news skip failed: " + ex.GetType().Name + ": " + ex.Message);
                 return true;
             }
         }
@@ -196,7 +196,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] EULA skip failed: " + ex.Message);
+                Log.Warning("[7dtd-fastconnect] EULA skip failed: " + ex.GetType().Name + ": " + ex.Message);
                 return true;
             }
         }

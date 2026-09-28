@@ -263,6 +263,28 @@ static class TestMain
         Check("a fresh null-id episode waits again instead of proceeding instantly",
             !Ready(out reason) && reason == "cross user not logged in yet" && CrossWaitStart == 50f);
 
+        // A platform read that throws sits inside the 10 Hz poll, so the
+        // failure must be announced once, not once per poll: three polls at
+        // poll rate would write three lines, and a full wait window would
+        // write hundreds into the log the join harness greps.
+        cross.ThrowOnUserGet = true;
+        SdtdConnect.Platform.PlatformManager.NativePlatform.ThrowOnUserGet = true;
+        UnityEngine.Time.unscaledTime = 51f;
+        string throwLog = CaptureStderr(delegate
+        {
+            Ready(out reason);
+            Ready(out reason);
+            Ready(out reason);
+        });
+        Check("throwing cross-user read is announced once across polls",
+            CountOccurrences(throwLog, "cross-user probe failed") == 1);
+        Check("throwing native-user read is announced once across polls",
+            CountOccurrences(throwLog, "native-user probe failed") == 1);
+        Check("throwing platform reads name the exception type",
+            CountOccurrences(throwLog, "InvalidOperationException") == 2);
+        cross.ThrowOnUserGet = false;
+        SdtdConnect.Platform.PlatformManager.NativePlatform.ThrowOnUserGet = false;
+
         return Done();
     }
 
