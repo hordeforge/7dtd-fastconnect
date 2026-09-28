@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Gate for scripts/log_sanitize.sh: control characters must not survive into
-# lifecycle-log values (marker forging via embedded newlines), and neither may
-# the invisible Unicode format characters a terminal renders as nothing, while
-# normal text passes through byte-identical.
+# Gate for scripts/log_sanitize.sh: line-breaking characters must not survive
+# into lifecycle-log values (marker forging via an embedded newline, a C1 NEL,
+# or a Unicode separator), and neither may the invisible Unicode format
+# characters a terminal renders as nothing, while normal and non-ASCII text
+# passes through byte-identical.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,6 +34,18 @@ assert "steam URL form is unchanged" flat 'steam://connect/10.0.0.9:26900' 'stea
 # (0xC2 0x80-0x9f) would eat the 0xC2 of characters like U+00E9.
 assert "accented host passes through intact" flat $'caf\u00e9.lan:27025' $'caf\u00e9.lan:27025'
 assert "empty value stays empty" flat '' ''
+
+# The C1 block and the Unicode separators are two-byte UTF-8 sequences that a
+# byte-range tr would either miss or take out of every other multi-byte
+# character; a log reader breaks the line on them even though grep does not,
+# so they are flattened by code point here and by char.IsControl + the same
+# two separators in ConnectTarget.SanitizeForLog.
+assert "C1 NEL is flattened" flat $'a\302\205result=joined' 'a result=joined'
+assert "C1 DEL is flattened" flat $'x\302\237y' 'x y'
+assert "U+2028 line separator is flattened" flat $'a\342\200\250result=joined' 'a result=joined'
+assert "U+2029 paragraph separator is flattened" flat $'a\342\200\251b' 'a b'
+assert "multi-byte text is passed through byte-identical" \
+	flat $'zdtd.lan/\303\251\360\237\230\200' $'zdtd.lan/\303\251\360\237\230\200'
 
 # The lifecycle scripts that persist attacker-shapable values must route them
 # through the helper; a new raw echo would reintroduce marker forging.

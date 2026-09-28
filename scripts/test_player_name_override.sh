@@ -22,8 +22,13 @@ assert "normalizes an env-supplied name through the shared helper" \
 	body_contains 'PlayerNames.Normalize(requested)'
 assert "normalization clamps the length and drops invisible characters" \
 	grep -q 'internal static string Normalize' "$ROOT/Source/ConnectMod/PlayerNames.cs"
-assert "normalization uses the stock client-name cap" \
-	grep -q 'name.Length > MaxLength' "$ROOT/Source/ConnectMod/PlayerNames.cs"
+assert "the length helper compares against the stock client-name cap" \
+	grep -q 'name.Length <= MaxLength' "$ROOT/Source/ConnectMod/PlayerNames.cs"
+assert "the cap and its code-point unit live in PlayerNames" \
+	grep -q 'MaxLength = 24' "$ROOT/Source/ConnectMod/PlayerNames.cs"
+assert "the cap normalizes and cuts without splitting a surrogate pair" \
+	grep -q 'TextUtil.TruncateToCodePoints(TextUtil.NormalizeFormC(name), MaxLength)' \
+		"$ROOT/Source/ConnectMod/PlayerNames.cs"
 assert "uses the stock player-name preference inside the override" \
 	body_contains 'GamePrefs.Set(EnumGamePrefs.PlayerName, requested)'
 assert "persists the preference inside the override" \

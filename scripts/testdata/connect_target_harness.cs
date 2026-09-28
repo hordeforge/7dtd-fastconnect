@@ -163,6 +163,25 @@ static class TestMain
         return n;
     }
 
+    // True when a UTF-16 string holds a high or low surrogate with no
+    // partner: the state every encoder here replaces with U+FFFD.
+    static bool HasLoneSurrogate(string value)
+    {
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (char.IsHighSurrogate(value[i]))
+            {
+                if (i + 1 >= value.Length || !char.IsLowSurrogate(value[i + 1])) return true;
+                i++;
+            }
+            else if (char.IsLowSurrogate(value[i]))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static int RunConnectReady()
     {
         const string crossNote = "past wait window, proceeding anyway";
@@ -440,6 +459,18 @@ static class TestMain
                 ConnectTarget.SanitizeForLog("a\u2066b\u2069c") == "a b c");
             Check("accented host unchanged",
                 ConnectTarget.SanitizeForLog("caf\u00E9.lan:27025") == "caf\u00E9.lan:27025");
+            // char.IsControl covers C0, DEL and C1; the Unicode line and
+            // paragraph separators are the ones a log reader still lays out
+            // as a line break, and the shell twin flattens the same set.
+            Check("U+0085 (C1 NEL) flattened to space",
+                ConnectTarget.SanitizeForLog("a\u0085result=joined") == "a result=joined");
+            Check("U+2028 line separator flattened to space",
+                ConnectTarget.SanitizeForLog("a\u2028result=joined") == "a result=joined");
+            Check("U+2029 paragraph separator flattened to space",
+                ConnectTarget.SanitizeForLog("a\u2029b") == "a b");
+            Check("multi-byte text passes through unchanged",
+                ConnectTarget.SanitizeForLog("zdtd.lan/\u00e9\U0001F600")
+                    == "zdtd.lan/\u00e9\U0001F600");
 
             // Accepted newline-bearing target: the reported source stays one line.
             Env(ConnectTarget.EnvVar, "1.2.3.4\nFound own player entity with id");
@@ -592,8 +623,54 @@ static class TestMain
             string name = PlayerNames.Resolve();
             Check("resolved name is never empty", !string.IsNullOrEmpty(name));
             Check("resolved name fits the stock client-name cap",
-                name.Length <= PlayerNames.MaxLength);
+                TextUtil.CodePointCount(name) <= PlayerNames.MaxLength);
             Check("resolved name carries no outer whitespace", name == name.Trim());
+            Check("resolved name carries no unpaired surrogate", !HasLoneSurrogate(name));
+            Check("resolved name is NFC", name == TextUtil.NormalizeFormC(name));
+
+            // The cap is in code points, not UTF-16 code units: an emoji name
+            // is charged one character for the pair, and a name that would be
+            // cut just before an astral character keeps all of it.
+            const string grinning = "\U0001F600";
+            string capped = PlayerNames.Cap(new string('x', PlayerNames.MaxLength) + grinning);
+            Check("cap cuts a whole code point past the limit",
+                capped == new string('x', PlayerNames.MaxLength));
+            string emojiRun = string.Concat(grinning, grinning, grinning);
+            var overlong = new StringBuilder();
+            for (int k = 0; k <= PlayerNames.MaxLength; k++) overlong.Append(grinning);
+            string cappedEmoji = PlayerNames.Cap(overlong.ToString());
+            Check("cap counts an astral character as one, not two",
+                TextUtil.CodePointCount(cappedEmoji) == PlayerNames.MaxLength);
+            Check("cap never splits a surrogate pair", !HasLoneSurrogate(cappedEmoji));
+            Check("cap keeps a name whose 24 characters are 48 UTF-16 units",
+                cappedEmoji.Length == 2 * PlayerNames.MaxLength);
+
+            // One name typed two ways (NFD from a macOS account, NFC from
+            // elsewhere) is one identity after the cap, so the server does not
+            // see two players.
+            Check("NFD input is normalized to the NFC spelling",
+                PlayerNames.Cap("jose\u0301") == PlayerNames.Cap("jos\u00e9")
+                && PlayerNames.Cap("jose\u0301") == "jos\u00e9");
+
+            // Cut so the limit lands between the halves of a pair.
+            string edge = PlayerNames.Cap(new string('x', PlayerNames.MaxLength - 1) + grinning);
+            Check("cap on a code-point boundary keeps the astral character",
+                edge == new string('x', PlayerNames.MaxLength - 1) + grinning);
+
+            // An unpaired surrogate is the state every encoder here replaces
+            // with U+FFFD; a cut must not be what hands one out.
+            Check("cut drops an unpaired high surrogate at the boundary",
+                TextUtil.TruncateToCodePoints("ab\ud800cd", 3) == "ab");
+            Check("code-point count reads an astral character as one",
+                TextUtil.CodePointCount(emojiRun) == 3);
+
+            // Echo truncation shares the unit and the pair rule.
+            string echo = ConnectTarget.EchoForMessage(
+                new string('y', 39) + "\U0001F600 tail");
+            Check("echo cut is 40 code points plus the ellipsis",
+                TextUtil.CodePointCount(echo) == 43 && !HasLoneSurrogate(echo));
+            Check("echo of a short astral value is untouched",
+                ConnectTarget.EchoForMessage(grinning) == grinning);
 
             // The name reaches the server, so Normalize must strip the
             // characters that forge a line in a server log, and a length cap
@@ -608,9 +685,9 @@ static class TestMain
                 PlayerNames.Normalize("ren\u00E9") == "ren\u00E9");
             // A name capped at MaxLength with an astral character landing on
             // the boundary must not end in an unpaired surrogate.
-            string capped = PlayerNames.Normalize(new string('a', PlayerNames.MaxLength - 1) + "\U0001F600");
+            string cappedName = PlayerNames.Normalize(new string('a', PlayerNames.MaxLength - 1) + "\U0001F600");
             Check("Normalize never ends on a lone high surrogate",
-                capped.Length > 0 && !char.IsHighSurrogate(capped[capped.Length - 1]));
+                cappedName.Length > 0 && !char.IsHighSurrogate(cappedName[cappedName.Length - 1]));
             Check("Normalize returns null for null", PlayerNames.Normalize(null) == null);
             Check("Normalize returns null for empty", PlayerNames.Normalize("") == null);
             // A value that is nothing but stripped characters normalizes to
@@ -736,6 +813,17 @@ static class TestMain
         "::1", "2001:db8::1", "", "[", "]", "[::1]", "[::1"
     };
 
+    // Non-ASCII spliced into the grammar: accented and CJK letters, an NFD
+    // pair, an astral character, a replacement character, the two Unicode
+    // line separators, a C1 control, and an unpaired surrogate. Every one of
+    // these has to survive parse, merge, and log flattening unchanged in
+    // shape, which an ASCII-only alphabet never exercises.
+    static readonly string[] FuzzUnicode =
+    {
+        "\u00e9", "e\u0301", "\u4e2d\u6587", "\U0001F600", "\uFFFD",
+        "\u2028", "\u2029", "\u0085", "\u00ad", "\ud83d", "\ude00"
+    };
+
     static string RandText(Random r, string charset, int len)
     {
         var sb = new StringBuilder(len);
@@ -796,6 +884,16 @@ static class TestMain
         if (r.Next(6) == 0) raw = "\u202E" + raw + "\u202C";
         if (r.Next(6) == 0) raw = raw.Replace(":", "\u200B:");
         if (r.Next(8) == 0) raw = "\uFEFF" + raw;
+        // A random splice of the FuzzUnicode set: line separators, a C1
+        // control, an NFD pair and an astral character all have to survive
+        // parse, merge and log flattening unchanged in shape.
+        if (r.Next(3) == 0)
+        {
+            var mixed = new StringBuilder();
+            int n = r.Next(1, 5);
+            for (int k = 0; k < n; k++) mixed.Append(FuzzUnicode[r.Next(FuzzUnicode.Length)]);
+            raw = mixed.ToString() + raw;
+        }
         return raw;
     }
 
@@ -812,8 +910,15 @@ static class TestMain
         {
             CheckFuzz(label + " sanitize preserves length", san.Length == (raw ?? "").Length);
             bool clean = true;
-            foreach (char c in san) { if (char.IsControl(c) || IsInvisibleFormat(c)) { clean = false; break; } }
-            CheckFuzz(label + " sanitize strips control chars", clean);
+            foreach (char c in san)
+            {
+                if (char.IsControl(c) || c == '\u2028' || c == '\u2029' || IsInvisibleFormat(c))
+                {
+                    clean = false;
+                    break;
+                }
+            }
+            CheckFuzz(label + " sanitize strips control and line-breaking chars", clean);
         }
 
         string host; int port; string err;
@@ -871,7 +976,11 @@ static class TestMain
 
         // Sample the env wrapper too: it is what actually consumes
         // attacker-shapable bytes, and its reported source stays one line.
-        if ((i % 64) == 0)
+        // SetEnvironmentVariable re-encodes the value in the platform code
+        // page, so an input carrying an unpaired surrogate is refused by the
+        // runtime itself; the parse, merge, and sanitize invariants above
+        // already ran on it.
+        if ((i % 64) == 0 && !HasLoneSurrogate(raw))
         {
             try
             {
@@ -881,7 +990,8 @@ static class TestMain
                 if (srcOk)
                 {
                     CheckFuzz(label + " env source single-line",
-                        srcSource.IndexOf('\n') < 0 && srcSource.IndexOf('\r') < 0);
+                        srcSource.IndexOf('\n') < 0 && srcSource.IndexOf('\r') < 0
+                        && srcSource.IndexOf('\u2028') < 0 && srcSource.IndexOf('\u2029') < 0);
                     CheckFuzz(label + " env port bounded", srcPort >= 1 && srcPort <= 65535);
                     CheckFuzz(label + " env host non-empty", !string.IsNullOrEmpty(srcHost));
                 }

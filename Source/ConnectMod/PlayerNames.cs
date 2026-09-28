@@ -10,36 +10,44 @@ namespace SdtdConnect
     /// </summary>
     internal static class PlayerNames
     {
-        // Keep the resolved name inside the stock client-name length limit.
+        // Keep the resolved name inside the stock client-name length limit,
+        // counted in code points (TextUtil): a name of emoji or CJK spends one
+        // of its 24 characters per character, not two.
         internal const int MaxLength = 24;
 
         /// <summary>
-        /// Flattens control and invisible-format characters, trims, and caps
-        /// the length. The name reaches the server and lands in its logs and
-        /// player list, so an env value carrying a newline or a bidi override
-        /// would forge a line there exactly as it would in the client log
-        /// (ConnectTarget.SanitizeForLog owns the character rule; the name is
-        /// an identity string, not only a log value, so it is cleaned before
-        /// it is stored rather than only before it is echoed).
+        /// The one form a display name takes before it is stored: no control
+        /// or invisible-format characters, trimmed, NFC, and capped at
+        /// MaxLength code points without splitting a surrogate pair. The name
+        /// reaches the server and lands in its logs and player list, so an env
+        /// value carrying a newline or a bidi override would forge a line
+        /// there exactly as it would in the client log (ConnectTarget.
+        /// SanitizeForLog owns the character rule; the name is an identity
+        /// string, not only a log value, so it is cleaned before it is stored
+        /// rather than only before it is echoed). Returns null for a null or
+        /// empty input, so the caller can treat a value that normalized away
+        /// as the same signal as an absent one.
         /// </summary>
         internal static string Normalize(string raw)
         {
             if (string.IsNullOrEmpty(raw)) return null;
-            string name = ConnectTarget.SanitizeForLog(raw).Trim();
-            if (name.Length > MaxLength)
-            {
-                name = name.Substring(0, MaxLength);
-                // A cap that lands between the halves of a surrogate pair
-                // leaves an unpaired code unit that serializes as a
-                // replacement character on the wire.
-                if (char.IsHighSurrogate(name[name.Length - 1]))
-                    name = name.Substring(0, name.Length - 1);
-            }
-            return name;
+            return Cap(ConnectTarget.SanitizeForLog(raw).Trim());
         }
 
         /// <summary>
-        /// Environment user name, normalized; never empty.
+        /// NFC, and capped at MaxLength code points without splitting a
+        /// surrogate pair. The env override and the fallback both go through
+        /// it, so an operator-supplied name cannot differ from a resolved one
+        /// in encoding form, length unit, or truncation.
+        /// </summary>
+        internal static string Cap(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return name;
+            return TextUtil.TruncateToCodePoints(TextUtil.NormalizeFormC(name), MaxLength);
+        }
+
+        /// <summary>
+        /// Environment user name, trimmed and length-capped; never empty.
         /// Falls back to machine name so two clients on different hosts never
         /// resolve to the same identity (the server rejects duplicates).
         /// </summary>
@@ -56,8 +64,7 @@ namespace SdtdConnect
                 try { name = Environment.MachineName; } catch (Exception) { }
             }
             if (string.IsNullOrWhiteSpace(name)) name = "player";
-            name = Normalize(name);
-            return string.IsNullOrEmpty(name) ? "player" : name;
+            return Cap(name.Trim());
         }
 
         /// <summary>

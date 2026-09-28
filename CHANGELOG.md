@@ -13,8 +13,10 @@ in the affected sections instead of being papered over.
 
 ### Fixed
 
-- `CLIENT_MUTE=" "` (any whitespace-only value) keeps the client muted. It
-  trimmed to empty, which the launcher read as the same opt-out as `0`.
+- A whitespace-only `CLIENT_MUTE` (or `SEVEN_DAYS_TO_DIE_CLIENT_MUTE`) reads as
+  the documented default, mute on, instead of as an opt-out. The launcher
+  compared the trimmed value, where a blank value and an opt-out both resolve
+  to empty, so `CLIENT_MUTE=" "` muted nothing.
 - The built mod no longer embeds the absolute path of its own pdb, so the same
   source compiles to the same dll bytes in any checkout directory. Debug
   symbols were never shipped, so they are off.
@@ -25,6 +27,18 @@ in the affected sections instead of being papered over.
   `Source/ConnectMod/packages.lock.json`, and `make build` restores in locked
   mode. The SDK had been pulling that package in implicitly at whatever
   version it defaulted to.
+- The player-name cap counts code points instead of UTF-16 code units and cuts
+  only on code-point boundaries, so an emoji or CJK name is no longer charged
+  two characters for one glyph and a cut can no longer leave a lone surrogate
+  that the prefs store and the wire encoder turn into U+FFFD. The cap also
+  normalizes to NFC, so the NFD spelling of a name (what a macOS account hands
+  back) and the NFC spelling are one identity to the server that rejects
+  duplicate names. The F1 `connect` error echo shares the same rule.
+- `SanitizeForLog` and its shell twin `sanitize_log_text` flatten U+2028 and
+  U+2029, and the shell twin now covers the C1 block as well. A C1 NEL or a
+  Unicode line separator in `7DTD_CONNECT` or `CYCLE` laid the log line out in
+  two in a log reader even though grep does not break on it; the C# side
+  already flattened the C1 block, so the two sides also disagreed.
 - `zero_nre_join_loop.sh` stops the server it started by pid and reaps it,
   instead of only sweeping processes named `zdtd`. A server launched through
   the `ZDTD_BIN` override whose binary is not named `zdtd` was invisible to

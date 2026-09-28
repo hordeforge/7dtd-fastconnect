@@ -54,14 +54,18 @@ namespace SdtdConnect
         }
 
         /// <summary>
-        /// Flattens control and invisible-format characters so a
-        /// launch-context string stays one readable log line. Env and argv
+        /// Flattens control, line-breaking and invisible-format characters so
+        /// a launch-context string stays one readable log line. Env and argv
         /// values are attacker-shapable (a clicked steam://run URL chooses
         /// -connect= text), and join harnesses grep the client log for fixed
         /// markers; an embedded newline could forge those markers without
-        /// ever connecting, and a bidi override could render a forged line
+        /// ever connecting, a U+2028 breaks the line in a reader that grep
+        /// reads as one, and a bidi override could render a forged line
         /// that reads differently from the text a grep sees. One character
         /// becomes one space, so offsets and lengths are preserved.
+        /// The stricter twin of LogText.SanitizeForLog, which this module
+        /// uses for every launch-context value it echoes: the reported source
+        /// is the line a reader and a grep both have to agree on.
         /// </summary>
         internal static string SanitizeForLog(string value)
         {
@@ -69,34 +73,46 @@ namespace SdtdConnect
             bool dirty = false;
             foreach (char c in value)
             {
-                if (char.IsControl(c) || IsInvisibleFormat(c)) { dirty = true; break; }
+                if (IsLineBreaking(c) || IsInvisibleFormat(c)) { dirty = true; break; }
             }
             if (!dirty) return value;
             var sb = new StringBuilder(value.Length);
             foreach (char c in value)
-                sb.Append(char.IsControl(c) || IsInvisibleFormat(c) ? ' ' : c);
+                sb.Append(IsLineBreaking(c) || IsInvisibleFormat(c) ? ' ' : c);
             return sb.ToString();
+        }
+
+        // char.IsControl covers C0, DEL and C1 but not the Unicode line and
+        // paragraph separators, which a log reader lays out as a line break
+        // even though grep does not: the same forged-marker shape, one layer
+        // down. The shell twin (scripts/log_sanitize.sh) flattens the same set.
+        static bool IsLineBreaking(char c)
+        {
+            return char.IsControl(c) || c == '\u2028' || c == '\u2029';
         }
 
         /// <summary>
         /// One-line echo of operator input for an error message: control
         /// characters flattened, long pastes cut so a mistyped paste cannot
-        /// scroll the reason off screen.
+        /// scroll the reason off screen. The cut counts code points and never
+        /// splits a surrogate pair (TextUtil), so the echo cannot put a lone
+        /// surrogate in front of the operator.
         /// </summary>
         internal static string EchoForMessage(string value)
         {
             const int maxChars = 40;
             if (string.IsNullOrEmpty(value)) return value;
             string flat = SanitizeForLog(value).Trim();
-            return flat.Length <= maxChars ? flat : flat.Substring(0, maxChars) + "...";
+            if (TextUtil.CodePointCount(flat) <= maxChars) return flat;
+            return TextUtil.TruncateToCodePoints(flat, maxChars) + "...";
         }
 
         static void WarnIgnoredTarget(string sourceLabel, string raw, string error)
         {
             if (_badTargetWarned) return;
             _badTargetWarned = true;
-            Log.Warning("[7dtd-fastconnect] " + LogText.SanitizeForLog(sourceLabel) + "='"
-                + LogText.SanitizeForLog(raw) + "' ignored: "
+            Log.Warning("[7dtd-fastconnect] " + SanitizeForLog(sourceLabel) + "='"
+                + SanitizeForLog(raw) + "' ignored: "
                 + error + "; auto-join disabled (fix the value or use F1: connect <host> [port])");
         }
 
@@ -280,7 +296,7 @@ namespace SdtdConnect
             {
                 if (TryParse(env, out host, out port, out string envError))
                 {
-                    source = EnvVar + "=" + LogText.SanitizeForLog(env.Trim());
+                    source = EnvVar + "=" + SanitizeForLog(env.Trim());
                     return true;
                 }
                 WarnIgnoredTarget(EnvVar, env.Trim(), envError);
@@ -313,8 +329,8 @@ namespace SdtdConnect
                 if (TryParse(val, out host, out port, out string argError))
                 {
                     source = a.Contains("=")
-                        ? LogText.SanitizeForLog(a)
-                        : LogText.SanitizeForLog(a) + " " + LogText.SanitizeForLog(val);
+                        ? SanitizeForLog(a)
+                        : SanitizeForLog(a) + " " + SanitizeForLog(val);
                     return true;
                 }
                 // Only the flag name; the value is already in the message.
@@ -344,13 +360,13 @@ namespace SdtdConnect
                 {
                     if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
                     {
-                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + LogText.SanitizeForLog(host);
+                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + SanitizeForLog(host);
                         return false;
                     }
                     var entry = Dns.EndGetHostEntry(pending);
                     if (entry.AddressList == null || entry.AddressList.Length == 0)
                     {
-                        message = "no IP for hostname " + LogText.SanitizeForLog(host);
+                        message = "no IP for hostname " + SanitizeForLog(host);
                         return false;
                     }
                     // First address is the default; only a later one can
@@ -379,7 +395,7 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                message = "DNS failed for " + LogText.SanitizeForLog(host) + ": " + ex.Message;
+                message = "DNS failed for " + SanitizeForLog(host) + ": " + ex.Message;
                 return false;
             }
         }
@@ -439,7 +455,7 @@ namespace SdtdConnect
                 if (GameManager.Instance != null)
                     GameManager.Instance.showOpenerMovieOnLoad = false;
 
-                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={LogText.SanitizeForLog(host)})");
+                Log.Out($"[7dtd-fastconnect] Connect by IP {ip}:{port} ver={ver} level={PlaceholderLevelName} (requested host={SanitizeForLog(host)})");
                 cm.LastGameServerInfo = gsi;
                 cm.Connect(gsi);
                 message = $"connecting to {ip}:{port}";
@@ -450,7 +466,7 @@ namespace SdtdConnect
                 // Full stack: ProtocolManager.SetupProtocols NRE is otherwise silent.
                 // The message may echo the raw host, so only that part is flattened;
                 // the deliberate newline before the stack trace stays.
-                message = ex.GetType().Name + ": " + LogText.SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
+                message = ex.GetType().Name + ": " + SanitizeForLog(ex.Message) + "\n" + ex.StackTrace;
                 return false;
             }
         }

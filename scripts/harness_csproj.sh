@@ -19,6 +19,7 @@ harness_sources() {
 		"$root/Source/ConnectMod/EnvFlags.cs" \
 		"$root/Source/ConnectMod/ConnectReady.cs" \
 		"$root/Source/ConnectMod/PlayerNames.cs" \
+		"$root/Source/ConnectMod/TextUtil.cs" \
 		"$root/Source/ConnectMod/AutomationMode.cs" \
 		"$root/Source/ConnectMod/BootUnblock.cs" \
 		"$root/scripts/testdata/connect_target_stubs.cs" \
