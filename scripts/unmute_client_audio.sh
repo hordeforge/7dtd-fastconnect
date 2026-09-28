@@ -21,9 +21,14 @@ with the game closed it reports whether the saved state would still start
 the next launch muted.
 
 Exit status: 0 stream unmuted or nothing to do | 1 pactl/jq missing, or
-no live stream while the saved state is still muted.
+no live stream while the saved state is still muted | 2 usage error.
 EOF
   exit 0
+fi
+
+if (( $# != 0 )); then
+	echo "usage: ${0##*/} (takes no arguments; got $#)" >&2
+	exit 2
 fi
 
 STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/wireplumber/stream-properties"

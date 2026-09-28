@@ -24,17 +24,30 @@ Mute the 7 Days To Die audio stream (pactl sink-input) as soon as it
 appears, polling up to wait-seconds. The first argument overrides
 CLIENT_MUTE_TIMEOUT / SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT (default 60).
 
-Exit status is 0 even when no stream appears within the window (the
-launch must not fail over audio); a warning goes to stderr instead.
+Exit status: 0 muted, no stream within the window, or pactl/jq missing
+(the launch must not fail over audio); each of those warns on stderr.
+2 is a usage error (more than one argument).
 OS-level only: game client audio settings are never touched.
 EOF
   exit 0
 fi
 
+if (( $# > 1 )); then
+	echo "usage: ${0##*/} [wait-seconds] (got $# arguments)" >&2
+	exit 2
+fi
+
 WAIT_SECONDS="${1:-${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}}"
 
 if ! [[ "$WAIT_SECONDS" =~ ^[0-9]+$ ]] || ((WAIT_SECONDS < 1)); then
-	echo "WARN: mute wait '${WAIT_SECONDS}' invalid; using 60." >&2
+	# Name where the value came from: naming only CLIENT_MUTE_TIMEOUT sent the
+	# reader looking at an env var that was never set when the bad value was the
+	# positional argument.
+	if (( $# == 1 )); then
+		echo "WARN: wait-seconds must be a positive integer (got '$WAIT_SECONDS'); using 60." >&2
+	else
+		echo "WARN: CLIENT_MUTE_TIMEOUT must be a positive integer (got '$WAIT_SECONDS'); using 60." >&2
+	fi
 	WAIT_SECONDS=60
 fi
 

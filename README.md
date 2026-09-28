@@ -293,6 +293,13 @@ and names the fallback it uses. `PORT` must be a real TCP port (1-65535, the
 same range the client accepts for `7DTD_CONNECT`); `restart_pair.sh` treats
 anything else as a usage error, the other two fall back to 27025.
 
+Every script in `scripts/` follows one contract: `-h` / `--help` prints the
+usage on stdout and exits 0 before touching disk or spawning a process, an
+argument a script cannot accept exits 2 with the usage on stderr, and a setup
+or runtime failure exits 1. The harnesses add their own statuses on top
+(`one_shot_join.sh` also uses 3 for a server that never listened); `--help`
+lists them.
+
 ## With zdtd
 
 ```bash

@@ -18,7 +18,7 @@ run_help() {
 
 for script in launch_client.sh one_shot_join.sh zero_nre_join_loop.sh \
 	restart_pair.sh mute_client_audio.sh unmute_client_audio.sh \
-	repro_zip.sh package.sh; do
+	repro_zip.sh package.sh stage_mod.sh assert_tool_pin.sh; do
 	assert "$script --help exits 0" run_help "$ROOT/scripts/$script" --help
 	assert "$script -h exits 0" run_help "$ROOT/scripts/$script" -h
 	help_out="$("$ROOT/scripts/$script" --help 2>/dev/null)"
@@ -87,5 +87,27 @@ assert "restart_pair.sh points the client at HOST, not a hardcoded loopback" \
 	grep -qF '7DTD_CONNECT="$HOST:$PORT"' "$ROOT/scripts/restart_pair.sh"
 assert "restart_pair.sh documents HOST in its help" \
 	grep -q '^  HOST' <("$ROOT/scripts/restart_pair.sh" --help)
+
+# A mistyped flag is a usage error, not a silently ignored word: these entry
+# points take no positional arguments, so swallowing one would start a client,
+# a server, or a multi-minute build nobody asked for.
+for script in package.sh one_shot_join.sh zero_nre_join_loop.sh \
+	unmute_client_audio.sh; do
+	assert "$script rejects an unexpected argument" \
+		usage_rc "$ROOT/scripts/$script" --verison
+	assert "$script says it takes no arguments" \
+		grep -q 'takes no arguments' <(usage_err "$ROOT/scripts/$script" --verison)
+done
+assert "mute_client_audio.sh rejects a second argument" \
+	usage_rc "$ROOT/scripts/mute_client_audio.sh" 30 60
+
+# coverage_badge.py is the only Python entry point; it answers help the same way.
+assert "coverage_badge.py --help exits 0" run_help uv run --frozen --group dev \
+	python "$ROOT/scripts/coverage_badge.py" --help
+assert "coverage_badge.py --help prints a usage line to stdout" \
+	grep -q '^Usage:' <(uv run --frozen --group dev python \
+		"$ROOT/scripts/coverage_badge.py" --help 2>/dev/null)
+assert "coverage_badge.py without arguments exits 2" \
+	usage_rc uv run --frozen --group dev python "$ROOT/scripts/coverage_badge.py"
 
 finish

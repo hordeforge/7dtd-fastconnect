@@ -24,7 +24,7 @@ EOF
 fi
 
 if (( $# < 1 )); then
-  echo "usage: $(basename "$0") <world-dir> [port]" >&2
+  echo "usage: ${0##*/} <world-dir> [port]" >&2
   exit 2
 fi
 SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"

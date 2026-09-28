@@ -51,7 +51,7 @@ in client-log markers.
   Source/ConnectMod/PlayerNames.cs:21-37) or env-selected
   (Source/ConnectMod/ModApi.cs:116-159).
 - **Join-decision trust**: harnesses decide pass/fail by grepping client-log
-  markers (scripts/one_shot_join.sh:121,263-305; scripts/log_markers.sh:43).
+  markers (scripts/one_shot_join.sh:128,270-312; scripts/log_markers.sh:43).
   The log is therefore an asset: forged markers forge results, and a log the
   mod fills with diagnostics is a log the harness must still scan.
 - **Consent state**: automation force-accepts the EULA and skips news/Discord
@@ -74,15 +74,15 @@ Every entry point reads data from outside the process boundary:
 
 | Entry point | Where parsed | Notes |
 |---|---|---|
-| Env `7DTD_CONNECT` | Source/ConnectMod/ConnectTarget.cs:199-215; scripts read it too (scripts/launch_client.sh:75, scripts/one_shot_join.sh:198,253, scripts/restart_pair.sh:119) | Attacker-shapable: a clicked `steam://run` URL chooses `-connect=` text (in-code rationale at ConnectTarget.cs:38-44) |
+| Env `7DTD_CONNECT` | Source/ConnectMod/ConnectTarget.cs:199-215; scripts read it too (scripts/launch_client.sh:75, scripts/one_shot_join.sh:205,260, scripts/restart_pair.sh:119) | Attacker-shapable: a clicked `steam://run` URL chooses `-connect=` text (in-code rationale at ConnectTarget.cs:38-44) |
 | argv `-connect=` / `+connect=` / `+connect_lobby` | ConnectTarget.cs:216-250 | Same threat model as the env var |
 | F1 console `connect` / `7dtdconnect` / `joinip` | Source/ConnectMod/ConsoleCmdConnect.cs:8,27-51 | Local keyboard input; allowed in main menu (:23) |
 | F1 console `diag` / `7dtd_diag` / `zdiag` | Source/ConnectMod/ConsoleCmdDiag.cs:8,20-52 | Flips verbose traces at runtime; the console override outranks the env snapshot (Source/ConnectMod/DiagToggle.cs:19-47) |
 | Env `7DTD_PLAYER_NAME` | ModApi.cs:118-139 | Sets `GamePrefs.PlayerName`, persisted to the client profile |
 | Env `7DTD_CONNECT_AUTOMATION`, `7DTD_CONNECT_DEBUG`, `7DTD_CONNECT_FORCE_LOAD_SYNC` | Source/ConnectMod/AutomationMode.cs:12-24, Source/ConnectMod/DiagToggle.cs:5, Source/ConnectMod/BootUnblock.cs | Boolean flags; truthiness shared in Source/ConnectMod/EnvFlags.cs:12-38 |
-| Script env: `GAME`, `PROTON`, `COMPAT`, `STEAM_ROOT`, `GFX_API`, `CLIENT_MUTE_TIMEOUT`, `CLIENT_PLATFORM`, `PORT`, `HOST`, `TIMEOUT_SEC`, `SETTLE_SEC`, `CYCLE`, `SCRATCH`, `ZDTD_BIN`, `START_SERVER`, `WINEDLLOVERRIDES` | scripts/launch_client.sh:20-130,254; scripts/one_shot_join.sh:19-83; scripts/restart_pair.sh:30-36; scripts/mute_client_audio.sh:34-38 | Several are validated before use (see Mitigations); `GAME`/`PROTON`/`COMPAT` select executables by design. `WINEDLLOVERRIDES` is appended to, not overwritten (launch_client.sh:254), so anything already in the operator's env also reaches the Wine process |
+| Script env: `GAME`, `PROTON`, `COMPAT`, `STEAM_ROOT`, `GFX_API`, `CLIENT_MUTE_TIMEOUT`, `CLIENT_PLATFORM`, `PORT`, `HOST`, `TIMEOUT_SEC`, `SETTLE_SEC`, `CYCLE`, `SCRATCH`, `ZDTD_BIN`, `START_SERVER`, `WINEDLLOVERRIDES` | scripts/launch_client.sh:20-130,254; scripts/one_shot_join.sh:19-90; scripts/restart_pair.sh:30-36; scripts/mute_client_audio.sh:40-52 | Several are validated before use (see Mitigations); `GAME`/`PROTON`/`COMPAT` select executables by design. `WINEDLLOVERRIDES` is appended to, not overwritten (launch_client.sh:254), so anything already in the operator's env also reaches the Wine process |
 | Hardcoded process args added by the launcher | scripts/launch_client.sh:77 (`-skipintro -SkipNewsScreen=true -disablenativeinput`) | Not operator input, but they change what the client loads; `-disablenativeinput` was added for Proton boot stability, not for a security control |
-| Client log file written by the game process | parsed by scripts/log_markers.sh:43-78 from one_shot_join.sh:264-301, copied at one_shot_join.sh:317, rescanned by zero_nre_join_loop.sh:122,187 | Process-to-harness boundary; content is semi-trusted |
+| Client log file written by the game process | parsed by scripts/log_markers.sh:43-78 from one_shot_join.sh:271-308, copied at one_shot_join.sh:324, rescanned by zero_nre_join_loop.sh:129,194 | Process-to-harness boundary; content is semi-trusted |
 | Outbound network connect | ConnectTarget.cs:310-378 (`ConnectionManager.Connect`) after DNS resolution :258-307 | The only network traffic this repo initiates |
 | Engine load pipeline (Local host) | Source/ConnectMod/LocalHostWorldLoadPatches.cs:414-430 patches `World.LoadWorld`, `GameManager.createWorld`, `GameManager.StartAsServer` | No external input; the wrapping coroutines read engine internals by reflection (:365-392) and change global load settings (:72-84,344-363) |
 
@@ -105,7 +105,7 @@ The release zip itself is built locally and attached manually
    S2C parsing (AGENTS.md rule 5).
 3. **Game process → shell harnesses**: lifecycle scripts treat the client log
    as evidence. Marker regexes decide `result=joined`
-   (one_shot_join.sh:263-305). Anything able to write those bytes decides the
+   (one_shot_join.sh:270-312). Anything able to write those bytes decides the
    verdict; the scripts assume only the game writes them.
 4. **Scripts → on-disk config**: `CLIENT_PLATFORM=local` overwrites
    `$GAME/platform.cfg` after backing it up, restores on exit, self-heals a
@@ -184,7 +184,7 @@ no setuid, no elevated installer (`make install` copies files into the game's
   platform selection if both copies die mid-run.
 - *Process targeting*: kill sweeps match substrings of any user's command line
   (`pkill -9 -f '7DaysToDie'`, restart_pair.sh:91; `pgrep -f
-  '[/]7DaysToDie.exe|wine64-preloader.*7DaysToDie'`, one_shot_join.sh:130),
+  '[/]7DaysToDie.exe|wine64-preloader.*7DaysToDie'`, one_shot_join.sh:137),
   so an unrelated process whose argv mentions the string gets killed (R5).
 
 **Local host session → engine load pipeline**
@@ -217,7 +217,7 @@ no setuid, no elevated installer (`make install` copies files into the game's
 
 | Control | Covers | Location |
 |---|---|---|
-| Control-character flattening of echoed env/argv (log-forging defense) | R3 | C#: ConnectTarget.SanitizeForLog (ConnectTarget.cs:45-57), used at :64-65,210,243-244,274,280,304,364,375 and ModApi.cs:147-153; shell twin `sanitize_log_text` (scripts/log_sanitize.sh:11-13) used at launch_client.sh:128,256,278 and one_shot_join.sh:198,253; pinned by scripts/test_log_sanitize.sh and behavioral tests in scripts/test_connect_target_parse.sh |
+| Control-character flattening of echoed env/argv (log-forging defense) | R3 | C#: ConnectTarget.SanitizeForLog (ConnectTarget.cs:45-57), used at :64-65,210,243-244,274,280,304,364,375 and ModApi.cs:147-153; shell twin `sanitize_log_text` (scripts/log_sanitize.sh:11-13) used at launch_client.sh:128,256,278 and one_shot_join.sh:205,260; pinned by scripts/test_log_sanitize.sh and behavioral tests in scripts/test_connect_target_parse.sh |
 | Port range validation 1..65535 | malformed targets falling back to default port | ConnectTarget.cs:14-16,82-85 |
 | Grammar normalization (scheme strip, bracketed IPv6, dangling colons) shared by console/env/argv paths | parser drift between entry points | ConnectTarget.cs:69-80,90-120,122-190; console reuses it (ConsoleCmdConnect.cs:36-41) |
 | DNS timeout bound (5 s) | menu-thread freeze via wedged resolver | ConnectTarget.cs:258-299 |
@@ -230,10 +230,10 @@ no setuid, no elevated installer (`make install` copies files into the game's
 | Diagnostic traces gated behind `7DTD_CONNECT_DEBUG` / `diag on` | R6 log volume in normal play | DiagToggle.cs:5,19-30; WindowTrace.cs:14-17; LocalHostWorldLoadPatches.cs:212,233-237; LoadStateProbe.cs:11-15 |
 | Announce-once probe failures | a dead probe reading as a healthy quiet join | ProbeFailure.cs:15-43 |
 | Player-name length cap (24) and never-empty fallback | oversized/injected names reaching prefs | PlayerNames.cs:13-37, ModApi.cs:116-159 |
-| `CYCLE` filename guard (safe charset, no leading dot) | path traversal in cycle artifact filenames | one_shot_join.sh:75-83; pinned by scripts/test_cycle_filename_guard.sh |
-| Numeric guards on `PORT`/`TIMEOUT_SEC`/`SETTLE_SEC`/`WAIT_SECONDS` | regex/arithmetic skew from metacharacters | one_shot_join.sh:49-74, restart_pair.sh:33-36, mute_client_audio.sh:34-38 |
+| `CYCLE` filename guard (safe charset, no leading dot) | path traversal in cycle artifact filenames | one_shot_join.sh:82-90; pinned by scripts/test_cycle_filename_guard.sh |
+| Numeric guards on `PORT`/`TIMEOUT_SEC`/`SETTLE_SEC`/`WAIT_SECONDS` | regex/arithmetic skew from metacharacters | one_shot_join.sh:56-81, restart_pair.sh:33-36, mute_client_audio.sh:40-52 |
 | Whitelists for `GFX_API` and `CLIENT_PLATFORM` | arbitrary strings becoming argv fragments or a config swap | launch_client.sh:91-98,121-130 |
-| Disk-growth bounds in scratch dir | availability across repeated cycles | one_shot_join.sh:31-47 |
+| Disk-growth bounds in scratch dir | availability across repeated cycles | one_shot_join.sh:38-54 |
 | Log-marker memoization contract (append-only assumption documented) | stale matches after truncation; repeated re-scan of a growing log | scripts/log_markers.sh:1-40 |
 | CI least privilege + SHA-pinned actions; tag/version agreement gate | supply-chain injection via moved tags/actions | .github/workflows/ci.yml:15-23,30-41; .github/workflows/release.yml:18-45 |
 
@@ -269,7 +269,7 @@ These are recorded, not fixed, here. Fixes belong to sec-review.
    (.github/workflows/release.yml:8-12 states this openly). Consumers install
    a DLL into their game (Makefile:84-90) on trust alone.
 5. **R5 - broad kill patterns**: substring process matching can terminate
-   unrelated processes (restart_pair.sh:86-91, one_shot_join.sh:126-131).
+   unrelated processes (restart_pair.sh:86-91, one_shot_join.sh:133-138).
 6. **No SECURITY.md**: the repository has no disclosure contact, supported-
    versions statement, or security-policy claims. Nothing here contradicts
    reality because nothing is claimed; creating one requires organizational
@@ -286,7 +286,7 @@ These are recorded, not fixed, here. Fixes belong to sec-review.
 - **A2 - Harness result forgery**: any local process able to append
   `Found own player entity with id` to the client log before the poller reads
   it flips the cycle verdict to `joined`. Enabling path: `log_seen`
-  (log_markers.sh:43-78) reading `CLIENT_LOG_SRC` (one_shot_join.sh:102,264).
+  (log_markers.sh:43-78) reading `CLIENT_LOG_SRC` (one_shot_join.sh:109,271).
   Trusted implicitly; acceptable for a local test harness, but the model must
   say so.
 - **A3 - Flag semantics abuse**: `EnvFlags.IsSetOn` treats any non-opt-out

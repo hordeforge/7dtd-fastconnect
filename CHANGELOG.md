@@ -38,6 +38,18 @@ in the affected sections instead of being papered over.
 
 ### Changed
 
+- The scripts that take no positional arguments (`package.sh`,
+  `one_shot_join.sh`, `zero_nre_join_loop.sh`, `unmute_client_audio.sh`, and a
+  second argument to `mute_client_audio.sh`) now exit 2 with the usage on
+  stderr instead of ignoring the argument, so a mistyped flag cannot start a
+  client, a server, or a multi-minute build. The README states the shared
+  contract and `test_cli_help.sh` pins it.
+- `mute_client_audio.sh` names where a bad wait value came from (the
+  `wait-seconds` argument or `CLIENT_MUTE_TIMEOUT`) instead of always pointing
+  at the env var, and its help lists the statuses it can exit with.
+- `coverage_badge.py` answers `-h` / `--help` on stdout, and every entry point
+  reports a usage error as `usage: <name> ...` on stderr, the way the shell
+  scripts do.
 - ruff now runs the `S`, `SIM`, `EM`, `COM818/819`, `ISC`, `Q`, `TID`, `TCH`
   and `ERA` groups alongside the existing ones, with the assert and
   partial-path subprocess rules scoped off for `scripts/test_*.py` and the XML

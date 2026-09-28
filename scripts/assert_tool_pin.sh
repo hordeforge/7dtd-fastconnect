@@ -37,7 +37,7 @@ EOF
 fi
 
 if [[ $# -lt 2 ]]; then
-	echo "Usage: assert_tool_pin.sh <package> <command> [args...]" >&2
+	echo "usage: ${0##*/} <package> <command> [args...]" >&2
 	exit 2
 fi
 

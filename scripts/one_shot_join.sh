@@ -12,7 +12,7 @@ Run one auto-connect join cycle of the stock client against zdtd and exit
 process is always terminated before exit. Artifacts land in SCRATCH.
 
 Exit status: 0 joined | 1 join failed or client exited early
-             2 START_SERVER=1 but the zdtd binary is missing
+             2 usage error, or START_SERVER=1 but the zdtd binary is missing
              3 server never listened / no listener on PORT
 
 Key env vars:
@@ -24,6 +24,13 @@ Key env vars:
   SCRATCH        artifact dir (default ~/.cache/7dtd-fastconnect)
 EOF
   exit 0
+fi
+
+# No positional arguments: every knob is an env var, so a mistyped flag must
+# not be swallowed into a cycle that then runs a client.
+if (( $# != 0 )); then
+  echo "usage: ${0##*/} (takes no arguments; got $#)" >&2
+  exit 2
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

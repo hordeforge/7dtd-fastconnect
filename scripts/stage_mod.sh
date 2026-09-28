@@ -31,7 +31,7 @@ EOF
 fi
 
 if (( $# != 2 )); then
-	echo "usage: $0 <build_dir> <stage_root> (got $# argument(s))" >&2
+	echo "usage: ${0##*/} <build_dir> <stage_root> (got $# argument(s))" >&2
 	exit 2
 fi
 BUILD_DIR="$1"

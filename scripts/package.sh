@@ -32,13 +32,21 @@ overrides it, and a worktree with uncommitted tracked changes ships as
 install (the build compiles against the shipped Assembly-CSharp.dll) and
 zip on PATH.
 
-Exit status: 0 zip written | 1 setup or build failure.
+Exit status: 0 zip written | 1 setup or build failure | 2 usage error.
 
 Key env vars:
   VERSION            override the version in the zip filename
   SOURCE_DATE_EPOCH  archive timestamp (default: last commit time)
 EOF
 	exit 0
+fi
+
+# Takes no arguments, so a mistyped flag (--verison) would otherwise start a
+# multi-minute build nobody asked for. Reject it the way the other entry
+# points reject a bad argument, before anything touches disk.
+if (( $# != 0 )); then
+	echo "usage: ${0##*/} (takes no arguments; got $#)" >&2
+	exit 2
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

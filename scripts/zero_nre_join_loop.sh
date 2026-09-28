@@ -12,7 +12,7 @@ cycle shows zero NREs after "Found own player" twice in a row, or
 MAX_ATTEMPTS is reached. Progress goes to stdout and SCRATCH logs.
 
 Exit status: 0 confirmed zero-NRE join | 1 budget exhausted or the
-             zdtd server failed to listen | 2 ZDTD_BIN missing.
+             zdtd server failed to listen | 2 usage error or ZDTD_BIN missing.
 
 Key env vars:
   HOST           join target for each cycle (default 127.0.0.1)
@@ -23,6 +23,13 @@ Key env vars:
   SCRATCH        artifact dir (default ~/.cache/7dtd-fastconnect)
 EOF
   exit 0
+fi
+
+# No positional arguments (every knob is an env var): a mistyped flag must not
+# be swallowed into a loop that then spawns servers and clients.
+if (( $# != 0 )); then
+	echo "usage: ${0##*/} (takes no arguments; got $#)" >&2
+	exit 2
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

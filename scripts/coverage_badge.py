@@ -4,6 +4,8 @@
 Only product sources count: classes whose filename contains the FILTER
 substring (default "/Source/") are summed; harness, stub, and test-driver
 lines stay out of the denominator.
+
+Usage: coverage_badge.py OUTPUT.svg FILTER COBERTIA_XML...
 """
 
 from __future__ import annotations
@@ -62,10 +64,26 @@ def rate(xmls: list[str], filt: str) -> int:
     return round(100 * hit / total) if total else 0
 
 
+HELP = """Usage: coverage_badge.py OUTPUT.svg FILTER COBERTURA_XML...
+
+Write a line-coverage badge SVG to OUTPUT.svg, counting only classes whose
+filename contains FILTER (the Makefile passes /Source/).
+
+Exit status: 0 badge written | 1 a report could not be read or parsed
+             | 2 usage error.
+"""
+
+
 def main(argv: list[str]) -> int:
     min_args = 4
+    if argv[1:] and argv[1] in ("-h", "--help"):
+        print(HELP, end="")
+        return 0
     if len(argv) < min_args:
-        print(f"usage: {argv[0]} OUTPUT.svg FILTER COBERTURA_XML...", file=sys.stderr)
+        print(
+            f"usage: {Path(argv[0]).name} OUTPUT.svg FILTER COBERTURA_XML...",
+            file=sys.stderr,
+        )
         return 2
     out, filt, xmls = argv[1], argv[2], argv[3:]
     pct = rate(xmls, filt)

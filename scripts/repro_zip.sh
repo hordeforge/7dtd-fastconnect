@@ -32,7 +32,7 @@ EOF
 fi
 
 if (( $# != 2 )); then
-	echo "usage: $0 <stage_dir> <out.zip> (got $# argument(s))" >&2
+	echo "usage: ${0##*/} <stage_dir> <out.zip> (got $# argument(s))" >&2
 	exit 2
 fi
 STAGE="$1"

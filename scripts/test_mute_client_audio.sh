@@ -78,10 +78,21 @@ assert "helper warns it is leaving audio unmuted" grep -q 'leaving audio unmuted
 
 run_helper_without_pulse abc
 assert "non-numeric timeout still exits 0 without pactl/jq" test "$HELPER_RC" -eq 0
-assert "non-numeric timeout warns and names the value" grep -q "mute wait 'abc' invalid" <<<"$out"
+# The warning names the source that carried the bad value, so the reader does
+# not go looking at an env var that was never set.
+assert "non-numeric positional timeout names the argument" grep -q 'wait-seconds must be a positive integer' <<<"$out"
 
 run_helper_without_pulse 0
-assert "non-positive timeout rejected as invalid" grep -q "mute wait '0' invalid" <<<"$out"
+assert "non-positive positional timeout rejected as invalid" grep -q 'wait-seconds must be a positive integer' <<<"$out"
 assert "non-positive timeout still degrades to exit 0" test "$HELPER_RC" -eq 0
+
+set +e
+env_out="$(PATH="$NO_PULSE_BIN" CLIENT_MUTE_TIMEOUT=abc "$ROOT/scripts/mute_client_audio.sh" 2>&1)"
+set -e
+assert "non-numeric env timeout names the env var" grep -q 'CLIENT_MUTE_TIMEOUT must be a positive integer' <<<"$env_out"
+
+run_helper_without_pulse 30 60
+assert "a second argument is a usage error" test "$HELPER_RC" -eq 2
+assert "the usage error names the argument shape" grep -q 'usage: mute_client_audio.sh \[wait-seconds\]' <<<"$out"
 
 finish
