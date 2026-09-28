@@ -37,10 +37,23 @@ SOURCE_DATE_EPOCH=$EPOCH TZ=America/New_York LC_ALL=C.UTF-8 \
 	"$ROOT/scripts/repro_zip.sh" "$stage_b" "$WORK/b.zip" >/dev/null
 SOURCE_DATE_EPOCH=$((EPOCH + 3600)) "$ROOT/scripts/repro_zip.sh" "$stage_a" "$WORK/c.zip" >/dev/null
 
+# Same content staged under a private umask: the archived permission bits must
+# not follow the packager's umask or the staged file's own mode.
+stage_c="$WORK/c"
+mkdir -p "$stage_c/7dtd-fastconnect/sub"
+printf 'dll-bytes' >"$stage_c/7dtd-fastconnect/mod.dll"
+printf '<xml/>\n' >"$stage_c/7dtd-fastconnect/ModInfo.xml"
+printf 'zz' >"$stage_c/7dtd-fastconnect/sub/zz.bin"
+printf 'aa' >"$stage_c/7dtd-fastconnect/sub/aa.bin"
+chmod -R go-rwx "$stage_c"
+SOURCE_DATE_EPOCH=$EPOCH "$ROOT/scripts/repro_zip.sh" "$stage_c" "$WORK/d.zip" >/dev/null
+
 differ() { ! cmp -s "$1" "$2"; }
 
 assert "identical inputs, different mtimes/order -> byte-identical zip" \
 	cmp -s "$WORK/a.zip" "$WORK/b.zip"
+assert "identical inputs, different permissions/umask -> byte-identical zip" \
+	cmp -s "$WORK/a.zip" "$WORK/d.zip"
 assert "SOURCE_DATE_EPOCH flows into the archive bytes" \
 	differ "$WORK/a.zip" "$WORK/c.zip"
 

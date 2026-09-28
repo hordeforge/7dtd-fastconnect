@@ -17,6 +17,13 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <Deterministic>true</Deterministic>
+    <!-- Second line of defence against the checkout path reaching the
+         assembly: ContinuousIntegrationBuild pins the source root to a fixed
+         /_/ prefix and PathMap strips this tree's absolute prefix from
+         anything the compiler still records, so the same commit built from
+         two directories compiles to the same bytes. -->
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
     <!-- packages.lock.json records the resolved graph with a content hash
          each package, so restore cannot drift to a different reference
          assembly set. Bump it with:

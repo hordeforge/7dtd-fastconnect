@@ -1,4 +1,8 @@
-ROOT := $(CURDIR)
+# The repo root is this Makefile's own directory, not the caller's cwd, so
+# `make -f /path/Makefile` from elsewhere builds the same tree and (because
+# every dotnet call below runs from ROOT) resolves the same global.json, so
+# the same SDK band, as `make -C`.
+ROOT := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 GAME ?= $(HOME)/.local/share/Steam/steamapps/common/7 Days To Die
 MOD_NAME := 7dtd-fastconnect
 DIST := $(ROOT)/dist/$(MOD_NAME)
@@ -57,8 +61,12 @@ help:
 	@echo "  uv run --frozen --group dev pytest scripts/test_launch_client_platform.py"
 	@echo "setup: uv sync --group dev (pinned ruff/mypy/pytest/yamllint); dotnet SDK band in global.json"
 
+# Runs dotnet from ROOT so global.json (the SDK pin) is always the one in this
+# tree, and with the C locale and UTC so no host locale or timezone can reach
+# the compiler or the resources it embeds.
 build:
-	dotnet build "$(ROOT)/Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
+	cd "$(ROOT)" && LC_ALL=C TZ=UTC dotnet build \
+		"Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
 		-p:RestoreLockedMode=true \
 		-p:GameRoot="$(GAME)"
 	cp -f "$(ROOT)/ModInfo.xml" "$(DIST)/"

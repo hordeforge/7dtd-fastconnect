@@ -11,6 +11,9 @@
 #     timestamps or ordering.
 #   - Entry order comes from an explicit C-locale sort, never readdir order.
 #   - zip -X strips uid/gid and platform-specific extra fields.
+#   - Modes are normalized (dirs 0755, files 0644), because zip records the
+#     permission bits and they otherwise follow the caller's umask or the
+#     staged file's own mode, so two hosts packaging one tree disagreed.
 set -euo pipefail
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -19,8 +22,8 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 
 Create a byte-reproducible zip from a staged mod directory: every entry's
 mtime is rewritten to SOURCE_DATE_EPOCH, entry order comes from an explicit
-C-locale sort, and uid/gid plus platform-specific extra fields are stripped
-(zip -X). Two runs over one tree produce identical bytes.
+C-locale sort, modes are normalized, and uid/gid plus platform-specific extra
+fields are stripped (zip -X). Two runs over one tree produce identical bytes.
 
 Exit status: 0 zip written | 1 setup failure | 2 usage error.
 
@@ -65,6 +68,12 @@ STAMP="$(date -u -d "@$SOURCE_DATE_EPOCH" '+%Y%m%d%H%M.%S' 2>/dev/null \
 # Normalize mtimes in place; -depth touches children before parents so parent
 # directory times survive.
 find "$STAGE" -depth -exec touch -t "$STAMP" {} +
+
+# Normalize modes for the same reason. The archive records the permission
+# bits, and they come from the caller's umask (mkdir) or the build's own file
+# (cp -p in stage_mod.sh), not from the source tree.
+find "$STAGE" -type d -exec chmod 0755 {} +
+find "$STAGE" -type f -exec chmod 0644 {} +
 
 OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
 # Start from an empty archive: zip updates entries into an existing file, so a

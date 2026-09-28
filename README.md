@@ -31,7 +31,8 @@ and how to roll one back: [docs/RELEASING.md](docs/RELEASING.md).
 - `0_TFP_Harmony` present (stock)
 - Game at `~/.local/share/Steam/steamapps/common/7 Days To Die` (override with `GAME=`)
 - dotnet SDK 8 for `make build` / `make package` (band pinned by `global.json`,
-  package graph pinned by `Source/ConnectMod/packages.lock.json`; the build
+  package graph pinned by `Source/ConnectMod/packages.lock.json`, restore
+  sources declared in `NuGet.config`; the build
   restores in locked mode, so a dependency bump needs an explicit
   `dotnet restore Source/ConnectMod/ConnectMod.csproj -p:RestorePackagesWithLockFile=true`)
 - `zip` for `make package` (archive bytes are reproducible; `SOURCE_DATE_EPOCH` defaults to the last commit)
@@ -39,7 +40,8 @@ and how to roll one back: [docs/RELEASING.md](docs/RELEASING.md).
 `make build` is path-independent: the mod is compiled with debug symbols off
 and deterministic codegen, so the dll a checkout produces does not name the
 directory it was built in. `make package` is byte-reproducible on top of that
-(`scripts/repro_zip.sh` pins entry order, mtimes, and uid/gid) and drops a
+(`scripts/repro_zip.sh` pins entry order, mtimes, permission bits, and
+uid/gid) and drops a
 `dist/7dtd-fastconnect-<version>.buildinfo` beside the archive recording the
 commit, SDK version, epoch, and sha256.
 

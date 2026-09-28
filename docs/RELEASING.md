@@ -22,7 +22,7 @@ dirty state, `SOURCE_DATE_EPOCH`, the dotnet SDK version, and the archive's
 sha256. It is the record a later rebuild starts from, and it is not part of the
 zip. The archive bytes are reproducible: entry mtimes come from
 `SOURCE_DATE_EPOCH` (default: the last commit's timestamp), and
-`scripts/repro_zip.sh` normalizes order and metadata.
+`scripts/repro_zip.sh` normalizes order, permission bits, and metadata.
 
 ## Prerequisites
 
