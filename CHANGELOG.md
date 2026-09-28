@@ -13,6 +13,29 @@ in the affected sections instead of being papered over.
 
 ### Fixed
 
+- The launcher no longer blocks forever on its mute poller at exit. A bare
+  `wait` has no timeout, so a helper that did not answer TERM (a wedged
+  audio server leaves the pactl call blocked) held the shell that started
+  the client, and in `CLIENT_PLATFORM=local` left `platform.cfg` swapped to
+  Local for as long as it hung. The reap is now bounded by
+  `MUTE_POLL_STOP_GRACE_SEC` (default 5), the helper leads its own process
+  group so the wedged pactl call dies with it, and the shutdown path names
+  the kill.
+- `unmute_client_audio.sh` exits 1 when `pactl` refuses a live stream
+  instead of reporting it unmuted, and `apply_game_stream_mute` returns the
+  failure. The mute helper still ignores it: audio never fails a launch.
+- Every `pactl` call in the audio helpers is bounded by
+  `AUDIO_PACTL_TIMEOUT_SEC` (10s, where coreutils `timeout` exists), so a
+  wedged Pulse/PipeWire server cannot stall the poll past its window.
+- The Local-platform `platform.cfg` backup is written to a staging file and
+  renamed into the slot. A `cp` cut short by a full disk, a signal, or a
+  crash left a truncated backup, and the next launch's self-heal moved that
+  half file over the real config.
+- `LogText.SanitizeForLog` flattens the invisible-format characters
+  (bidi overrides, zero-width marks, BOM) as `ConnectTarget.SanitizeForLog`
+  did. The `-connect=` and `7DTD_CONNECT` warning paths sanitize through
+  LogText, so those echoes reached the client log with a bidi override
+  intact, unlike the shell twin in `scripts/log_sanitize.sh`.
 - A whitespace-only `CLIENT_MUTE` (or `SEVEN_DAYS_TO_DIE_CLIENT_MUTE`) reads as
   the documented default, mute on, instead of as an opt-out. The launcher
   compared the trimmed value, where a blank value and an opt-out both resolve

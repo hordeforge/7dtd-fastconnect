@@ -43,6 +43,35 @@ if command -v jq >/dev/null 2>&1; then
 		FAILS=$((FAILS + 1))
 	fi
 
+	# pactl refusing the set-sink-input-mute leaves the stream muted, so the
+	# helper must not report success: exiting 0 would send the user away
+	# believing the next launch has sound.
+	FAILBIN="$(scratch_mktemp "$ROOT" unmute-pactl-fail)"
+	trap 'rm -rf ${BEHAV:+"$BEHAV"} "$NO_PULSE_BIN" "$FAILBIN"' EXIT
+	install_pactl_stub "$FAILBIN"
+	# The previous case left the fixture empty; a refusal is only visible when
+	# there is a live stream to refuse.
+	write_audio_streams "$BEHAV/streams.json"
+	cat >"$FAILBIN/pactl" <<-'STUB'
+		case "$1" in
+		-f) cat "${PACTL_JSON:?}" ;;
+		set-sink-input-mute) echo 'pactl: stream not found' >&2; exit 1 ;;
+		*) echo "unexpected pactl call: $*" >&2; exit 1 ;;
+		esac
+	STUB
+	chmod +x "$FAILBIN/pactl"
+	fail_rc=0
+	PATH="$FAILBIN:$PATH" PACTL_JSON="$BEHAV/streams.json" PACTL_LOG="$BEHAV/unmute.log" \
+		XDG_STATE_HOME="$BEHAV" \
+		"$ROOT/scripts/unmute_client_audio.sh" >"$BEHAV/out" 2>"$BEHAV/err" || fail_rc=$?
+	assert "refused unmute exits 1" test "$fail_rc" -eq 1
+	assert "refused unmute names the stream" grep -q 'could not unmute sink input 7' "$BEHAV/err"
+	assert "refused unmute says the client may start silent" \
+		grep -q 'the client may start silent' "$BEHAV/err"
+	assert "refused unmute claims no success" not_grep 'Unmuted 7 Days To Die' "$BEHAV/out"
+	# Back to no live stream for the branches below.
+	printf '%s\n' '[]' > "$BEHAV/streams.json"
+
 	# The "still muted" branch prints a command the user is invited to paste,
 	# with the resolved XDG_STATE_HOME path in it. A path carrying quotes,
 	# spaces, or shell metacharacters must survive as one inert argument.

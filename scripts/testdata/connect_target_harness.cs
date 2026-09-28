@@ -493,6 +493,15 @@ static class TestMain
             Check("multi-byte text passes through unchanged",
                 ConnectTarget.SanitizeForLog("zdtd.lan/\u00e9\U0001F600")
                     == "zdtd.lan/\u00e9\U0001F600");
+            // One rule, both entry points: the -connect= warning paths
+            // sanitize through LogText, so a value carrying a bidi override or
+            // a BOM must be flattened there too, not only via ConnectTarget.
+            Check("LogText flattens a bidi override",
+                LogText.SanitizeForLog("g\u202Enidets") == "g nidets");
+            Check("LogText flattens a BOM",
+                LogText.SanitizeForLog("\uFEFF7DTD_CONNECT") == " 7DTD_CONNECT");
+            Check("LogText echo flattens an invisible separator",
+                LogText.EchoForMessage("host\u2066:27025") == "host :27025");
 
             // Accepted newline-bearing target: the reported source stays one line.
             Env(ConnectTarget.EnvVar, "1.2.3.4\nFound own player entity with id");

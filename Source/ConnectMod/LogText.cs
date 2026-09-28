@@ -9,12 +9,41 @@ namespace SdtdConnect
     /// </summary>
     internal static class LogText
     {
+        // Unicode format characters a terminal renders as nothing (or as a
+        // line reorder) but a reader or a grep of the text still sees: the
+        // bidi overrides and embeddings, the LTR/RTR marks, the zero-width
+        // space/joiner/non-joiner, and the BOM. char.IsControl does not cover
+        // them (they are Cf, not Cc), so each is checked by range here.
+        static bool IsInvisibleFormat(char c)
+        {
+            return (c >= '\u200B' && c <= '\u200F')   // ZWSP, ZWNJ, ZWJ, LRM, RLM
+                || (c >= '\u2060' && c <= '\u2064')   // word joiner, invisible operators
+                || (c >= '\u2066' && c <= '\u2069')   // LRI, RLI, FSI, PDI
+                || (c >= '\u202A' && c <= '\u202E')   // LRE, RLE, PDF, LRO, RLO
+                || c == '\uFEFF';                    // BOM / zero-width no-break space
+        }
+
+        // A character that must not reach a log line verbatim: a control
+        // character (a newline forges a marker a harness greps for) or an
+        // invisible format character (renders as nothing, so the line reads
+        // as something it is not).
+        static bool IsLogUnsafe(char c) => char.IsControl(c) || IsInvisibleFormat(c);
+
         /// <summary>
-        /// Flattens control characters so a launch-context string stays one
-        /// log line. Env and argv values are attacker-shapable (a clicked
-        /// steam://run URL chooses -connect= text), and join harnesses grep
-        /// the client log for fixed markers; an embedded newline could forge
-        /// those markers without ever connecting.
+        /// Flattens control and invisible-format characters so a
+        /// launch-context string stays one readable log line. Env and argv
+        /// values are attacker-shapable (a clicked steam://run URL chooses
+        /// -connect= text), and join harnesses grep the client log for fixed
+        /// markers; an embedded newline could forge those markers without
+        /// ever connecting, and a bidi override could render a forged line
+        /// that reads differently from the text a grep sees. One character
+        /// becomes one space, so offsets and lengths are preserved.
+        ///
+        /// The single implementation of the rule: ConnectTarget delegates
+        /// here, and scripts/log_sanitize.sh is the shell twin. A second copy
+        /// inside ConnectTarget had already drifted, keeping control
+        /// characters only, so the -connect= warning paths echoed bidi
+        /// overrides and a BOM straight into the client log.
         /// </summary>
         internal static string SanitizeForLog(string value)
         {
@@ -22,17 +51,17 @@ namespace SdtdConnect
             bool dirty = false;
             foreach (char c in value)
             {
-                if (char.IsControl(c)) { dirty = true; break; }
+                if (IsLogUnsafe(c)) { dirty = true; break; }
             }
             if (!dirty) return value;
             var sb = new StringBuilder(value.Length);
             foreach (char c in value)
-                sb.Append(char.IsControl(c) ? ' ' : c);
+                sb.Append(IsLogUnsafe(c) ? ' ' : c);
             return sb.ToString();
         }
 
         /// <summary>
-        /// One-line echo of operator input for an error message: control
+        /// One-line echo of operator input for an error message: log-unsafe
         /// characters flattened, long pastes cut so a mistyped paste cannot
         /// scroll the reason off screen.
         /// </summary>

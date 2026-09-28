@@ -39,20 +39,6 @@ namespace SdtdConnect
         // twice or, worse, look like "no target set".
         static bool _badTargetWarned;
 
-        // Unicode format characters a terminal renders as nothing (or as a
-        // line reorder) but a reader or a grep of the text still sees: the
-        // bidi overrides and embeddings, the LTR/RTR marks, the zero-width
-        // space/joiner/non-joiner, and the BOM. char.IsControl does not cover
-        // them (they are Cf, not Cc), so each is checked by range here.
-        static bool IsInvisibleFormat(char c)
-        {
-            return (c >= '\u200B' && c <= '\u200F')   // ZWSP, ZWNJ, ZWJ, LRM, RLM
-                || (c >= '\u2060' && c <= '\u2064')   // word joiner, invisible operators
-                || (c >= '\u2066' && c <= '\u2069')   // LRI, RLI, FSI, PDI
-                || (c >= '\u202A' && c <= '\u202E')   // LRE, RLE, PDF, LRO, RLO
-                || c == '\uFEFF';                    // BOM / zero-width no-break space
-        }
-
         /// <summary>
         /// Flattens control, line-breaking and invisible-format characters so
         /// a launch-context string stays one readable log line. Env and argv
@@ -89,6 +75,18 @@ namespace SdtdConnect
         static bool IsLineBreaking(char c)
         {
             return char.IsControl(c) || c == '\u2028' || c == '\u2029';
+        }
+
+        // Unicode format characters a terminal renders as nothing (or as a
+        // line reorder) but a grep of the text still sees, so each is checked
+        // by range: they are Cf, and char.IsControl does not cover them.
+        static bool IsInvisibleFormat(char c)
+        {
+            return (c >= '\u200B' && c <= '\u200F')   // ZWSP, ZWNJ, ZWJ, LRM, RLM
+                || (c >= '\u2060' && c <= '\u2064')   // word joiner, invisible operators
+                || (c >= '\u2066' && c <= '\u2069')   // LRI, RLI, FSI, PDI
+                || (c >= '\u202A' && c <= '\u202E')   // LRE, RLE, PDF, LRO, RLO
+                || c == '\uFEFF';                    // BOM / zero-width no-break space
         }
 
         /// <summary>

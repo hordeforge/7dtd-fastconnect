@@ -28,6 +28,9 @@ Key env vars (full table: README "Environment variables"):
   CLIENT_MUTE          1 (default) mutes the game audio stream at the OS
                        audio layer; 0/false/no/off keeps sound on
   CLIENT_MUTE_TIMEOUT  seconds to poll for that stream (default 60)
+  MUTE_POLL_STOP_GRACE_SEC
+                       seconds the mute poller gets to exit on shutdown
+                       before it is killed (default 5)
   CLIENT_PLATFORM      local | lan | 1 selects no-Steam Local mode
 EOF
   exit 0
@@ -212,7 +215,24 @@ swap_local_platform() {
     echo "WARN: $PLATFORM_CFG missing; cannot switch to Local platform" >&2
     return 0
   fi
-  cp "$PLATFORM_CFG" "$PLATFORM_BAK"
+  # Back up through a temp file in the same directory and rename it into the
+  # backup slot. A cp interrupted by a full disk, a signal, or a crash would
+  # otherwise leave a truncated backup, and the self-heal above moves that
+  # backup over platform.cfg on the next launch: the user's real Steam config
+  # would be replaced by half a file, silently. rename is atomic, so the slot
+  # holds either the whole original or nothing, and "nothing" takes the
+  # refuse-the-swap branch instead of destroying anything.
+  local bak_tmp="$PLATFORM_BAK.tmp.$$"
+  if ! cp "$PLATFORM_CFG" "$bak_tmp"; then
+    rm -f "$bak_tmp" 2>/dev/null || true
+    echo "WARN: could not back up $PLATFORM_CFG; refusing the Local-platform swap" >&2
+    return 1
+  fi
+  if ! mv "$bak_tmp" "$PLATFORM_BAK"; then
+    rm -f "$bak_tmp" 2>/dev/null || true
+    echo "WARN: could not write backup $PLATFORM_BAK; refusing the Local-platform swap" >&2
+    return 1
+  fi
   PLATFORM_SWAPPED=1
   printf 'platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local,\n' >"$PLATFORM_CFG"
   echo "Client platform: Local (no Steam auth; restored on exit)"
@@ -258,23 +278,63 @@ start_mute_poll() {
     # Background: audio stream appears after Unity init, not at process start.
     # The timeout rides argv ($1); the helper's env fallbacks are only for
     # standalone use, so no duplicate channel here.
+    #
+    # Job control is enabled for this one job so the helper leads its own
+    # process group: stop_mute_poll then signals the group, and the pactl call
+    # the helper sits in dies with it. Signalling the shell alone left that
+    # call running against an audio server nobody is waiting for any more.
+    set -m
     "$MUTE_HELPER" "$MUTE_WAIT" &
     MUTE_PID=$!
+    set +m
   else
     echo "WARN: mute helper missing ($MUTE_HELPER); client audio not muted." >&2
   fi
 }
 
+# Seconds the mute poller gets to exit on TERM before it is killed. The reap
+# below runs on this launcher's exit path (on_exit, and INT/TERM through it),
+# so an unbounded wait there would hang the shell: the game exiting would
+# never return control, and in Local-platform mode platform.cfg would stay
+# swapped for as long as the hang lasted. Overridable so a host whose audio
+# stack is slower to unwind is not reported as a wedged helper.
+MUTE_POLL_STOP_GRACE_SEC="$(trim "${MUTE_POLL_STOP_GRACE_SEC:-5}")"
+if ! [[ "$MUTE_POLL_STOP_GRACE_SEC" =~ ^[0-9]+$ ]] || ((MUTE_POLL_STOP_GRACE_SEC < 1)); then
+  echo "WARN: MUTE_POLL_STOP_GRACE_SEC invalid ('$MUTE_POLL_STOP_GRACE_SEC'); using 5." >&2
+  MUTE_POLL_STOP_GRACE_SEC=5
+fi
+
 # The poller is only useful while the game runs; stop and reap it so it does
 # not outlive this script still polling pactl for a dead client.
 stop_mute_poll() {
-  if [[ -n "$MUTE_PID" ]] && kill -0 "$MUTE_PID" 2>/dev/null; then
-    kill "$MUTE_PID" 2>/dev/null || true
+  if [[ -z "$MUTE_PID" ]]; then
+    return 0
   fi
-  if [[ -n "$MUTE_PID" ]]; then
+  if kill -0 "$MUTE_PID" 2>/dev/null; then
+    # Group first (see start_mute_poll), pid second: the group also takes the
+    # pactl call the helper is blocked in, and the pid covers a launcher whose
+    # job control was unavailable and left the helper in this shell's group.
+    kill -TERM -- "-$MUTE_PID" 2>/dev/null || kill -TERM "$MUTE_PID" 2>/dev/null || true
+    # A watchdog bounds the reap, because a bare wait has no timeout of its
+    # own: a helper that ignores TERM (bash defers an untrapped TERM until the
+    # foreground call it is blocked in returns) would hold the launcher open
+    # for as long as that call took, and this runs on the exit path, where the
+    # game exiting must return control and restore platform.cfg.
+    (
+      sleep "$MUTE_POLL_STOP_GRACE_SEC"
+      echo "WARN: mute helper ignored TERM for ${MUTE_POLL_STOP_GRACE_SEC}s; killing it" >&2
+      kill -9 -- "-$MUTE_PID" 2>/dev/null || kill -9 "$MUTE_PID" 2>/dev/null || true
+    ) &
+    local watchdog_pid=$!
     wait "$MUTE_PID" 2>/dev/null || true
-    MUTE_PID=""
+    # The helper is reaped; stop the watchdog before it can report a kill that
+    # never happened, and reap it in turn so no job outlives this script.
+    kill "$watchdog_pid" 2>/dev/null || true
+    wait "$watchdog_pid" 2>/dev/null || true
+  else
+    wait "$MUTE_PID" 2>/dev/null || true
   fi
+  MUTE_PID=""
 }
 
 # One cleanup path for every exit route: normal completion, a set -e abort,

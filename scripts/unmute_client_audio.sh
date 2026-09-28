@@ -20,8 +20,9 @@ Run it while the client is up so WirePlumber persists the unmuted state;
 with the game closed it reports whether the saved state would still start
 the next launch muted.
 
-Exit status: 0 stream unmuted or nothing to do | 1 pactl/jq missing, or
-no live stream while the saved state is still muted | 2 usage error.
+Exit status: 0 stream unmuted or nothing to do | 1 pactl/jq missing, pactl
+refused a stream, or no live stream while the saved state is still muted
+| 2 usage error.
 EOF
   exit 0
 fi
@@ -46,7 +47,12 @@ source "$SCRIPT_DIR/audio_streams.sh"
 indexes="$(game_sink_indexes)"
 
 if [[ -n "$indexes" ]]; then
-	apply_game_stream_mute 0 Unmuted <<<"$indexes"
+	# A stream pactl refused to unmute is still muted: reporting success here
+	# would send the user away believing the client has sound.
+	if ! apply_game_stream_mute 0 unmute <<<"$indexes"; then
+		echo "One or more streams could not be unmuted; the client may start silent." >&2
+		exit 1
+	fi
 	exit 0
 fi
 

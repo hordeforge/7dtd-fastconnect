@@ -64,6 +64,11 @@ LOCAL_CFG = "platform=Local\ncrossplatform=None\nserverplatforms=Steam,LAN,Local
 # is observable as exactly this status.
 TERM_EXIT_STATUS = 128 + int(signal.SIGTERM)
 
+# How long a launcher may take to return in the stubborn-poller test. Its
+# game stub runs 2s and the reap grace is 1s, so anything near the stub
+# helper's 120s sleep means the exit path waited for the poller after all.
+LAUNCH_EXIT_BOUND_SEC = 30
+
 # Vars launch_client.sh reads; scrub them so a developer shell that happens to
 # carry 7DTD_CONNECT / CLIENT_* cannot change what these tests exercise.
 SCRUB = {
@@ -631,6 +636,94 @@ def test_gfx_api_value_is_trimmed_and_case_folded(
     assert r.returncode == 0, r.stderr
     forced = [a for a in _argv(tmp_path) if a.startswith("-force-")]
     assert forced == ([flag] if flag else [])
+
+
+def _launcher_copy_with_mute_helper(tmp_path: Path, helper_body: str) -> Path:
+    """A private copy of scripts/ whose mute_client_audio.sh is `helper_body`.
+
+    The launcher resolves its mute helper next to itself, so a stub can only
+    be substituted through a copy of the tree. Copying keeps the real
+    launcher, proton_paths.sh and log_sanitize.sh in the run: only the helper
+    under test is replaced.
+    """
+    scripts = tmp_path / "scripts"
+    shutil.copytree(ROOT / "scripts", scripts, ignore=shutil.ignore_patterns("__pycache__"))
+    _write_executable(scripts / "mute_client_audio.sh", helper_body)
+    return scripts / "launch_client.sh"
+
+
+def test_stubborn_mute_poller_cannot_hang_the_exit_path(tmp_path: Path) -> None:
+    """The reap of the mute poller runs on the launcher's own exit path, so a
+    helper that does not answer TERM must not hold the launcher open: a bare
+    wait has no timeout, and hanging there strands platform.cfg in the swapped
+    Local state and never returns to whoever started the client.
+
+    bash defers an ignored TERM until the foreground call it sits in returns,
+    which is exactly what a helper blocked in a wedged pactl looks like, so the
+    stub here reproduces that shape: a long sleep that TERM does not cut.
+    """
+    game = _setup(tmp_path, game_run_seconds=2)
+    launcher = _launcher_copy_with_mute_helper(
+        tmp_path,
+        "trap '' TERM\nsleep 120\n",
+    )
+    env = _launch_env(
+        tmp_path,
+        mute=True,
+        extra_env={"CLIENT_MUTE_TIMEOUT": "300", "MUTE_POLL_STOP_GRACE_SEC": "1"},
+    )
+    started = time.monotonic()
+    proc = subprocess.Popen(
+        ["bash", str(launcher)],
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        # The game stub exits after 2s; the launcher must follow promptly
+        # instead of waiting out the helper's 120s sleep.
+        stdout, stderr = proc.communicate(timeout=LAUNCH_EXIT_BOUND_SEC)
+        elapsed = time.monotonic() - started
+        assert proc.returncode == 0, stdout + stderr
+        assert elapsed < LAUNCH_EXIT_BOUND_SEC, (
+            f"launcher exit path hung {elapsed:.0f}s on the mute poller"
+        )
+        assert "mute helper ignored TERM for 1s; killing it" in stderr, stderr
+        # The exit trap still ran to the end: platform.cfg is back to Steam.
+        assert (game / "platform.cfg").read_text(encoding="utf-8") == STEAM_CFG
+        assert not (game / "platform.cfg.re-localbak").exists()
+        # The helper leads its own process group, so the call it was wedged in
+        # dies with it: nothing of the poller is left polling pactl.
+        assert not _pgrep_pids(re.escape(str(launcher.parent / "mute_client_audio.sh")))
+    finally:
+        with contextlib.suppress(ProcessLookupError, subprocess.TimeoutExpired):
+            os.killpg(proc.pid, signal.SIGKILL)
+
+
+def test_invalid_mute_stop_grace_warns_and_falls_back(tmp_path: Path) -> None:
+    """The stop grace is read like every other launcher number, so a bad value
+    names itself instead of turning the reap into a zero-second window."""
+    _setup(tmp_path)
+    r = _launch(tmp_path, extra_env={"MUTE_POLL_STOP_GRACE_SEC": "later"})
+    assert r.returncode == 0, r.stderr
+    assert "MUTE_POLL_STOP_GRACE_SEC invalid ('later'); using 5" in r.stderr
+
+
+def test_platform_backup_leaves_no_staging_file(tmp_path: Path) -> None:
+    """The platform.cfg backup is written to a staging file and renamed, so a
+    half-written copy can never occupy the slot the next launch restores from.
+    A completed run must leave the install with neither the backup nor the
+    staging file behind."""
+    game = _setup(tmp_path)
+    r = _launch(tmp_path)
+    assert r.returncode == 0, r.stderr
+    leftovers = sorted(
+        p.name for p in game.iterdir() if p.name.startswith("platform.cfg.re-localbak")
+    )
+    assert leftovers == [], leftovers
 
 
 def test_invalid_mute_timeout_warns_and_falls_back(tmp_path: Path) -> None:

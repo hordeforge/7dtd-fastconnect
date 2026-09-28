@@ -67,7 +67,9 @@ deadline=$(( $(mono_sec) + WAIT_SECONDS ))
 while (( $(mono_sec) < deadline )); do
 	indexes="$(game_sink_indexes)"
 	if [[ -n "$indexes" ]]; then
-		apply_game_stream_mute 1 Muted <<<"$indexes"
+		# Status ignored: audio never fails a launch, and a stream that
+		# could not be muted has already been named on stderr.
+		apply_game_stream_mute 1 mute <<<"$indexes" || true
 		exit 0
 	fi
 	sleep 1
