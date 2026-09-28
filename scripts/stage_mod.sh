@@ -13,6 +13,12 @@
 # copying the directory ships the symbol file and any file a build since
 # renamed or dropped. A missing payload file is fatal here, so a failed or
 # partial build cannot be zipped under a release name.
+#
+# The staged mod folder is emptied first, so staging into a stage root a
+# previous run already used converges on the payload instead of unioning the
+# two: a file the payload list has since dropped, or anything a half-finished
+# earlier run left behind, would otherwise ship in the zip and make the
+# artifact depend on the stage root's history rather than on the build.
 set -euo pipefail
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -20,8 +26,10 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 	cat <<'EOF'
 
 Copy the shipped mod payload (7dtd-fastconnect.dll, ModInfo.xml) from the
-build output into <stage_root>/7dtd-fastconnect/. Exits 1 if the build output
-lacks any of them, so a partial build is never packaged.
+build output into <stage_root>/7dtd-fastconnect/. That folder is emptied
+first, so staging into a stage root a previous run used produces the same
+tree. Exits 1 if the build output lacks any of them, so a partial build is
+never packaged.
 
 Exit status: 0 files staged | 1 setup or payload failure | 2 usage error.
 
@@ -59,6 +67,10 @@ for f in "${PAYLOAD[@]}"; do
 done
 
 STAGE="$STAGE_ROOT/$MOD_DIR_NAME"
+# Empty the mod folder, not the whole stage root: that folder is this script's
+# to own, and a sibling under the stage root belongs to the caller. -f so a
+# missing folder is the same as an empty one.
+rm -rf "$STAGE"
 mkdir -p "$STAGE"
 for f in "${PAYLOAD[@]}"; do
 	# -p keeps the mode; the zip normalizes timestamps via SOURCE_DATE_EPOCH.

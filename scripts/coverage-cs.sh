@@ -39,5 +39,9 @@ for m in "${modes[@]}"; do
 	}
 done
 
+# Remove the merged report first: a second run in the same tree must not
+# depend on the merger overwriting a file it already wrote, and a failed
+# merge must leave no previous report behind for the badge to render.
+rm -f "$root/coverage.cobertura.xml"
 dotnet-coverage merge -f cobertura -o "$root/coverage.cobertura.xml" cov-*.xml > /dev/null
 echo "OK: $root/coverage.cobertura.xml"

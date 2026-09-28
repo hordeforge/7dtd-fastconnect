@@ -83,4 +83,22 @@ mkdir -p "$WORK/stage-nobuild"
 assert "absent build output fails staging" \
 	staging_fails "$WORK/does-not-exist" "$WORK/stage-nobuild"
 
+# 7. Staging again into a stage root a previous run used converges on the
+#    payload. The staged tree drives the shipped zip, so a file an earlier
+#    stage (or a half-finished run) left in the mod folder would ship and make
+#    the artifact depend on the stage root's history instead of on the build.
+d="$(build_ok rerun)"
+mkdir -p "$WORK/stage-rerun"
+"$STAGE_MOD" "$d" "$WORK/stage-rerun"
+printf 'pdb' >"$WORK/stage-rerun/7dtd-fastconnect/7dtd-fastconnect.pdb"
+printf 'old' >"$WORK/stage-rerun/7dtd-fastconnect/7dtd-fastconnect.old.dll"
+mkdir -p "$WORK/stage-rerun/7dtd-fastconnect/sub"
+printf 'stray' >"$WORK/stage-rerun/7dtd-fastconnect/sub/stray.bin"
+"$STAGE_MOD" "$d" "$WORK/stage-rerun"
+assert "staging into a used stage root yields exactly the payload" \
+	test "$(find "$WORK/stage-rerun" -mindepth 1 | sed "s|$WORK/stage-rerun/||" | LC_ALL=C sort)" = \
+		"7dtd-fastconnect
+7dtd-fastconnect/7dtd-fastconnect.dll
+7dtd-fastconnect/ModInfo.xml"
+
 finish

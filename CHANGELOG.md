@@ -39,6 +39,21 @@ in the affected sections instead of being papered over.
   Unicode line separator in `7DTD_CONNECT` or `CYCLE` laid the log line out in
   two in a log reader even though grep does not break on it; the C# side
   already flattened the C1 block, so the two sides also disagreed.
+- `stage_mod.sh` empties the staged mod folder before copying, so staging
+  into a stage root a previous run used yields the payload alone. The zip was
+  otherwise the union of the payload and whatever the stage root already held,
+  and the artifact depended on the stage root's history rather than on the
+  build. `test_stage_mod.sh` pins it.
+- The EULA gate is handled once per process. `windowEula` is requested by
+  name, and every request accepted the EULA (a `GamePrefs` save) and re-fired
+  `ModEvents.MainMenuOpened` at every mod; a second request in a session
+  repeated both for a gate already resolved. A repeat still blocks the window
+  and does no work; a first attempt that threw leaves the latch unset, so the
+  next request retries it. `test_eula_gate_once.sh` pins the ordering.
+- `coverage-cs.sh` removes the previous merged report before merging, so a
+  second coverage run in one tree does not depend on the merger overwriting a
+  file it already wrote, and a failed merge leaves no stale report for the
+  badge to render.
 - `zero_nre_join_loop.sh` stops the server it started by pid and reaps it,
   instead of only sweeping processes named `zdtd`. A server launched through
   the `ZDTD_BIN` override whose binary is not named `zdtd` was invisible to
