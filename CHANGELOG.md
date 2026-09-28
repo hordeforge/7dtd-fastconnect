@@ -15,6 +15,10 @@ in the affected sections instead of being papered over.
 
 - `make test` lints the workflow YAML with `yamllint`, configured by the new
   `.yamllint` (100-column cap, bare `on:` trigger key, no document marker).
+- `restart_pair.sh` takes `HOST` (default `127.0.0.1`) for the join target it
+  hands the client through `7DTD_CONNECT`, the knob the other two harnesses
+  already honour and the README lists for them. A value carrying whitespace is
+  a usage error (exit 2), checked before anything is torn down.
 
 ### Changed
 
@@ -40,6 +44,11 @@ in the affected sections instead of being papered over.
   renamed or dropped. `scripts/stage_mod.sh` now copies the two files
   `make install` installs and fails if the build did not produce them, so a
   partial build cannot be zipped under a release name.
+- `launch_client.sh` trims the client-mute opt-out before matching it, so
+  `CLIENT_MUTE=" 0"` (or `"OFF "`, `" No"`) is the opt-out the README documents
+  instead of falling through to "any other non-empty value" and muting the
+  session anyway. The mod's `EnvFlags` twin and the `CLIENT_PLATFORM` gate in
+  the same script already trimmed.
 
 ## [0.12.0] - 2026-09-11
 

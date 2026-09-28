@@ -719,6 +719,84 @@ def test_client_mute_opt_out_never_invokes_pactl(tmp_path: Path) -> None:
     assert mute_log.read_text(encoding="utf-8") == ""
 
 
+@pytest.mark.parametrize("value", [" 0", "OFF ", " No\t"])
+def test_client_mute_opt_out_tolerates_surrounding_whitespace(tmp_path: Path, value: str) -> None:
+    """A padded opt-out is still the opt-out. The launcher case-folds but did
+    not trim, so CLIENT_MUTE=" 0" read as "any other non-empty value" and kept
+    muting, contradicting the documented boolean table and diverging from the
+    mod's EnvFlags twin and from the CLIENT_PLATFORM gate right below it."""
+    _setup(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    mute_log = tmp_path / "mute.log"
+    mute_log.touch()
+    _write_executable(
+        bin_dir / "pactl",
+        f"printf '%s\\n' \"$*\" >>{shlex.quote(str(mute_log))}\n",
+    )
+    r = _launch(
+        tmp_path,
+        extra_env={"PATH": str(bin_dir), "CLIENT_MUTE": value},
+    )
+    assert r.returncode == 0, r.stderr
+    assert "Client mute" not in r.stdout
+    assert mute_log.read_text(encoding="utf-8") == ""
+
+
+def test_client_mute_opt_out_takes_the_alias_variable(tmp_path: Path) -> None:
+    """The documented alias carries the same opt-out table, padded values
+    included; CLIENT_MUTE= empty must fall through to it, not to the default."""
+    _setup(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    mute_log = tmp_path / "mute.log"
+    mute_log.touch()
+    _write_executable(
+        bin_dir / "pactl",
+        f"printf '%s\\n' \"$*\" >>{shlex.quote(str(mute_log))}\n",
+    )
+    r = _launch(
+        tmp_path,
+        extra_env={
+            "PATH": str(bin_dir),
+            "CLIENT_MUTE": "",
+            "SEVEN_DAYS_TO_DIE_CLIENT_MUTE": " off ",
+        },
+    )
+    assert r.returncode == 0, r.stderr
+    assert "Client mute" not in r.stdout
+    assert mute_log.read_text(encoding="utf-8") == ""
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="mute filter needs jq")
+def test_blank_client_mute_keeps_the_mute_on_default(tmp_path: Path) -> None:
+    """A blank value is not an opt-out. Trimming must not turn CLIENT_MUTE=" "
+    into an explicit "leave audio on": blank means the documented default,
+    which is muted, and that is how the mod's EnvFlags.IsSetOn reads a
+    whitespace-only value for the 7DTD_CONNECT_* flags."""
+    _setup(tmp_path, game_run_seconds=2)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    streams = tmp_path / "streams.json"
+    streams.write_text(STREAMS_JSON, encoding="utf-8")
+    mute_log = tmp_path / "mute.log"
+    mute_log.touch()
+    shutil.copyfile(PACTL_STUB, bin_dir / "pactl")
+    (bin_dir / "pactl").chmod((bin_dir / "pactl").stat().st_mode | stat.S_IEXEC)
+    r = _launch(
+        tmp_path,
+        extra_env={
+            "PATH": str(bin_dir),
+            "PACTL_JSON": str(streams),
+            "PACTL_LOG": str(mute_log),
+            "CLIENT_MUTE": " ",
+        },
+    )
+    assert r.returncode == 0, r.stderr
+    assert "Client mute: on" in r.stdout
+    assert "set-sink-input-mute 7 1" in mute_log.read_text(encoding="utf-8").splitlines()
+
+
 PROTON_PATHS = ROOT / "scripts" / "proton_paths.sh"
 
 

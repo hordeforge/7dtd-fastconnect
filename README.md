@@ -250,7 +250,8 @@ Every runtime knob in one place; the sections above carry the detail. Rules
 that hold for all of them:
 
 - Unset and empty mean the default. Boolean opt-outs accept `0` / `false` /
-  `no` / `off` (any case); any other non-empty value opts in.
+  `no` / `off` (any case, surrounding whitespace ignored); any other non-empty
+  value opts in.
 - Values echoed to logs are flattened to one line (no control characters).
 - Invalid enum values either abort with the valid set (`GFX_API`) or warn and
   fall back (`CLIENT_PLATFORM`, numeric timeouts); nothing is silently ignored.

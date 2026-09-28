@@ -15,6 +15,7 @@ then relaunch both: zdtd on [port] and the stock client pointed at it via
 Exit status: 0 relaunched, 2 usage error, 1 setup or readiness failure.
 
 Key env vars:
+  HOST      join target the client is pointed at (default 127.0.0.1)
   ZDTD      zdtd binary (default ../zdtd-server/zig-out/bin/zdtd)
   GAME_SRV  dedicated server install dir
   LOGDIR    log dir (default ~/.cache/zdtd-scratch)
@@ -32,6 +33,16 @@ PORT="${2:-27025}"
 # same convention as launch_client.sh GFX_API), not a fallback.
 if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
   echo "ERROR: port must be numeric, got '$PORT'" >&2
+  exit 2
+fi
+# HOST joins the pair relaunch; the README lists it among the harness knobs and
+# the other two harnesses already honour it. Validated before anything is torn
+# down, with the same treatment PORT gets: the value reaches 7DTD_CONNECT and
+# the launcher's log, so a value carrying whitespace is a usage error. Unset
+# and empty mean the loopback default, as for every other knob.
+HOST="${HOST:-127.0.0.1}"
+if [[ "$HOST" =~ [[:space:]] ]]; then
+  echo "ERROR: host must be a single word, got '$HOST'" >&2
   exit 2
 fi
 GAME_SRV="${GAME_SRV:-$HOME/.local/share/Steam/steamapps/common/7 Days to Die Dedicated Server}"
@@ -116,7 +127,7 @@ fi
 # **7dtd-playtest** mod (not connect). Prefer:
 #   make -C ../7dtd-playtest playtest-smoke
 # for scored exit codes. This script only launches the pair.
-env 7DTD_CONNECT="127.0.0.1:$PORT" \
+env 7DTD_CONNECT="$HOST:$PORT" \
 PLAYTEST="${PLAYTEST:-}" \
 PLAYTEST_SUITE="${PLAYTEST_SUITE:-}" \
   nohup "$SCRIPTDIR/launch_client.sh" \

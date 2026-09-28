@@ -100,9 +100,17 @@ if [[ -n "$CONNECT" ]]; then
   EXTRA_ARGS+=(-connect="$CONNECT")
 fi
 
-# Mute client audio by default (opt-out).
+# Mute client audio by default (opt-out). Trim + case-fold before matching, so
+# "0", " Off " and "NO" all read as the documented opt-out instead of falling
+# through to "any other non-empty value" (the same shape as the CLIENT_PLATFORM
+# opt-out below, and the shell twin of the EnvFlags trim the mod applies to the
+# 7DTD_CONNECT_* flags). A blank value is not an opt-out: it trims to empty and
+# keeps the unset default, mute on, which is what EnvFlags.IsSetOn does with a
+# whitespace-only value.
 MUTE_CLIENT="${CLIENT_MUTE:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE:-1}}"
-case "${MUTE_CLIENT,,}" in
+MUTE_MODE="${MUTE_CLIENT#"${MUTE_CLIENT%%[![:space:]]*}"}"
+MUTE_MODE="${MUTE_MODE%"${MUTE_MODE##*[![:space:]]}"}"
+case "${MUTE_MODE,,}" in
   0 | false | no | off) MUTE_CLIENT="" ;;
 esac
 MUTE_WAIT="${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}"

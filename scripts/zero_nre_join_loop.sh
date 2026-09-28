@@ -15,6 +15,7 @@ Exit status: 0 confirmed zero-NRE join | 1 budget exhausted or the
              zdtd server failed to listen | 2 ZDTD_BIN missing.
 
 Key env vars:
+  HOST           join target for each cycle (default 127.0.0.1)
   PORT           zdtd listen port (default 27025)
   MAX_ATTEMPTS   cycle budget (default 6)
   TIMEOUT_SEC    per-cycle join wait in seconds (default 90)
