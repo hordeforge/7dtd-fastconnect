@@ -733,24 +733,51 @@ def test_host_steam_is_never_reached(tmp_path: Path) -> None:
     assert r.returncode == STEAM_GUARD_EXIT_STATUS, r.returncode
 
 
-@pytest.mark.skipif(shutil.which("jq") is None, reason="mute filter needs jq")
-def test_default_mute_mutes_game_stream_via_launch(tmp_path: Path) -> None:
-    """Default-on mute end to end: the poller started by launch_client must
-    mute the game's sink input and leave unrelated streams alone."""
-    _setup(tmp_path, game_run_seconds=2)
+def _pactl_invocation_log(tmp_path: Path) -> tuple[str, Path]:
+    """PATH stub whose pactl appends every call it receives, and that log.
+
+    The opt-out tests assert the log stays empty, so a pactl call the
+    launcher failed to suppress fails the test instead of passing silently.
+    """
     bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    bin_dir.mkdir(exist_ok=True)
+    mute_log = tmp_path / "mute.log"
+    mute_log.touch()
+    _write_executable(
+        bin_dir / "pactl",
+        f"printf '%s\\n' \"$*\" >>{shlex.quote(str(mute_log))}\n",
+    )
+    return stub_path(bin_dir), mute_log
+
+
+def _real_pactl_stub(tmp_path: Path) -> tuple[str, Path, Path]:
+    """PATH carrying the shared pactl double, its stream list, and its log.
+
+    The mute helper mutes only the matching sink inputs, so these tests read
+    the log to tell a real mute from a launch that merely claimed one.
+    """
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
     streams = tmp_path / "streams.json"
     streams.write_text(STREAMS_JSON, encoding="utf-8")
     mute_log = tmp_path / "mute.log"
     mute_log.touch()
     shutil.copyfile(PACTL_STUB, bin_dir / "pactl")
     (bin_dir / "pactl").chmod((bin_dir / "pactl").stat().st_mode | stat.S_IEXEC)
+    return stub_path(bin_dir), streams, mute_log
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="mute filter needs jq")
+def test_default_mute_mutes_game_stream_via_launch(tmp_path: Path) -> None:
+    """Default-on mute end to end: the poller started by launch_client must
+    mute the game's sink input and leave unrelated streams alone."""
+    _setup(tmp_path, game_run_seconds=2)
+    path, streams, mute_log = _real_pactl_stub(tmp_path)
     r = _launch(
         tmp_path,
         mute=True,
         extra_env={
-            "PATH": stub_path(bin_dir),
+            "PATH": path,
             "PACTL_JSON": str(streams),
             "PACTL_LOG": str(mute_log),
         },
@@ -764,18 +791,10 @@ def test_default_mute_mutes_game_stream_via_launch(tmp_path: Path) -> None:
 
 def test_client_mute_opt_out_never_invokes_pactl(tmp_path: Path) -> None:
     _setup(tmp_path)
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    mute_log = tmp_path / "mute.log"
-    mute_log.touch()
-    # Any invocation would append; the opt-out must prevent them all.
-    _write_executable(
-        bin_dir / "pactl",
-        f"printf '%s\\n' \"$*\" >>{shlex.quote(str(mute_log))}\n",
-    )
+    path, mute_log = _pactl_invocation_log(tmp_path)
     r = _launch(
         tmp_path,
-        extra_env={"PATH": stub_path(bin_dir), "CLIENT_MUTE": "0"},
+        extra_env={"PATH": path, "CLIENT_MUTE": "0"},
     )
     assert r.returncode == 0, r.stderr
     assert "Client mute" not in r.stdout
@@ -789,17 +808,10 @@ def test_client_mute_opt_out_tolerates_surrounding_whitespace(tmp_path: Path, va
     muting, contradicting the documented boolean table and diverging from the
     mod's EnvFlags twin and from the CLIENT_PLATFORM gate right below it."""
     _setup(tmp_path)
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    mute_log = tmp_path / "mute.log"
-    mute_log.touch()
-    _write_executable(
-        bin_dir / "pactl",
-        f"printf '%s\\n' \"$*\" >>{shlex.quote(str(mute_log))}\n",
-    )
+    path, mute_log = _pactl_invocation_log(tmp_path)
     r = _launch(
         tmp_path,
-        extra_env={"PATH": stub_path(bin_dir), "CLIENT_MUTE": value},
+        extra_env={"PATH": path, "CLIENT_MUTE": value},
     )
     assert r.returncode == 0, r.stderr
     assert "Client mute" not in r.stdout
@@ -810,18 +822,11 @@ def test_client_mute_opt_out_takes_the_alias_variable(tmp_path: Path) -> None:
     """The documented alias carries the same opt-out table, padded values
     included; CLIENT_MUTE= empty must fall through to it, not to the default."""
     _setup(tmp_path)
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    mute_log = tmp_path / "mute.log"
-    mute_log.touch()
-    _write_executable(
-        bin_dir / "pactl",
-        f"printf '%s\\n' \"$*\" >>{shlex.quote(str(mute_log))}\n",
-    )
+    path, mute_log = _pactl_invocation_log(tmp_path)
     r = _launch(
         tmp_path,
         extra_env={
-            "PATH": stub_path(bin_dir),
+            "PATH": path,
             "CLIENT_MUTE": "",
             "SEVEN_DAYS_TO_DIE_CLIENT_MUTE": " off ",
         },
@@ -838,18 +843,11 @@ def test_blank_client_mute_keeps_the_mute_on_default(tmp_path: Path) -> None:
     which is muted, and that is how the mod's EnvFlags.IsSetOn reads a
     whitespace-only value for the 7DTD_CONNECT_* flags."""
     _setup(tmp_path, game_run_seconds=2)
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    streams = tmp_path / "streams.json"
-    streams.write_text(STREAMS_JSON, encoding="utf-8")
-    mute_log = tmp_path / "mute.log"
-    mute_log.touch()
-    shutil.copyfile(PACTL_STUB, bin_dir / "pactl")
-    (bin_dir / "pactl").chmod((bin_dir / "pactl").stat().st_mode | stat.S_IEXEC)
+    path, streams, mute_log = _real_pactl_stub(tmp_path)
     r = _launch(
         tmp_path,
         extra_env={
-            "PATH": stub_path(bin_dir),
+            "PATH": path,
             "PACTL_JSON": str(streams),
             "PACTL_LOG": str(mute_log),
             "CLIENT_MUTE": " ",

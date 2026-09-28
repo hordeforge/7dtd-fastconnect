@@ -46,15 +46,6 @@ source "$SCRIPT_DIR/proton_paths.sh"
 # scripts/log_sanitize.sh; same contract as LogText.SanitizeForLog.
 source "$SCRIPT_DIR/log_sanitize.sh"
 
-# Echo $1 without leading or trailing whitespace. Both opt-out flags below
-# (CLIENT_MUTE, CLIENT_PLATFORM) trim before matching, the shell twin of the
-# EnvFlags trim the mod applies to the 7DTD_CONNECT_* flags.
-trim_ws() {
-  local value="$1"
-  value="${value#"${value%%[![:space:]]*}"}"
-  printf '%s' "${value%"${value##*[![:space:]]}"}"
-}
-
 GAME="${GAME:-$HOME/.local/share/Steam/steamapps/common/7 Days To Die}"
 STEAM_APPID="${STEAM_APPID:-251570}"
 # Prefer the Steam-built Proton runtimes if present; fall back to steam launch.
@@ -155,7 +146,7 @@ LOCAL_PLATFORM=0
 # documented value (same shape as the MUTE_CLIENT opt-out above). An
 # unrecognized non-empty value warns instead of silently launching with Steam
 # auth: the join would then fail much later with opaque auth errors.
-PLATFORM_MODE="$(trim_ws "${CLIENT_PLATFORM:-}")"
+PLATFORM_MODE="$(trim "${CLIENT_PLATFORM:-}")"
 case "${PLATFORM_MODE,,}" in
   "") ;;
   1 | local | lan) LOCAL_PLATFORM=1 ;;
