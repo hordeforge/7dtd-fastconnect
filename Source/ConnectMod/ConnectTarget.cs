@@ -38,6 +38,13 @@ namespace SdtdConnect
         // twice or, worse, look like "no target set".
         static bool _badTargetWarned;
 
+        // Every launch-context value this module echoes goes through
+        // LogText.SanitizeForLog, the one implementation of the character
+        // rule. Env and argv values are attacker-shapable (a clicked
+        // steam://run URL chooses -connect= text), and join harnesses grep
+        // the client log for fixed markers, so the reported source has to be
+        // the line a reader and a grep both agree on.
+
         static void WarnIgnoredTarget(string sourceLabel, string raw, string error)
         {
             if (_badTargetWarned) return;

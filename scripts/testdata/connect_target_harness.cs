@@ -498,10 +498,14 @@ static class TestMain
                     == "zdtd.lan/\u00e9\U0001F600");
             // One rule for every entry point: the F1 console echo runs the
             // same flattening as the -connect= warning paths, so an env-var
-            // name carrying a BOM cannot reach the log unflattened.
+            // name carrying a BOM cannot reach the log unflattened, and the
+            // echo itself must flatten a bidi override or an invisible
+            // separator too.
             Check("LogText flattens a BOM in an env name",
                 LogText.SanitizeForLog("\uFEFF7DTD_CONNECT") == " 7DTD_CONNECT");
-            Check("LogText echo flattens an invisible separator",
+            Check("echo flattens a bidi override",
+                LogText.EchoForMessage("g\u202Enidets") == "g nidets");
+            Check("echo flattens an invisible separator",
                 LogText.EchoForMessage("host\u2066:27025") == "host :27025");
 
             // Accepted newline-bearing target: the reported source stays one line.

@@ -24,15 +24,20 @@ namespace SdtdConnect
                 || c == '\uFEFF';                    // BOM / zero-width no-break space
         }
 
-        // A character that must not reach a log line verbatim: a control
-        // character (a newline forges a marker a harness greps for), a
-        // Unicode line/paragraph separator (a log reader lays it out as a
-        // line break though grep does not), or an invisible format character
-        // (renders as nothing, so the line reads as something it is not).
-        static bool IsLogUnsafe(char c)
+        // char.IsControl covers C0, DEL and C1 but not the Unicode line and
+        // paragraph separators, which a log reader lays out as a line break
+        // even though grep does not: the same forged-marker shape, one layer
+        // down.
+        static bool IsLineBreaking(char c)
         {
-            return char.IsControl(c) || IsInvisibleFormat(c) || c == '\u2028' || c == '\u2029';
+            return char.IsControl(c) || c == '\u2028' || c == '\u2029';
         }
+
+        // A character that must not reach a log line verbatim: a control or
+        // line-breaking character (a newline forges a marker a harness greps
+        // for) or an invisible format character (renders as nothing, so the
+        // line reads as something it is not).
+        static bool IsLogUnsafe(char c) => IsLineBreaking(c) || IsInvisibleFormat(c);
 
         /// <summary>
         /// Flattens control, line-breaking and invisible-format characters so
@@ -49,10 +54,13 @@ namespace SdtdConnect
         /// and EnvFlags delegate here, and scripts/log_sanitize.sh is the shell
         /// twin. It covers the U+2028/U+2029 separators a log reader lays out
         /// as a line break. The rule used to be duplicated: the copy inside
-        /// ConnectTarget had already drifted, both ways, keeping the
-        /// separators this one lacked, and a per-module EchoForMessage cut the
-        /// echo on UTF-16 units, so a pasted astral character reached the log
-        /// as a lone surrogate.
+        /// ConnectTarget had already drifted, both ways, once keeping control
+        /// characters only (so the -connect= warning paths echoed bidi
+        /// overrides and a BOM straight into the client log) and then missing
+        /// the two Unicode separators, so it is gone rather than kept in step
+        /// by hand; and a per-module EchoForMessage cut the echo on UTF-16
+        /// units, so a pasted astral character reached the log as a lone
+        /// surrogate.
         /// </summary>
         internal static string SanitizeForLog(string value)
         {

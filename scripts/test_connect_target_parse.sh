@@ -8,10 +8,10 @@
 #     bracketed/bare IPv6, port bounds
 #   - MergePortArg: optional second console token merged only into a portless
 #     host, steam:// scheme stripped first
-#   - LogText.SanitizeForLog: control, line-breaking and invisible-format
-#     characters flattened so a crafted target value cannot forge extra
-#     client-log lines (join harnesses grep those markers) or render a line a
-#     grep does not read back
+#   - LogText.SanitizeForLog / EchoForMessage: control, line-breaking and
+#     invisible-format characters flattened so a crafted target value cannot
+#     forge extra client-log lines (join harnesses grep those markers) or
+#     render a line a grep does not read back; the echo cut is code-point safe
 #   - TryFromLaunchContext: 7DTD_CONNECT resolution, invalid-env rejection,
 #     -connect=/-connect/+connect argv forms, +connect_lobby skip, and the
 #     documented precedence (7DTD_CONNECT beats -connect= argv)
