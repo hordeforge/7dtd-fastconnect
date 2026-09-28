@@ -24,10 +24,17 @@ ifneq ($(DOTNET_ROOT),)
   export PATH := $(DOTNET_ROOT):$(PATH)
 endif
 
-.PHONY: build install uninstall clean test coverage package
+.PHONY: build install uninstall clean test coverage package dotnet-version
+
+# The SDK the build actually resolved under the DOTNET_ROOT search above, so
+# the package build record names the compiler instead of whatever dotnet the
+# caller's PATH happens to hold.
+dotnet-version:
+	@dotnet --version
 
 build:
 	dotnet build "$(ROOT)/Source/ConnectMod/ConnectMod.csproj" -c Release -v q \
+		-p:RestoreLockedMode=true \
 		-p:GameRoot="$(GAME)"
 	cp -f "$(ROOT)/ModInfo.xml" "$(DIST)/"
 	@echo "OK → $(DIST)"

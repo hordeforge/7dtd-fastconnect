@@ -10,7 +10,26 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>$(MSBuildThisFileDirectory)../../dist/7dtd-fastconnect/</OutputPath>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- The shipped dll carries a debug directory naming the pdb by its
+         absolute build path, so two checkouts of one commit produced
+         different bytes. No symbols are shipped (scripts/stage_mod.sh stages
+         the dll and ModInfo.xml only), so build with none. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <Deterministic>true</Deterministic>
+    <!-- packages.lock.json records the resolved graph with a content hash
+         each package, so restore cannot drift to a different reference
+         assembly set. Bump it with:
+           dotnet restore Source/ConnectMod/ConnectMod.csproj \
+             -p:RestorePackagesWithLockFile=true -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- The SDK pulls this in implicitly for net48 on a non-Windows host, at
+         whatever version it defaults to, so the build fetched a different
+         reference assembly set as the SDK moved. Declare the one version. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
   <PropertyGroup>
     <GameRoot Condition="'$(GameRoot)' == ''">$(HOME)/.local/share/Steam/steamapps/common/7 Days To Die</GameRoot>
     <GameManagedDir Condition="'$(GameManagedDir)' == ''">$(GameRoot)/7DaysToDie_Data/Managed</GameManagedDir>

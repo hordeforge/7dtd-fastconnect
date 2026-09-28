@@ -13,6 +13,18 @@ in the affected sections instead of being papered over.
 
 ### Fixed
 
+- `CLIENT_MUTE=" "` (any whitespace-only value) keeps the client muted. It
+  trimmed to empty, which the launcher read as the same opt-out as `0`.
+- The built mod no longer embeds the absolute path of its own pdb, so the same
+  source compiles to the same dll bytes in any checkout directory. Debug
+  symbols were never shipped, so they are off.
+- `make package` writes a `<version>.buildinfo` beside the archive with the
+  commit, dirty state, `SOURCE_DATE_EPOCH`, dotnet SDK version, and the
+  archive's sha256, so a rebuild has a recorded environment to start from.
+- The net48 reference assemblies are an explicit `PackageReference` locked by
+  `Source/ConnectMod/packages.lock.json`, and `make build` restores in locked
+  mode. The SDK had been pulling that package in implicitly at whatever
+  version it defaulted to.
 - `zero_nre_join_loop.sh` stops the server it started by pid and reaps it,
   instead of only sweeping processes named `zdtd`. A server launched through
   the `ZDTD_BIN` override whose binary is not named `zdtd` was invisible to

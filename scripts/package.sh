@@ -14,7 +14,9 @@
 # Reproducibility: entry mtimes come from SOURCE_DATE_EPOCH (default: the
 # last commit's timestamp), never the wall clock, and scripts/repro_zip.sh
 # normalizes order/metadata so two builds of one tree produce identical
-# bytes. See scripts/repro_zip.sh for the full contract.
+# bytes. See scripts/repro_zip.sh for the full contract. A sibling .buildinfo
+# beside the zip records the commit, SDK, epoch, and sha256 needed to rebuild
+# it.
 set -euo pipefail
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -24,7 +26,8 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 Build the mod (make build) and zip dist/7dtd-fastconnect into
 dist/7dtd-fastconnect-<version>.zip with reproducible bytes: entry mtimes
 come from SOURCE_DATE_EPOCH (default: the last commit's timestamp), never
-the wall clock.
+the wall clock. A sibling .buildinfo records the commit, the dotnet SDK, and
+the archive's sha256 so the zip can be reproduced later.
 
 The version comes from the newest git tag (vX.Y.Z -> X.Y.Z); VERSION=x.y.z
 overrides it, and a worktree with uncommitted tracked changes ships as
@@ -86,4 +89,19 @@ mkdir -p "$STAGE"
 trap 'rm -rf "$STAGE"' EXIT INT TERM
 "$ROOT/scripts/stage_mod.sh" "$ROOT/dist/7dtd-fastconnect" "$STAGE"
 "$ROOT/scripts/repro_zip.sh" "$STAGE" "$OUT"
+
+# What a rebuild needs to reproduce the zip: the exact inputs, the toolchain
+# that compiled them, and the bytes that came out. Written beside the archive,
+# never into it, so the payload stays the two files the game loads.
+BUILDINFO="${OUT%.zip}.buildinfo"
+{
+	echo "version: $VERSION"
+	echo "commit: $(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+	echo "dirty: $(git -C "$ROOT" diff-index --quiet HEAD -- 2>/dev/null && echo no || echo yes)"
+	echo "source_date_epoch: $SOURCE_DATE_EPOCH"
+	echo "dotnet: $(make -C "$ROOT" --no-print-directory dotnet-version 2>/dev/null || echo unknown)"
+	echo "sha256: $(sha256sum "$OUT" | cut -d' ' -f1)"
+} >"$BUILDINFO"
+
 echo "Packaged -> $OUT (epoch $SOURCE_DATE_EPOCH)"
+echo "Build record -> $BUILDINFO"
