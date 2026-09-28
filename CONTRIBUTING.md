@@ -56,7 +56,7 @@ The conventions when adding to either kind:
   `scripts/test_version_sync.sh` enforces that.
 - A change that needs a new NuGet package, or a new Python dev tool, updates
   the matching lockfile through its own tool (`dotnet restore
-  Source/ConnectMod/ConnectMod.csproj -p:RestorePackagesWithLockFile=true`,
+  Source/ConnectMod/ConnectMod.csproj -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true`,
   `uv lock`). Do not hand-edit either lockfile.
 - Add a line to the unreleased section of [CHANGELOG.md](CHANGELOG.md) for
   anything a user would notice. The release gate

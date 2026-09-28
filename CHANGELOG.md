@@ -92,6 +92,18 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Changed
 
+- The NuGet lockfile is now enforced by the project, not only by `make build`:
+  `Source/ConnectMod/ConnectMod.csproj` sets `RestoreLockedMode`, so an IDE or
+  a hand-run `dotnet build` fails instead of resolving freely and rewriting
+  `packages.lock.json` in the source tree. Re-locking adds
+  `-p:RestoreLockedMode=false` to the documented `dotnet restore` command.
+- Every `dotnet` call from make runs with telemetry, the first-run banner, and
+  the CLI message language pinned, so a build sends nothing off-host, writes
+  no machine-local state, and does not print in the caller's locale.
+- `docs/RELEASING.md` gained the rebuild-and-compare step: package the same
+  commit from a second checkout and diff the two zips, so a reproducible
+  archive is verified rather than assumed.
+
 - Four copies of one thing became one, with no behaviour change.
   `EnvFlags` spelled the boolean token table twice, once per direction, behind
   four predicates; it now has a single `Parse` over one table, and the opt-in

@@ -66,7 +66,7 @@ Everything else is a game-side requirement:
   package graph pinned by `Source/ConnectMod/packages.lock.json`, restore
   sources declared in `NuGet.config`; the build
   restores in locked mode, so a dependency bump needs an explicit
-  `dotnet restore Source/ConnectMod/ConnectMod.csproj -p:RestorePackagesWithLockFile=true`)
+  `dotnet restore Source/ConnectMod/ConnectMod.csproj -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true`)
 - `zip` for `make package` (archive bytes are reproducible; `SOURCE_DATE_EPOCH` defaults to the last commit)
 
 `make build` is path-independent: the mod is compiled with debug symbols off
