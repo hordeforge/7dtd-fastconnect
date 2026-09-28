@@ -28,7 +28,7 @@ ifneq ($(DOTNET_ROOT),)
   export PATH := $(DOTNET_ROOT):$(PATH)
 endif
 
-.PHONY: build install uninstall clean test gate coverage package help dotnet-version check-mods-dir
+.PHONY: build install uninstall clean test gate coverage package help dotnet-version check-mods-dir doctor
 
 # The SDK the build actually resolved under the DOTNET_ROOT search above, so
 # the package build record names the compiler instead of whatever dotnet the
@@ -36,21 +36,40 @@ endif
 dotnet-version:
 	@dotnet --version
 
+# One way to invoke pytest, shared by `make test` and `make gate` so the two
+# cannot drift: the pinned dev toolchain through uv, else the pytest on PATH
+# once assert_tool_pin.sh proves it reports the == pin in pyproject.toml.
+ifeq ($(shell command -v uv 2>/dev/null),)
+PYTEST := $(ROOT)/scripts/assert_tool_pin.sh pytest python3 -m pytest
+else
+PYTEST := uv run --frozen --group dev -- pytest
+endif
+
 # One gate on its own, so an edit to one script is checked in seconds instead
-# of a full `make test` run. The Python gate is a pytest module rather than a
-# shell gate; run it with
-#   uv run --frozen --group dev pytest scripts/test_launch_client_platform.py
+# of a full `make test` run. A .py gate is a pytest module with no __main__: it
+# is dispatched to pytest, never executed as a program (running it directly
+# printed nothing and exited 0, a green that tested nothing). GATE_ARGS passes
+# extra arguments through, so one test is
+#   make gate GATE=scripts/test_launch_client_platform.py GATE_ARGS=-kplatform
+# (`-kplatform` without a space: make splits the value on whitespace).
 GATE ?=
+GATE_ARGS ?=
 gate:
 	@test -n "$(GATE)" || { echo "usage: make gate GATE=scripts/test_<name>.sh" >&2; exit 2; }
 	@test -f "$(ROOT)/$(GATE)" || { echo "no such gate: $(GATE)" >&2; exit 2; }
 	@echo "gate: $(GATE)"
-	"$(ROOT)/$(GATE)"
+	@case "$(GATE)" in \
+	*.py) cd "$(ROOT)" && $(PYTEST) "$(GATE)" $(GATE_ARGS) ;; \
+	*) test -x "$(ROOT)/$(GATE)" || { echo "not executable: $(GATE)" >&2; exit 2; }; \
+	   "$(ROOT)/$(GATE)" ;; \
+	esac
 
 help:
 	@echo "targets:"
 	@echo "  test       every gate CI runs (offline; the full local verification)"
-	@echo "  gate       one shell gate: make gate GATE=scripts/test_<name>.sh"
+	@echo "  gate       one gate: make gate GATE=scripts/test_<name>.sh (a .py gate"
+	@echo "             goes to pytest; GATE_ARGS=-k<expr> selects one test)"
+	@echo "  doctor     check the toolchain \`make test\` needs, naming what is missing"
 	@echo "  build      build the mod DLL into dist/ (needs the game install)"
 	@echo "  install    build, then copy into \$$GAME/Mods/7dtd-fastconnect"
 	@echo "  uninstall  remove that installed copy"
@@ -58,9 +77,8 @@ help:
 	@echo "  coverage   line coverage of ConnectTarget plus the rendered badge"
 	@echo "  clean      remove dist/ and the C# bin/ and obj/ trees"
 	@echo "  dotnet-version  print the dotnet SDK version the build would use"
-	@echo "python gate (not a shell gate):"
-	@echo "  uv run --frozen --group dev pytest scripts/test_launch_client_platform.py"
-	@echo "setup: uv sync --group dev (pinned ruff/mypy/pytest/yamllint); dotnet SDK band in global.json"
+	@echo "setup: make doctor (what is missing); uv sync --frozen --group dev for the"
+	@echo "        pinned ruff/mypy/pytest/yamllint; dotnet SDK band in global.json"
 
 # Runs dotnet from ROOT so global.json (the SDK pin) is always the one in this
 # tree, and with the C locale and UTC so no host locale or timezone can reach
@@ -110,9 +128,14 @@ GATES := \
 	scripts/test_one_shot_launcher_group.sh \
 	scripts/test_zero_nre_log_dir_guard.sh \
 	scripts/test_zero_nre_server_stop.sh \
-	scripts/test_make_tool_pin.sh
+	scripts/test_make_tool_pin.sh \
+	scripts/test_prereqs.sh
 
+# The toolchain the gates below need, before any of them runs: a gate that
+# cannot find zip or jq exits 0, so without this the suite reports a green on a
+# machine where those gates never ran.
 test:
+	@$(ROOT)/scripts/check_prereqs.sh
 	@for gate in $(GATES); do "$(ROOT)/$$gate" || exit $$?; done
 	# Without uv the Python gates below run a binary from PATH, so
 	# assert_tool_pin.sh checks each one against its == pin in pyproject.toml
@@ -151,12 +174,7 @@ test:
 	  echo "ERROR: neither uv nor ruff+mypy+yamllint available; run 'uv sync --group dev' first" >&2; \
 	  exit 1; \
 	fi
-	@if command -v uv >/dev/null; then \
-	  cd "$(ROOT)" && uv run --frozen --group dev pytest scripts/test_launch_client_platform.py -q --tb=short; \
-	else \
-	  cd "$(ROOT)" && "$(ROOT)/scripts/assert_tool_pin.sh" pytest python3 -m pytest && \
-	  python3 -m pytest scripts/test_launch_client_platform.py -q --tb=short; \
-	fi
+	@cd "$(ROOT)" && $(PYTEST) scripts/test_launch_client_platform.py -q --tb=short
 
 package:
 	$(ROOT)/scripts/package.sh
@@ -190,3 +208,8 @@ check-mods-dir:
 
 clean:
 	rm -rf "$(ROOT)/dist" "$(ROOT)/Source/ConnectMod/bin" "$(ROOT)/Source/ConnectMod/obj"
+
+# What `make test` needs on this machine, before spending 70s finding out. Same
+# check the test target runs first, so this answer cannot drift from it.
+doctor:
+	@$(ROOT)/scripts/check_prereqs.sh

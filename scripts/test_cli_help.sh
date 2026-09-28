@@ -18,7 +18,7 @@ run_help() {
 
 for script in launch_client.sh one_shot_join.sh zero_nre_join_loop.sh \
 	restart_pair.sh mute_client_audio.sh unmute_client_audio.sh \
-	repro_zip.sh package.sh stage_mod.sh assert_tool_pin.sh; do
+	repro_zip.sh package.sh stage_mod.sh assert_tool_pin.sh check_prereqs.sh; do
 	assert "$script --help exits 0" run_help "$ROOT/scripts/$script" --help
 	assert "$script -h exits 0" run_help "$ROOT/scripts/$script" -h
 	help_out="$("$ROOT/scripts/$script" --help 2>/dev/null)"

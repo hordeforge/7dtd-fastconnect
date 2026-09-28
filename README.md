@@ -33,6 +33,26 @@ any, and no version is re-tagged.
 
 ## Requirements
 
+Running the tests needs no game install and no network; the tools below are all
+it takes. `make doctor` checks them and names whatever is missing with the
+command that installs it:
+
+```bash
+make doctor
+```
+
+- `shellcheck`, `zip`, `unzip`, `jq` from the system packages
+  (Debian/Ubuntu: `apt-get install shellcheck zip unzip jq`)
+- the dotnet SDK band pinned in `global.json` (`dotnet --version` must satisfy
+  it), or `mcs` + `mono` for the same C# gate
+- [`uv`](https://docs.astral.sh/uv/) for the pinned Python gates:
+  `uv sync --frozen --group dev` installs ruff, mypy, pytest, and yamllint at
+  the exact versions in `pyproject.toml` / `uv.lock`. Without uv the gates fall
+  back to those tools on `PATH`, each held to the same pin by
+  `scripts/assert_tool_pin.sh`.
+
+Everything else is a game-side requirement:
+
 - Stock client **EAC off** (`-noeac`; C# mods require it)
 - `0_TFP_Harmony` present (stock)
 - Game at `~/.local/share/Steam/steamapps/common/7 Days To Die` (override with `GAME=`)
@@ -82,15 +102,19 @@ its top level and holds only `7dtd-fastconnect.dll`, `ModInfo.xml`, and
 ## Tests
 
 ```bash
-make help    # list the targets
-make test    # every gate CI runs: the full local verification
+make help     # list the targets
+make doctor   # the tools `make test` needs, and what is missing here
+make test     # every gate CI runs: the full local verification
 ```
 
-One gate at a time, for the edit-test loop:
+One gate at a time, for the edit-test loop. `make gate` takes a shell gate or a
+Python gate; a `.py` gate goes to pytest, never straight to the interpreter, so
+it cannot report a green that ran nothing:
 
 ```bash
 make gate GATE=scripts/test_log_sanitize.sh
-uv run --frozen --group dev pytest scripts/test_launch_client_platform.py
+make gate GATE=scripts/test_launch_client_platform.py
+make gate GATE=scripts/test_launch_client_platform.py GATE_ARGS=-kresolve_compat
 ```
 
 The whole suite is offline: no game install, no server, no audio daemon.
@@ -105,7 +129,10 @@ mandatory, so a missing toolchain fails the run instead of reporting a green
 that never analyzed anything. With `uv` on PATH the Python gates run the
 versions pinned in `pyproject.toml` and hash-checked in `uv.lock`; without it
 they fall back to the tools on PATH, which must report the same pinned version
-or the gate stops (`scripts/assert_tool_pin.sh`).
+or the gate stops (`scripts/assert_tool_pin.sh`). A tool missing from the
+system (zip, jq, a C# compiler) is named before the first gate runs
+(`scripts/check_prereqs.sh`), so those gates cannot report a pass they never
+took.
 
 ## Usage
 

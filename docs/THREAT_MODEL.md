@@ -137,7 +137,7 @@ The release zip itself is built locally and attached manually
 
 Privilege transitions: none. Everything runs as the desktop user; no service,
 no setuid, no elevated installer (`make install` copies files into the game's
-`Mods/` dir, Makefile:84-90).
+`Mods/` dir, Makefile:178-183).
 
 ## Threats per boundary
 
@@ -271,7 +271,7 @@ These are recorded, not fixed, here. Fixes belong to sec-review.
 4. **R4 - release provenance**: `make package` runs on a maintainer machine;
    the zip attached to releases carries no build attestation
    (.github/workflows/release.yml:8-12 states this openly). Consumers install
-   a DLL into their game (Makefile:84-90) on trust alone.
+   a DLL into their game (Makefile:178-183) on trust alone.
 5. **R5 - broad kill patterns**: substring process matching can terminate
    unrelated processes (restart_pair.sh:109-114, one_shot_join.sh:162-167).
 6. **No SECURITY.md**: the repository has no disclosure contact, supported-

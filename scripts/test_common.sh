@@ -24,6 +24,16 @@ assert() {
 	else echo "FAIL $name" >&2; FAILS=$((FAILS + 1)); fi
 }
 
+# The inverse of assert, for the gates whose subject is a refusal: a tool
+# check that must reject a missing input, a validator that must exit 2. Same
+# PASS/FAIL accounting, opposite expectation.
+assert_fails() {
+	local name="$1"
+	shift
+	if "$@"; then echo "FAIL $name" >&2; FAILS=$((FAILS + 1))
+	else echo "PASS $name"; fi
+}
+
 # assert can only test success, so "this text must NOT appear in this file"
 # needs a predicate of its own. Literal and ERE variants, same argument order.
 not_grep() { ! grep -q -- "$1" "$2"; }
