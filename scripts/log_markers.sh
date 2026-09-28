@@ -22,6 +22,14 @@
 # which does not happen in game logs; the window also bounds the worst case
 # when polls arrive faster than bytes are appended. External truncation (size
 # shrinking below the offset) falls back to a full scan.
+#
+# A poll that finds the file exactly the size this pattern last scanned to
+# skips the scan outright: the window is byte-identical, so the verdict cannot
+# differ, and re-grepping it every 2s is the bulk of a join cycle's cost. The
+# join log is bursty (minutes of setup around a few seconds of world load), so
+# most polls land on a log that has not grown. This assumes append-only as
+# above: replacing the file with different content of the same size would go
+# unnoticed, and a truncation to 0 does not (it scans from zero).
 
 declare -A SEEN_MARK=()
 
@@ -48,6 +56,15 @@ log_seen() {
 	local size
 	size="$(stat -c %s "$LOG_MARK_FILE" 2>/dev/null)" || return 1
 	local off="${MARK_OFFSET[$re]:-0}"
+	# No bytes appended since this pattern's last scan: the window that scan
+	# covered is byte-identical, so grep would return the same verdict. The
+	# poll re-queries every still-unmatched marker every 2s for the whole join
+	# budget, and a log that sits still between bursts is the common case, so
+	# this drops the tail+grep forks (and the overlap re-read) for those polls.
+	# A positive already returned above; a miss is the only verdict left.
+	if ((size == off)); then
+		return 1
+	fi
 	if ((size < off)); then
 		off=0
 	fi
@@ -67,6 +84,9 @@ log_seen() {
 	fi
 	# tail -c +N is 1-based; a start past EOF yields an empty stream, which
 	# correctly matches nothing.
+	# Process substitution, not a pipeline: grep -Eq exits on the first match,
+	# which SIGPIPEs a piped tail, and under the caller's `set -o pipefail`
+	# that 141 becomes the pipeline status and turns a match into a miss.
 	if grep -Eq -- "$re" <(tail -c +"$((start + 1))" "$LOG_MARK_FILE" 2>/dev/null); then
 		SEEN_MARK[$re]=0
 		MARK_OFFSET[$re]=$size

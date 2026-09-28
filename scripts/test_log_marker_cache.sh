@@ -121,6 +121,64 @@ conditionally_queried_pattern_misses_nothing() {
 	return "$rc"
 }
 
+# A poll that runs while the log has not grown must not rescan: the bytes
+# since the pattern's last scan are unchanged, so grep could only repeat the
+# verdict already recorded. Counted through a PATH stub, because a returning
+# miss and a skipped scan are indistinguishable from the return code alone,
+# and the whole point is the forking that was avoided.
+idle_poll_skips_the_rescan() {
+	local old_overlap="$LOG_MARK_OVERLAP"
+	LOG_MARK_OVERLAP=1024
+	local stub="$WORK/stub" calls="$WORK/grep-calls"
+	mkdir -p "$stub"
+	{
+		echo '#!/usr/bin/env bash'
+		echo "echo call >>'$calls'"
+		echo 'exec /usr/bin/grep "$@"'
+	} >"$stub/grep"
+	chmod +x "$stub/grep"
+
+	log_marks_reset
+	: >"$LOG_MARK_FILE"
+	head -c 4096 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
+	(
+		export PATH="$stub:$PATH"
+		# First scan of the pattern: one grep, and a miss.
+		log_seen 'never written anywhere' || true
+		[[ -f "$calls" && $(wc -l <"$calls") -eq 1 ]] || exit 1
+		# Same bytes, next poll: no new grep, still a miss.
+		log_seen 'never written anywhere' && exit 1
+		[[ $(wc -l <"$calls") -eq 1 ]] || exit 1
+		# Bytes arrive: the scan runs again and the marker is found.
+		printf 'NET: PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
+		log_seen 'PlayerSpawnedInWorld' || exit 1
+	)
+	LOG_MARK_OVERLAP="$old_overlap"
+}
+
+# The scan window must be handed to grep through a process substitution, not
+# a pipeline: grep -Eq exits on the first match, a piped tail then dies of
+# SIGPIPE, and the caller's `set -o pipefail` turns that 141 into the pipeline
+# status, so a match in a large window would read as a miss and a real join
+# would never be seen. The window has to outgrow the pipe buffer for tail to
+# still be writing when grep leaves.
+match_in_a_large_window_is_not_lost_to_sigpipe() {
+	local old_overlap="$LOG_MARK_OVERLAP"
+	LOG_MARK_OVERLAP=1024
+	log_marks_reset
+	: >"$LOG_MARK_FILE"
+	head -c 4096 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
+	# One pattern, two scans: the first misses and records the resume point,
+	# the second runs over the grown file and must find the marker.
+	log_seen 'PlayerSpawnedInWorld' && return 1
+	printf 'NET: PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
+	head -c 4194304 /dev/zero | tr '\0' 'x' >>"$LOG_MARK_FILE"
+	local rc=0
+	log_seen 'PlayerSpawnedInWorld' || rc=1
+	LOG_MARK_OVERLAP="$old_overlap"
+	return "$rc"
+}
+
 assert "missing log is not seen" missing_log_is_not_seen
 assert "miss flips when matching bytes arrive" miss_flips_when_bytes_arrive
 assert "cached positive survives other-marker misses" positive_sticks_after_miss_on_other_marker
@@ -129,5 +187,7 @@ assert "partial line matches only once complete" partial_line_does_not_match_unt
 assert "scan offset advances and boundary match is found" offset_advances_and_boundary_match_is_found
 assert "truncated log falls back to full scan" truncated_log_resets_offset
 assert "conditionally queried pattern skips no bytes" conditionally_queried_pattern_misses_nothing
+assert "large-window match survives" match_in_a_large_window_is_not_lost_to_sigpipe
+assert "idle poll skips the rescan" idle_poll_skips_the_rescan
 
 finish
