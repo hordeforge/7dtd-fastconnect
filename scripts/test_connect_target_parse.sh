@@ -113,6 +113,21 @@ assert "PlayerNames fallback invariants (never empty, capped, trimmed)" run_mode
 assert "ProbeFailure announce-once latch (per probe name)" run_mode probefailure
 assert "force-load-sync default-on / opt-out / snapshot contract" run_mode forcesync
 
+# Every deadline, heartbeat and elapsed-time report in the mod must read
+# realtimeSinceStartup. Time.unscaledTime is accumulated from
+# unscaledDeltaTime, which Unity clamps to Time.maximumDeltaTime (0.333s), so
+# a boot that stalls for a second a frame reports a fraction of the wall clock
+# that passed: the 45s connect cap, the 30s connect-request latch and the two
+# ConnectReady windows would all expire late, which is the failure this mod
+# exists to catch. A deadline on a clock that under-reports elapsed time is
+# not measurable from the harness, so pin the choice here instead.
+# unscaledTime itself is absent from the stub, so any reintroduced use fails
+# the compile above; this catches the case where the stub is widened to match.
+for f in ConnectTarget ConnectReady ModApi; do
+	assert "$f measures elapsed time on realtimeSinceStartup" \
+		not_grep_re 'Time\.unscaledTime' "$ROOT/Source/ConnectMod/$f.cs"
+done
+
 # AutomationMode gates every automation patch; its decision table is
 # documented on AutomationMode.Detect: unset resolves from the launch
 # context (7DTD_CONNECT/-connect present means on), explicit values ride the

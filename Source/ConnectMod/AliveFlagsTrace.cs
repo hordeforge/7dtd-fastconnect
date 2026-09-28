@@ -22,7 +22,7 @@ namespace SdtdConnect
                 Log.Out("[7dtd-fastconnect] af hb entity=" + __instance.entityId
                     + " flags=" + __instance.flags
                     + " spawnedBit=" + ((__instance.flags & SpawnedFlagBit) > 0)
-                    + " t=" + Time.unscaledTime);
+                    + " t=" + Time.realtimeSinceStartup);
             }
             catch (Exception ex)
             {

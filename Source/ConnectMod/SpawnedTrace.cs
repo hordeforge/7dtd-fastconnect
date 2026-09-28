@@ -15,7 +15,7 @@ namespace SdtdConnect
                 if (!(__instance is EntityPlayerLocal)) return;
                 Log.Out("[7dtd-fastconnect] sp set=" + value
                     + " was=" + __instance.Spawned
-                    + " t=" + Time.unscaledTime
+                    + " t=" + Time.realtimeSinceStartup
                     + "\n" + Environment.StackTrace);
             }
             catch (Exception ex)
@@ -39,7 +39,7 @@ namespace SdtdConnect
                 if (!(__instance is EntityPlayerLocal)) return;
                 Log.Out("[7dtd-fastconnect] sp added remote=" + __instance.isEntityRemote
                     + " Spawned=" + __instance.Spawned
-                    + " t=" + Time.unscaledTime
+                    + " t=" + Time.realtimeSinceStartup
                     + "\n" + Environment.StackTrace);
             }
             catch (Exception ex)

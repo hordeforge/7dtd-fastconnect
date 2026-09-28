@@ -23,7 +23,7 @@ namespace SdtdConnect
             try
             {
                 Log.Out("[7dtd-fastconnect] wt " + what + " " + subject
-                    + " t=" + Time.unscaledTime);
+                    + " t=" + Time.realtimeSinceStartup);
             }
             catch (Exception ex)
             {

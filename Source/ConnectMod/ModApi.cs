@@ -299,6 +299,11 @@ namespace SdtdConnect
             // the connect-ready gate waits for the cross (EOS) user. Cap by monotonic
             // time, not frames, because uncapped boot ticks thousands of frames per
             // second (a frame cap would expire long before the EOS settle windows in ConnectReady).
+            // realtimeSinceStartup, not unscaledTime: the budget is real seconds,
+            // and unscaledTime is accumulated from unscaledDeltaTime, which Unity
+            // clamps to Time.maximumDeltaTime (0.333s). A boot that stalls for a
+            // second a frame would let this 45s cap run for minutes of wall clock,
+            // which is exactly the boot this gate exists to bound.
             // Poll on a monotonic interval, not per frame: IsReady touches several
             // subsystems and would otherwise run thousands of times per second
             // under the uncapped boot; 10 Hz costs at most 100 ms of extra
@@ -308,15 +313,15 @@ namespace SdtdConnect
             // Progress cadence for the wait, independent of the poll rate:
             // one line per poll would be 450 lines for a single timeout.
             const float waitLogIntervalSec = 5f;
-            float waitStart = UnityEngine.Time.unscaledTime;
+            float waitStart = UnityEngine.Time.realtimeSinceStartup;
             float nextLog = 0f;
             int polls = 0;
             bool ready = ConnectReady.IsReady(out string whyNot);
-            while (!ready && UnityEngine.Time.unscaledTime - waitStart < maxWaitSec)
+            while (!ready && UnityEngine.Time.realtimeSinceStartup - waitStart < maxWaitSec)
             {
-                if (polls == 0 || UnityEngine.Time.unscaledTime >= nextLog)
+                if (polls == 0 || UnityEngine.Time.realtimeSinceStartup >= nextLog)
                 {
-                    nextLog = UnityEngine.Time.unscaledTime + waitLogIntervalSec;
+                    nextLog = UnityEngine.Time.realtimeSinceStartup + waitLogIntervalSec;
                     Log.Out("[7dtd-fastconnect] connect wait t="
                         + ElapsedSec(waitStart) + "s polls=" + polls + " " + whyNot);
                 }
@@ -341,13 +346,14 @@ namespace SdtdConnect
             ConnectAndLog(host, port);
         }
 
-        // Seconds on the mod's monotonic clock, one decimal: enough to place a
-        // join in a boot timeline, short enough to stay on one log line.
+        // Seconds on the mod's monotonic clock (realtimeSinceStartup, the same
+        // one the deadlines use), one decimal: enough to place a join in a boot
+        // timeline, short enough to stay on one log line.
         // Invariant culture so a comma-decimal locale cannot write "3,5s",
         // which reads as part of a list in a log line.
         static string ElapsedSec(float start)
         {
-            return (UnityEngine.Time.unscaledTime - start)
+            return (UnityEngine.Time.realtimeSinceStartup - start)
                 .ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
         }
 

@@ -17,8 +17,8 @@ namespace SdtdConnect
         static void Postfix()
         {
             if (!DiagToggle.Enabled) return;
-            if (Time.unscaledTime < _nextLog) return;
-            _nextLog = Time.unscaledTime + DiagToggle.HeartbeatIntervalSec;
+            if (Time.realtimeSinceStartup < _nextLog) return;
+            _nextLog = Time.realtimeSinceStartup + DiagToggle.HeartbeatIntervalSec;
             try
             {
                 // Unity stops rendering when the window loses focus, so an

@@ -199,7 +199,7 @@ static class TestMain
         CrossWaitStart = -1f;
         CrossProceedLoggedField.SetValue(null, false);
         NativeProceedLoggedField.SetValue(null, false);
-        UnityEngine.Time.unscaledTime = 0f;
+        UnityEngine.Time.realtimeSinceStartup = 0f;
 
         string reason;
 
@@ -226,7 +226,7 @@ static class TestMain
 
         // Native steam identity is optional after the boot window only.
         SdtdConnect.Platform.PlatformManager.NativePlatform.User = new FakeUser();
-        UnityEngine.Time.unscaledTime = 10f;
+        UnityEngine.Time.realtimeSinceStartup = 10f;
         Check("native user id null inside boot window -> blocked early",
             !Ready(out reason) && reason.IndexOf("early", StringComparison.Ordinal) >= 0);
 
@@ -237,13 +237,13 @@ static class TestMain
         Check("cross wait engages at first sighting",
             !Ready(out reason) && reason == "cross user not logged in yet" && CrossWaitStart == 10f);
 
-        UnityEngine.Time.unscaledTime = 39f; // 29s elapsed, inside the window
+        UnityEngine.Time.realtimeSinceStartup = 39f; // 29s elapsed, inside the window
         Check("cross wait still holds near the end of its window",
             !Ready(out reason) && reason == "cross user not logged in yet");
 
         // Past the window the gate proceeds so a broken EOS login cannot pin
         // the join forever - and it says so exactly once across repeated polls.
-        UnityEngine.Time.unscaledTime = 41f;
+        UnityEngine.Time.realtimeSinceStartup = 41f;
         bool proceededPastWindow = false;
         int crossNotes, nativeNotes;
         string pollLog = CaptureStderr(delegate
@@ -267,7 +267,7 @@ static class TestMain
             && !(bool)CrossProceedLoggedField.GetValue(null));
 
         ((FakeUser)cross.User).PlatformUserId = null;
-        UnityEngine.Time.unscaledTime = 50f;
+        UnityEngine.Time.realtimeSinceStartup = 50f;
         Check("a fresh null-id episode waits again instead of proceeding instantly",
             !Ready(out reason) && reason == "cross user not logged in yet" && CrossWaitStart == 50f);
 
@@ -277,7 +277,7 @@ static class TestMain
         // write hundreds into the log the join harness greps.
         cross.ThrowOnUserGet = true;
         SdtdConnect.Platform.PlatformManager.NativePlatform.ThrowOnUserGet = true;
-        UnityEngine.Time.unscaledTime = 51f;
+        UnityEngine.Time.realtimeSinceStartup = 51f;
         string throwLog = CaptureStderr(delegate
         {
             Ready(out reason);
@@ -325,7 +325,7 @@ static class TestMain
         // The gate reads the connection state only past the static-data check,
         // and a client able to connect is past it.
         GameManager.Instance.bStaticDataLoaded = true;
-        UnityEngine.Time.unscaledTime = 100f;
+        UnityEngine.Time.realtimeSinceStartup = 100f;
         string msg, reason;
 
         Check("a first request dials the server",
@@ -359,7 +359,7 @@ static class TestMain
         // A request whose outcome the client never saw (server down, kick
         // before the handshake) is released by the window, or the retry after
         // a failed join would be refused as a duplicate forever.
-        UnityEngine.Time.unscaledTime += ConnectRequestWindowSec + 1f;
+        UnityEngine.Time.realtimeSinceStartup += ConnectRequestWindowSec + 1f;
         Check("a request that never reported back expires into a retry",
             ConnectTarget.TryConnect("127.0.0.1", 27025, out msg) && cm.ConnectCalls == 3);
 

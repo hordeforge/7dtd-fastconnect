@@ -15,8 +15,8 @@ namespace SdtdConnect
         {
             if (!DiagToggle.Enabled) return;
             _calls++;
-            if (Time.unscaledTime < _next) return;
-            _next = Time.unscaledTime + DiagToggle.HeartbeatIntervalSec;
+            if (Time.realtimeSinceStartup < _next) return;
+            _next = Time.realtimeSinceStartup + DiagToggle.HeartbeatIntervalSec;
             try
             {
                 var gm = GameManager.Instance;

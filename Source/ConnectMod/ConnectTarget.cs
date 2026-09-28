@@ -416,7 +416,7 @@ namespace SdtdConnect
 
                 if (_request == ConnectRequest.InFlight)
                 {
-                    if (UnityEngine.Time.unscaledTime - _requestStartedAt < ConnectRequestWindowSec)
+                    if (UnityEngine.Time.realtimeSinceStartup - _requestStartedAt < ConnectRequestWindowSec)
                     {
                         message = "a connect to " + _requestTarget
                             + " is already in flight; wait for it to finish";
@@ -471,7 +471,7 @@ namespace SdtdConnect
                 // threw never dialled anything, so it must not refuse the retry
                 // that follows it.
                 _request = ConnectRequest.InFlight;
-                _requestStartedAt = UnityEngine.Time.unscaledTime;
+                _requestStartedAt = UnityEngine.Time.realtimeSinceStartup;
                 _requestTarget = ip + ":" + port;
                 message = $"connecting to {ip}:{port}";
                 return true;

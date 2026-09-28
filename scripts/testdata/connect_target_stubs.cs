@@ -16,7 +16,10 @@ namespace UnityEngine
 {
     public static class Time
     {
-        public static float unscaledTime;
+        // The mod measures every deadline and heartbeat on realtimeSinceStartup
+        // (see the gate comments in ModApi): real elapsed seconds, not the
+        // unscaledDeltaTime accumulation Unity clamps to maximumDeltaTime.
+        public static float realtimeSinceStartup;
     }
 
     // Read/written only by BootUnblock.ApplyFrameUncap; plain state so the

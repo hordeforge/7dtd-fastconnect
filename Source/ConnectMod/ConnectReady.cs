@@ -8,7 +8,8 @@ namespace SdtdConnect
     /// </summary>
     public static class ConnectReady
     {
-        // Monotonic (unscaled) time when the cross user was first seen without an id.
+        // Monotonic real time (Time.realtimeSinceStartup) when the cross user
+        // was first seen without an id.
         static float _crossWaitStart = -1f;
 
         // IsReady sits in a 10 Hz poll loop; log each expiry note once so a
@@ -87,7 +88,7 @@ namespace SdtdConnect
                     var nUser = native.User;
                     if (nUser != null && nUser.PlatformUserId == null)
                     {
-                        if (UnityEngine.Time.unscaledTime < nativeUserBootWindowSec)
+                        if (UnityEngine.Time.realtimeSinceStartup < nativeUserBootWindowSec)
                         {
                             reason = "Native.User.PlatformUserId=null (early; retry in a moment)";
                             return false;
@@ -155,8 +156,8 @@ namespace SdtdConnect
                 }
 
                 if (_crossWaitStart < 0f)
-                    _crossWaitStart = UnityEngine.Time.unscaledTime;
-                if (UnityEngine.Time.unscaledTime - _crossWaitStart < crossUserWaitMaxSec)
+                    _crossWaitStart = UnityEngine.Time.realtimeSinceStartup;
+                if (UnityEngine.Time.realtimeSinceStartup - _crossWaitStart < crossUserWaitMaxSec)
                 {
                     reason = "cross user not logged in yet";
                     return false;
