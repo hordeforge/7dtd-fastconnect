@@ -79,7 +79,11 @@ zip. The archive bytes are reproducible: entry mtimes come from
    the tag checked out. A tree with uncommitted tracked changes is refused the
    tag's name: the zip gets a `<commit>-dirty` version instead, which is the
    signal that the artifact would otherwise claim to be a release while
-   differing from it. `scripts/package.sh --help` documents the overrides
+   differing from it. The version must be one filename-safe component
+   (digits, letters, `.`, `_`, `-`, starting with a digit or letter); a tag
+   carrying a slash, or an override that does, is refused with exit 2 rather
+   than writing the archive outside `dist/`.
+   `scripts/package.sh --help` documents the overrides
    (`VERSION`, `SOURCE_DATE_EPOCH`).
 
 6. **Verify the artifact before uploading it.**

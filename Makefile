@@ -100,6 +100,7 @@ GATES := \
 	scripts/test_log_marker_cache.sh \
 	scripts/test_log_marker_fuzz.sh \
 	scripts/test_log_sanitize.sh \
+	scripts/test_join_evidence.sh \
 	scripts/test_version_sync.sh \
 	scripts/test_cycle_filename_guard.sh \
 	scripts/test_zero_nre_log_dir_guard.sh \

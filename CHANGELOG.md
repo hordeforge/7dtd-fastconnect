@@ -13,6 +13,23 @@ in the affected sections instead of being papered over.
 
 ### Fixed
 
+- Client-log evidence copied into the join control log is sanitized and
+  prefixed. `one_shot_join.sh` appended the client log's join lines to
+  `client-lifecycle-<cycle>.txt` verbatim, and the client log carries
+  server-supplied text (world strings, chat), so a server could put a
+  `result=joined` or `=== one_shot_join ...` line in the control log that
+  join tooling greps. The copy now goes through `sanitize_log_text` (so a
+  U+2028 or C1 NEL in a server line cannot split it) behind a `log:`
+  prefix, and it no longer reaches stdout, which `zero_nre_join_loop.sh`
+  captures. The raw client-log copy is unchanged. See
+  `scripts/join_evidence.sh` and the new `scripts/test_join_evidence.sh`
+  gate.
+- `package.sh` refuses a version that is not a single filename-safe
+  component. A tag such as `release/1.0` describes with a slash in it, and
+  `VERSION=` is a documented override, so either could write the zip and
+  its `.buildinfo` outside `dist/`. The value is now rejected with exit 2
+  (usage error), the same rule `one_shot_join.sh` applies to `CYCLE`.
+
 - The launcher no longer blocks forever on its mute poller at exit. A bare
   `wait` has no timeout, so a helper that did not answer TERM (a wedged
   audio server leaves the pactl call blocked) held the shell that started

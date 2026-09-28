@@ -133,6 +133,9 @@ source "$ROOT/scripts/monotonic_clock.sh"
 # Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
 # scripts/log_sanitize.sh; same contract as LogText.SanitizeForLog.
 source "$ROOT/scripts/log_sanitize.sh"
+# Copying client-log evidence into the control log: see
+# scripts/join_evidence.sh (needs sanitize_log_text from the line above).
+source "$ROOT/scripts/join_evidence.sh"
 
 # Join success signal; some checks accept extra partial-progress markers too.
 JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'
@@ -343,9 +346,10 @@ fi
 
 log "result=$result"
 log "client log -> $CLIENT_LOG_OUT"
-log "key client lines:"
-grep -En '7dtd-fastconnect|LiteNetLib: Accepted|NCSimple|PlayerId|PlayerLogin|Spawned|Kicked|WorldInfo|PackageIds|[Ee]rror|ERR' \
-  "$CLIENT_LOG_OUT" 2>/dev/null | head -80 | tee -a "$LIFE_OUT" || true
+# Server-influenced client-log lines go into the control log through the
+# shared helper, which sanitizes them and prefixes them so none can read as a
+# harness marker: see scripts/join_evidence.sh.
+write_join_evidence "$CLIENT_LOG_OUT" "$LIFE_OUT"
 
 log "after clients before kill: $(list_client_pids | tr '\n' ' ')"
 # A client that survives SIGKILL makes kill_clients report failure; that must

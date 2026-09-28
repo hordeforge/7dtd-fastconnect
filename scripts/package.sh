@@ -78,6 +78,17 @@ if ! git -C "$ROOT" diff-index --quiet HEAD -- 2>/dev/null; then
   VERSION="$(git -C "$ROOT" rev-parse --short HEAD)-dirty"
 fi
 
+# VERSION names the archive, its .buildinfo, and both sit under dist/. A tag
+# may carry a slash ("release/1.0" describes as "release/1.0-0-gabc123"), and
+# VERSION= is a documented override, so either can aim the zip outside dist/ or
+# at an existing file. Keep it to one filename-safe component, the same rule
+# one_shot_join.sh applies to CYCLE; a rejected value is a usage error rather
+# than a silent fallback, since the fallback would ship a wrong version name.
+if ! [[ "$VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+  echo "ERROR: version '$VERSION' is not a filename-safe version (allowed: digits, letters, '.', '_', '-', starting with a digit or letter)" >&2
+  exit 2
+fi
+
 # Archive timestamps default to the commit that produced this tree so the
 # same checkout always zips identically; SOURCE_DATE_EPOCH overrides.
 export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "$ROOT" log -1 --pretty=%ct)}"
