@@ -29,6 +29,13 @@ in the affected sections instead of being papered over.
 - The ruff and mypy gates in `make test` are mandatory: without `uv` or
   `ruff`+`mypy` on PATH the run fails instead of printing a warning and
   reporting a green that analyzed nothing.
+- F1 console replies are actionable. `connect` echoes the argument it read and
+  the reason names the fix: the port range for a bad port, the bracketed IPv6
+  form for an unclosed `[`, the expected `host[:port]` shape for a missing
+  host, instead of `bad port` / `empty host`. `diag` rejects an unknown
+  argument by name and still prints the current state, rather than silently
+  answering as if it were `status`. A pasted port is truncated in the echo so
+  the reason stays on screen.
 
 - The player name applied at boot is no longer echoed to the client log. The
   line records only whether the name came from `7DTD_PLAYER_NAME` or from the

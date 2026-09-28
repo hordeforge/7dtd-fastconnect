@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 namespace SdtdConnect
@@ -22,7 +21,8 @@ namespace SdtdConnect
 
         public override void Execute(List<string> _params, CommandSenderInfo _senderInfo)
         {
-            string arg = (_params != null && _params.Count > 0) ? _params[0].ToLowerInvariant().Trim() : "status";
+            bool noArg = _params == null || _params.Count == 0;
+            string arg = noArg ? "status" : _params[0].ToLowerInvariant().Trim();
             string outLine;
             if (arg == "on" || arg == "1" || arg == "enable" || arg == "true")
             {
@@ -40,18 +40,22 @@ namespace SdtdConnect
                 DiagToggle.Set(next);
                 outLine = "[7dtd-fastconnect] diag " + (next ? "ON" : "OFF") + " (toggled)";
             }
-            else // status and anything else
+            else if (arg == "status")
             {
                 outLine = DiagToggle.StatusLine();
-                if (_params == null || _params.Count == 0)
+                if (noArg)
                     outLine += "\n" + getHelp();
             }
-            // Console echo is best-effort: Output throws while the F1 console
-            // is tearing down, and the Log.Out below is the record that
-            // matters (harnesses grep the client log, not the console).
-            try { SingletonMonoBehaviour<SdtdConsole>.Instance?.Output(outLine); }
-            catch (Exception) { }
-            Log.Out(outLine);
+            else
+            {
+                // A typo must not read as a status query: say which word was
+                // not understood, then the current state anyway.
+                outLine = "[7dtd-fastconnect] diag: unknown argument '"
+                    + ConnectTarget.EchoForMessage(_params[0])
+                    + "'; expected on, off, toggle or status\n"
+                    + DiagToggle.StatusLine();
+            }
+            ConsoleOutput.Out(outLine);
         }
     }
 }

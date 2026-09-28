@@ -94,8 +94,20 @@ static class TestMain
         Check(label + " port==" + expPort, port == expPort);
     }
 
-    sealed class FakeUser : SdtdConnect.Platform.IUser { }
+    // The F1 console shows nothing but the rejection text, so it has to name
+    // either the offending value or the shape the operator should type.
+    static void CheckRejectionMessage(string raw, params string[] mustMention)
+    {
+        string host; int port; string err;
+        string label = "rejection of '" + (raw ?? "<null>") + "'";
+        Check(label + " happens", !ConnectTarget.TryParse(raw, out host, out port, out err));
+        if (err == null) return;
+        foreach (string needle in mustMention)
+            Check(label + " mentions '" + needle + "'", err.Contains(needle));
+        Check(label + " stays on one line", err.IndexOf('\n') < 0);
+    }
 
+    sealed class FakeUser : SdtdConnect.Platform.IUser { }
     static readonly System.Reflection.BindingFlags BootStatic =
         System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
 
@@ -297,6 +309,17 @@ static class TestMain
             CheckParse("h:abc", false, null, 0);
             CheckParse("[::1]:0", false, null, 0);
             CheckParse("[::1]:x", false, null, 0);
+
+            // Rejection text is the console's only feedback: it must say what
+            // to type, not just that the input was rejected.
+            CheckRejectionMessage("h:abc", "port", "abc", "65535");
+            CheckRejectionMessage("h:65536", "port", "65535");
+            CheckRejectionMessage("[::1", "[addr]");
+            CheckRejectionMessage(":27025", "missing host", "connect 127.0.0.1:27025");
+            CheckRejectionMessage("", "missing host", "connect 127.0.0.1:27025");
+            CheckRejectionMessage("   ", "missing host");
+            // A pasted port is echoed, not dumped: the reason stays readable.
+            CheckRejectionMessage("h:" + new string('9', 200), "port", "...");
 
             // MergePortArg: the console command's optional second token is only
             // appended to a host that carries no port of its own, and the

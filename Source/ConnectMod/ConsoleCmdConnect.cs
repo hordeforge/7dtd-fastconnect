@@ -28,7 +28,7 @@ namespace SdtdConnect
         {
             if (_params == null || _params.Count < 1)
             {
-                Out(getHelp());
+                ConsoleOutput.Out(getHelp());
                 return;
             }
 
@@ -40,24 +40,17 @@ namespace SdtdConnect
 
             if (!ConnectTarget.TryParse(raw, out string host, out int port, out string err))
             {
-                Out("[7dtd-fastconnect] parse failed: " + err);
+                // Echo what was typed: the reason names the part that is
+                // wrong, the echo says which part the console read.
+                ConsoleOutput.Out("[7dtd-fastconnect] connect failed: " + err
+                    + " (got '" + ConnectTarget.EchoForMessage(raw) + "')");
                 return;
             }
 
             // Success and failure both report `msg` to the console; the
             // return value adds nothing here.
             ConnectTarget.TryConnect(host, port, out string msg);
-            Out("[7dtd-fastconnect] " + msg);
-        }
-
-        static void Out(string s)
-        {
-            // Console echo is best-effort: Output throws while the F1 console
-            // is tearing down, and the Log.Out below is the record that
-            // matters (harnesses grep the client log, not the console).
-            try { SingletonMonoBehaviour<SdtdConsole>.Instance?.Output(s); }
-            catch (System.Exception) { }
-            Log.Out(s);
+            ConsoleOutput.Out("[7dtd-fastconnect] " + msg);
         }
     }
 }

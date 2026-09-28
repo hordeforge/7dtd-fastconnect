@@ -57,6 +57,19 @@ namespace SdtdConnect
             return sb.ToString();
         }
 
+        /// <summary>
+        /// One-line echo of operator input for an error message: control
+        /// characters flattened, long pastes cut so a mistyped paste cannot
+        /// scroll the reason off screen.
+        /// </summary>
+        internal static string EchoForMessage(string value)
+        {
+            const int maxChars = 40;
+            if (string.IsNullOrEmpty(value)) return value;
+            string flat = SanitizeForLog(value).Trim();
+            return flat.Length <= maxChars ? flat : flat.Substring(0, maxChars) + "...";
+        }
+
         static void WarnIgnoredTarget(string sourceLabel, string raw, string error)
         {
             if (_badTargetWarned) return;
@@ -84,6 +97,21 @@ namespace SdtdConnect
         static bool TryParsePort(string text, out int port)
         {
             return int.TryParse(text, out port) && port >= MinPort && port <= MaxPort;
+        }
+
+        // The rejected port is echoed with the accepted range: "bad port"
+        // alone leaves the operator guessing which of host and port is wrong.
+        static string BadPortError(string text)
+        {
+            return "port must be a number from " + MinPort + " to " + MaxPort
+                + " (got '" + EchoForMessage(text) + "')";
+        }
+
+        // Same for a missing host: the expected shape is spelled out so the
+        // message doubles as the correction.
+        static string MissingHostError()
+        {
+            return "missing host; expected host[:port], e.g. connect 127.0.0.1:27025";
         }
 
         /// <summary>
@@ -126,7 +154,7 @@ namespace SdtdConnect
             error = null;
             if (string.IsNullOrWhiteSpace(raw))
             {
-                error = "empty target";
+                error = MissingHostError();
                 return false;
             }
 
@@ -142,15 +170,16 @@ namespace SdtdConnect
                 int close = raw.IndexOf(']');
                 if (close < 0)
                 {
-                    error = "bad IPv6 brackets";
+                    error = "unclosed '[' in the IPv6 host; write it as [addr] or [addr]:port";
                     return false;
                 }
                 hostPart = raw.Substring(1, close - 1);
                 if (close + 1 < raw.Length && raw[close + 1] == ':')
                 {
-                    if (!TryParsePort(raw.Substring(close + 2), out portPart))
+                    string portText = raw.Substring(close + 2);
+                    if (!TryParsePort(portText, out portPart))
                     {
-                        error = "bad port";
+                        error = BadPortError(portText);
                         return false;
                     }
                 }
@@ -162,9 +191,10 @@ namespace SdtdConnect
                 if (colon > 0 && colon < raw.Length - 1
                     && raw.IndexOf(':') == colon) // single colon → not bare IPv6
                 {
-                    if (!TryParsePort(raw.Substring(colon + 1), out portPart))
+                    string portText = raw.Substring(colon + 1);
+                    if (!TryParsePort(portText, out portPart))
                     {
-                        error = "bad port";
+                        error = BadPortError(portText);
                         return false;
                     }
                     hostPart = raw.Substring(0, colon);
@@ -175,7 +205,7 @@ namespace SdtdConnect
 
             if (string.IsNullOrWhiteSpace(hostPart))
             {
-                error = "empty host";
+                error = MissingHostError();
                 return false;
             }
 
@@ -186,7 +216,7 @@ namespace SdtdConnect
             // the default.
             if (hostPart.StartsWith(":") && !hostPart.StartsWith("::"))
             {
-                error = "empty host";
+                error = MissingHostError();
                 return false;
             }
 
@@ -315,7 +345,7 @@ namespace SdtdConnect
                 var cm = SingletonMonoBehaviour<ConnectionManager>.Instance;
                 if (cm == null)
                 {
-                    message = "ConnectionManager not ready";
+                    message = "client not ready to connect yet; retry in a moment from the main menu";
                     return false;
                 }
 

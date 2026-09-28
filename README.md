@@ -93,6 +93,10 @@ connect 127.0.0.1:27025
 
 Aliases: `7dtdconnect`, `joinip`. Default port **27025** (zdtd ServerPort / Connect-to-IP port).
 
+A rejected target echoes the argument the console read and names the fix
+(`port must be a number from 1 to 65535`, `missing host; expected host[:port]`),
+so a typo needs no second guess about which half of the input was wrong.
+
 ### Auto-join on main menu
 
 **Environment (preferred):**
