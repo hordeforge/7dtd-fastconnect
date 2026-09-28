@@ -48,6 +48,29 @@ namespace SdtdConnect
             result = PrepareCreateWorld(result);
         }
 
+        /// <summary>
+        /// Runs one of the wrap functions above inside a Harmony postfix and
+        /// returns the enumerator the game should drive. The wrap runs
+        /// synchronously there (the local-host probe, and the reflection
+        /// prologue in DrainWorldLoad), so an uncaught throw would escape into
+        /// stock game code, which would never obtain its enumerator and the
+        /// world would simply not load. On failure the stock enumerator is
+        /// returned unchanged and the load proceeds unwrapped.
+        /// </summary>
+        internal static IEnumerator WrapGuarded(IEnumerator result, string target, WrapFn wrap)
+        {
+            try
+            {
+                wrap(ref result);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("[7dtd-fastconnect] " + target + " wrap failed; stock load kept: "
+                    + ex.GetType().Name + ": " + ex.Message);
+            }
+            return result;
+        }
+
         static bool IsNormalLocalHost()
             => !AutomationMode.Enabled
                 && (SingletonMonoBehaviour<ConnectionManager>.Instance?.IsServer ?? false);
@@ -178,10 +201,28 @@ namespace SdtdConnect
 
         static IEnumerator DrainWorldLoad(IEnumerator root)
         {
-            FieldInfo forceSync = BootUnblock.ForceLoadSyncField();
-            bool canRestore = forceSync != null;
-            bool previousForceSync = canRestore && (bool)forceSync.GetValue(null);
-            if (canRestore) forceSync.SetValue(null, true);
+            FieldInfo forceSync = null;
+            bool canRestore = false;
+            bool previousForceSync = false;
+            // The reflection prologue runs inside the postfix, before this
+            // iterator is ever driven, so a throw here (a renamed or ambiguous
+            // field after a game update) propagates out of the postfix into
+            // stock World.LoadWorld, which then never returns its enumerator:
+            // the world does not load and the failure is the game's to report.
+            // A failed hold simply means draining without the flag.
+            try
+            {
+                forceSync = BootUnblock.ForceLoadSyncField();
+                canRestore = forceSync != null;
+                previousForceSync = canRestore && (bool)forceSync.GetValue(null);
+                if (canRestore) forceSync.SetValue(null, true);
+            }
+            catch (Exception ex)
+            {
+                canRestore = false;
+                Log.Warning("[7dtd-fastconnect] force-load-sync hold failed; draining without it: "
+                    + ex.GetType().Name + ": " + ex.Message);
+            }
 
             try
             {
@@ -365,21 +406,26 @@ namespace SdtdConnect
         }
     }
 
+    internal delegate void WrapFn(ref IEnumerator result);
+
     [HarmonyPatch(typeof(World), nameof(World.LoadWorld))]
     static class Patch_LocalHost_WorldLoad
     {
-        static void Postfix(ref IEnumerator __result) => LocalHostWorldLoad.WrapWorldLoad(ref __result);
+        static void Postfix(ref IEnumerator __result)
+            => __result = LocalHostWorldLoad.WrapGuarded(__result, "World.LoadWorld", LocalHostWorldLoad.WrapWorldLoad);
     }
 
     [HarmonyPatch(typeof(GameManager), "createWorld")]
     static class Patch_LocalHost_CreateWorld
     {
-        static void Postfix(ref IEnumerator __result) => LocalHostWorldLoad.WrapCreateWorld(ref __result);
+        static void Postfix(ref IEnumerator __result)
+            => __result = LocalHostWorldLoad.WrapGuarded(__result, "createWorld", LocalHostWorldLoad.WrapCreateWorld);
     }
 
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.StartAsServer))]
     static class Patch_LocalHost_StartAsServer
     {
-        static void Postfix(ref IEnumerator __result) => LocalHostWorldLoad.WrapStartAsServer(ref __result);
+        static void Postfix(ref IEnumerator __result)
+            => __result = LocalHostWorldLoad.WrapGuarded(__result, "StartAsServer", LocalHostWorldLoad.WrapStartAsServer);
     }
 }

@@ -46,6 +46,22 @@ declare -A MARK_OFFSET=()
 # or replaced and every memoized verdict refers to bytes that are gone.
 MARK_MAX_SIZE=0
 
+# Scan errors already reported, so a poll that re-queries the same failing
+# pattern every 2s cannot bury the log it is reporting on.
+declare -A MARK_ERROR_SEEN=()
+
+# A scan that could not be run at all (unreadable log, grep error) is not a
+# miss: the pattern has to answer "not seen" until it recovers, and the
+# operator needs to know the verdict is missing rather than negative.
+log_mark_error() {
+	local msg="$1"
+	if [[ -n "${MARK_ERROR_SEEN[$msg]+x}" ]]; then
+		return 0
+	fi
+	MARK_ERROR_SEEN[$msg]=1
+	echo "WARN: log marker scan failed ($msg) on $LOG_MARK_FILE; matching patterns answer 'not seen' until the scan recovers" >&2
+}
+
 # Drops all memoized positives and the resume offsets; required whenever
 # LOG_MARK_FILE is truncated or replaced so a stale match or a stale offset
 # cannot leak into a new cycle. A shrink below MARK_MAX_SIZE does the same on
@@ -53,6 +69,7 @@ MARK_MAX_SIZE=0
 log_marks_reset() {
 	SEEN_MARK=()
 	MARK_OFFSET=()
+	MARK_ERROR_SEEN=()
 	MARK_MAX_SIZE=0
 }
 
@@ -103,19 +120,37 @@ log_seen() {
 	fi
 	local start=$((off - LOG_MARK_OVERLAP))
 	if ((start < 0)); then start=0; fi
-	local found=1
+	local grep_status
 	# A resume at byte zero is the common cold case (first poll of every
 	# pattern, or post-truncation fallback): grep the file directly instead
 	# of forking tail to copy the whole log through a pipe first.
 	if ((start == 0)); then
-		grep -Eq -- "$re" "$LOG_MARK_FILE" 2>/dev/null && found=0
+		grep -Eq -- "$re" "$LOG_MARK_FILE" 2>/dev/null
+		grep_status=$?
 	else
 		# tail -c +N is 1-based; a start past EOF yields an empty stream, which
 		# correctly matches nothing.
 		# Process substitution, not a pipeline: grep -Eq exits on the first match,
 		# which SIGPIPEs a piped tail, and under the caller's `set -o pipefail`
 		# that 141 becomes the pipeline status and turns a match into a miss.
-		grep -Eq -- "$re" <(tail -c +"$((start + 1))" "$LOG_MARK_FILE" 2>/dev/null) && found=0
+		grep -Eq -- "$re" <(tail -c +"$((start + 1))" "$LOG_MARK_FILE" 2>/dev/null)
+		grep_status=$?
+	fi
+	# Status 2 is an error, not a miss. The offset must not advance past bytes
+	# that were never scanned, or the pattern reports "not seen" for the rest
+	# of the cycle: the same silent-probe-failure class the size probe above
+	# was fixed for.
+	case "$grep_status" in
+		0) ;;
+		1) ;;
+		*)
+			log_mark_error "$re (grep status $grep_status)"
+			return 1
+			;;
+	esac
+	local found=1
+	if ((grep_status == 0)); then
+		found=0
 	fi
 	MARK_OFFSET[$re]=$size
 	if ((found)); then

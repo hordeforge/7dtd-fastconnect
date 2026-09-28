@@ -32,8 +32,16 @@ namespace SdtdConnect
             // is tearing down.
             try { SingletonMonoBehaviour<SdtdConsole>.Instance?.Output(line); }
             catch (Exception) { }
-            if (logError) Log.Error(line);
-            else Log.Out(line);
+            // Guarded for the same reason: a Log call that throws (log
+            // rollover, teardown) would otherwise escape into the stock
+            // console-command dispatcher, and the line the harnesses grep for
+            // would be lost with no other copy.
+            try
+            {
+                if (logError) Log.Error(line);
+                else Log.Out(line);
+            }
+            catch (Exception) { }
         }
     }
 }

@@ -68,12 +68,18 @@ for f in "${PAYLOAD[@]}"; do
 done
 
 STAGE="$STAGE_ROOT/$MOD_DIR_NAME"
-# Empty the mod folder, not the whole stage root: that folder is this script's
-# to own, and a sibling under the stage root belongs to the caller. -f so a
-# missing folder is the same as an empty one.
-rm -rf "$STAGE"
-mkdir -p "$STAGE"
+# Filled under a temp name and moved into place, so a copy that fails part-way
+# (disk full, signal) never leaves a half-populated mod folder at the real
+# path for a later repro_zip.sh to archive as if it were complete.
+STAGE_TMP="$STAGE_ROOT/.$MOD_DIR_NAME.tmp.$$"
+rm -rf "$STAGE_TMP"
+trap 'rm -rf "$STAGE_TMP"' EXIT
+mkdir -p "$STAGE_TMP"
 for f in "${PAYLOAD[@]}"; do
 	# -p keeps the mode; the zip normalizes timestamps via SOURCE_DATE_EPOCH.
-	cp -p "$BUILD_DIR/$f" "$STAGE/$f"
+	cp -p "$BUILD_DIR/$f" "$STAGE_TMP/$f"
 done
+# Empty the mod folder, not the whole stage root: that folder is this script's
+# to own, and a sibling under the stage root belongs to the caller.
+rm -rf "$STAGE"
+mv -T "$STAGE_TMP" "$STAGE"

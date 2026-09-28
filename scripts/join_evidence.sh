@@ -31,6 +31,14 @@ write_join_evidence() {
 	{
 		printf 'key client lines:\n'
 		printf '  log: (raw copy: %s)\n' "$client_log"
+		# The caller's copy of the client log is allowed to fail (see
+		# one_shot_join.sh), and grep's "No such file" is discarded below. An
+		# empty section would be indistinguishable from a log with no matching
+		# lines, so name the missing artifact instead.
+		if [[ ! -r "$client_log" ]]; then
+			printf '  log: (client log unavailable: %s)\n' "$client_log"
+			return 0
+		fi
 		while IFS= read -r line; do
 			printf '  log: %s\n' "$(sanitize_log_text "$line")"
 		done < <(grep -En "$JOIN_EVIDENCE_RE" "$client_log" 2>/dev/null | head -"$JOIN_EVIDENCE_LINES")

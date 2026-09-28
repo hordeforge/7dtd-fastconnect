@@ -59,6 +59,7 @@ namespace SdtdConnect
             {
                 Log.Out("[7dtd-fastconnect] blocking GUI " + logTag);
                 AcceptLatest();
+                accepted = true;
             }
             catch (Exception ex)
             {

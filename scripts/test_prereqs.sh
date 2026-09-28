@@ -15,7 +15,7 @@ mkdir -p "$STUB"
 
 # Every tool the preflight looks for, so a case can withhold exactly the ones
 # it is about and still let the others pass.
-TOOLS=(bash shellcheck zip unzip jq dotnet mcs mono uv)
+TOOLS=(bash shellcheck zip unzip jq sha256sum git dotnet mcs mono uv)
 
 # Symlink the found tools into the stub PATH, skipping every name in "$@".
 link_all_but() {
@@ -52,7 +52,7 @@ assert "a complete toolchain names no missing tool" not_grep '^missing' "$WORK/a
 
 # One tool withheld at a time: the run fails, and the report names the tool and
 # the install command rather than leaving a bare nonzero status.
-for tool in shellcheck zip unzip jq; do
+for tool in shellcheck zip unzip jq sha256sum git; do
 	link_all_but "$tool"
 	assert_fails "$tool missing exits 1" run_check
 	assert "$tool missing is named in the report" \

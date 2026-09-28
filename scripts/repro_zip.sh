@@ -80,7 +80,17 @@ OUT="$(cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")"
 # stale or truncated zip left by an interrupted run would keep deleted files
 # in the shipped artifact or fail confusingly mid-update.
 rm -f "$OUT"
-(
+# zipped into a temp file in the destination directory and renamed, so a zip
+# that fails or is killed part-way (disk full, signal) never leaves a
+# truncated archive at the release path looking like a finished artifact.
+OUT_TMP="$OUT.tmp.$$"
+rm -f "$OUT_TMP"
+if ! (
 	cd "$STAGE"
-	find . -print | sort | zip -q -X "$OUT" -@
-)
+	find . -print | sort | zip -q -X "$OUT_TMP" -@
+); then
+	rm -f "$OUT_TMP"
+	echo "ERROR: zip failed for $STAGE; no archive written" >&2
+	exit 1
+fi
+mv -f "$OUT_TMP" "$OUT"

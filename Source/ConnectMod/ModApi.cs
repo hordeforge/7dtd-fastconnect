@@ -53,12 +53,23 @@ namespace SdtdConnect
                 {
                     GamePrefs.Set(EnumGamePrefs.DiscordDisabled, true);
                     GamePrefs.Set(EnumGamePrefs.DiscordFirstTimeInfoShown, true);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning("[7dtd-fastconnect] Discord prefs set failed: " + ex.GetType().Name + ": " + ex.Message);
+                }
+
+                // Separate try: an EULA accept failure blocks startup, and a
+                // message blaming Discord sends the reader after the wrong
+                // setting.
+                try
+                {
                     // EULA gate blocks MainMenu (scroll+accept); force accepted for automation.
                     Log.Out("[7dtd-fastconnect] EULA prefs accepted=" + EulaSkip.AcceptLatest());
                 }
                 catch (Exception ex)
                 {
-                    Log.Warning("[7dtd-fastconnect] Discord / EULA prefs set failed: " + ex.Message);
+                    Log.Warning("[7dtd-fastconnect] EULA prefs accept failed: " + ex.GetType().Name + ": " + ex.Message);
                 }
             }
 
@@ -100,8 +111,13 @@ namespace SdtdConnect
                         Log.Warning("[7dtd-fastconnect] Harmony skip " + t.Name + ": " + ex.GetType().Name + ": " + ex.Message);
                     }
                 }
-                Log.Out("[7dtd-fastconnect] Harmony patches applied ok=" + ok + " fail=" + fail
-                    + " (news/discord skip for automation only)");
+                // Error severity when a patch failed: the mod then runs
+                // half-patched (a menu forced open behind a gate that was
+                // never skipped), and an info line in a log the harness greps
+                // hides that.
+                string summary = "[7dtd-fastconnect] Harmony patches applied ok=" + ok + " fail=" + fail
+                    + " (news/discord skip for automation only)";
+                if (fail > 0) Log.Error(summary); else Log.Out(summary);
             }
             catch (Exception ex)
             {
@@ -149,14 +165,21 @@ namespace SdtdConnect
                 if (!AutomationMode.Enabled) return;
                 // Stock dedi kicks "Empty name or player ID" for loopback joins when Steam is offline,
                 // so store a non-empty PlayerName even without the env set.
-                // A prefs read that throws (store not loaded yet) carries the
-                // same signal as an empty stored name, and takes the same path.
+                // A prefs read that throws leaves the stored name unknown, not
+                // empty: overwriting it would destroy the player's identity on
+                // a transient store failure, so the read failing skips the
+                // write and is logged.
                 try
                 {
                     string existing = GamePrefs.GetString(EnumGamePrefs.PlayerName);
                     if (!string.IsNullOrWhiteSpace(existing)) return;
                 }
-                catch (Exception) { }
+                catch (Exception ex)
+                {
+                    Log.Warning("[7dtd-fastconnect] stored PlayerName read failed; leaving it untouched: "
+                        + ex.GetType().Name + ": " + ex.Message);
+                    return;
+                }
                 requested = PlayerNames.Resolve();
             }
             else

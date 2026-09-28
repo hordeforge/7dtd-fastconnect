@@ -33,17 +33,33 @@ fail() {
 STATUS=0
 
 if ! awk -v want="$VERSION" -v file="$CHANGELOG" '
-    /^## \[/ {
-        if (in_section) {
-            if (entries == 0) {
-                printf "ERROR: the `## [%s]` section has no entries; a heading with nothing under it documents nothing\n", want > "/dev/stderr"
-                rc = 1
-            }
-            if (subsections == 0) {
-                printf "ERROR: the `## [%s]` section has no `###` subsection; group the notes by impact\n", want > "/dev/stderr"
-                rc = 1
-            }
+    # Runs both when the tagged section ends at the next heading and again in
+    # END: the transition alone never fires for a section that is last in the
+    # file, which is the whole check for a single-section changelog.
+    function check_section(   _w) {
+        if (!in_section) return
+        if (entries == 0) {
+            printf "ERROR: the `## [%s]` section has no entries; a heading with nothing under it documents nothing\n", want > "/dev/stderr"
+            rc = 1
         }
+        if (subsections == 0) {
+            printf "ERROR: the `## [%s]` section has no `###` subsection; group the notes by impact\n", want > "/dev/stderr"
+            rc = 1
+        }
+    }
+    # Numeric dotted compare: awk string ordering puts 0.9.0 above 0.12.0, so
+    # a plain `>` sends the reader after the wrong section.
+    function version_gt(a, b,   na, nb, i) {
+        na = split(a, x, ".")
+        nb = split(b, y, ".")
+        for (i = 1; i <= (na > nb ? na : nb); i++) {
+            if ((x[i] + 0) > (y[i] + 0)) return 1
+            if ((x[i] + 0) < (y[i] + 0)) return 0
+        }
+        return 0
+    }
+    /^## \[/ {
+        check_section()
         heading = $0
         in_section = (index(heading, "## [" want "]") == 1)
         if (in_section) { found = 1; subsections = 0; entries = 0 }
@@ -56,12 +72,16 @@ if ! awk -v want="$VERSION" -v file="$CHANGELOG" '
     in_section && /^### / { subsections++; next }
     in_section && /^- / { entries++; next }
     END {
+        check_section()
         if (!found) {
             printf "ERROR: %s has no `## [%s]` section; write the notes first\n", file, want > "/dev/stderr"
             rc = 1
         }
         if (found && newest != "" && newest != want) {
-            printf "ERROR: the newest released section is `## [%s]` but the tag is v%s; the notes for this release were not added\n", newest, want > "/dev/stderr"
+            if (version_gt(newest, want))
+                printf "ERROR: the newest released section is `## [%s]`, ahead of the tag v%s; tag the newer release or drop its notes\n", newest, want > "/dev/stderr"
+            else
+                printf "ERROR: the newest released section is `## [%s]` but the tag is v%s; the notes for this release were not added\n", newest, want > "/dev/stderr"
             rc = 1
         }
         exit rc

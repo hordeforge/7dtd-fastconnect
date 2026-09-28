@@ -106,7 +106,11 @@ on_exit() {
 }
 trap on_exit EXIT
 
+# Sweep by the resolved binary, not by the default 'zig-out/bin/zdtd' layout:
+# ZDTD=/opt/zdtd would leave the running server in place, and the new one
+# would fail to bind while this script waited out its readiness probe.
 pkill -f 'zig-out/bin/zdtd' 2>/dev/null || true
+pkill -f "$ZDTD" 2>/dev/null || true
 # Kill the whole Proton/wine stack, not just the game exe. Leftover
 # pressure-vessel containers + wineservers leak threads across relaunches and
 # eventually hit RLIMIT_NPROC -> mono "Couldn't create thread" -> the client
@@ -131,7 +135,13 @@ done
 if ! grep -q 'tick=20Hz' "$SERVER_LOG" 2>/dev/null; then
   echo "ERROR: server not ready (no 'tick=20Hz' within 20s); log tail:" >&2
   tail -20 "$SERVER_LOG" >&2 || true
+  # TERM then KILL, and reap: the same shape as on_exit above. A TERM-only
+  # stop leaves a server that ignores it holding PORT and ticking its world
+  # after this script has already reported failure.
   kill "$server_pid" 2>/dev/null || true
+  sleep 1
+  kill -9 "$server_pid" 2>/dev/null || true
+  wait "$server_pid" 2>/dev/null || true
   exit 1
 fi
 

@@ -61,10 +61,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Feature-test like every other external tool in this repo: fail fast, before
 # the multi-minute build, instead of a bare "zip: command not found" at the
 # final zip step. unzip is the verifier below, so it is tested here too rather
-# than after the build has already spent its minutes.
-for tool in zip unzip; do
+# than after the build has already spent its minutes. sha256sum is on the same
+# path: the build record carries a sha256 of the archive, and this script fails
+# rather than write an empty one, so a host without the tool cannot package at
+# all.
+for tool in zip unzip sha256sum; do
 	if ! command -v "$tool" >/dev/null 2>&1; then
-		echo "ERROR: $tool not found on PATH; install zip/unzip to package." >&2
+		echo "ERROR: $tool not found on PATH; install zip/unzip/coreutils to package." >&2
 		exit 1
 	fi
 done
@@ -104,7 +107,12 @@ OUT="$ROOT/dist/7dtd-fastconnect-$VERSION.zip"
 # interrupted package (SIGKILL) does not leak stage trees in volatile storage.
 STAGE="$ROOT/dist/.package-stage-$$"
 mkdir -p "$STAGE"
-trap 'rm -rf "$STAGE"' EXIT INT TERM
+# Signals must exit, not fall through: a non-exiting INT/TERM handler removes
+# the stage and the script continues into repro_zip.sh, which then reports
+# "stage dir does not exist" as a setup failure and exits 1 instead of 130.
+trap 'rm -rf "$STAGE"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 "$ROOT/scripts/stage_mod.sh" "$ROOT/dist/7dtd-fastconnect" "$STAGE"
 "$ROOT/scripts/repro_zip.sh" "$STAGE" "$OUT"
 
@@ -129,14 +137,30 @@ fi
 # that compiled them, and the bytes that came out. Written beside the archive,
 # never into it, so the payload stays the files the game loads.
 BUILDINFO="${OUT%.zip}.buildinfo"
+# sha256sum is the one field with no fallback, and the group below takes the
+# status of its last command, so a missing or failing sha256sum would write an
+# empty digest and still report a packaged artifact. Digest first, out of band,
+# so a failure is visible.
+SHA256="$(sha256sum "$OUT" | cut -d' ' -f1)" || {
+	echo "ERROR: could not hash $OUT (sha256sum failed); the build record would be a lie" >&2
+	exit 1
+}
+if [[ -z "$SHA256" ]]; then
+	echo "ERROR: sha256sum produced no digest for $OUT" >&2
+	exit 1
+fi
+# Written through a temp file and renamed, so an interrupted write cannot
+# leave a half record beside a good zip.
+BUILDINFO_TMP="$BUILDINFO.tmp.$$"
 {
 	echo "version: $VERSION"
 	echo "commit: $(git -C "$ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 	echo "dirty: $(git -C "$ROOT" diff-index --quiet HEAD -- 2>/dev/null && echo no || echo yes)"
 	echo "source_date_epoch: $SOURCE_DATE_EPOCH"
 	echo "dotnet: $(make -C "$ROOT" --no-print-directory dotnet-version 2>/dev/null || echo unknown)"
-	echo "sha256: $(sha256sum "$OUT" | cut -d' ' -f1)"
-} >"$BUILDINFO"
+	echo "sha256: $SHA256"
+} >"$BUILDINFO_TMP"
+mv -f "$BUILDINFO_TMP" "$BUILDINFO"
 
 echo "Packaged -> $OUT (epoch $SOURCE_DATE_EPOCH)"
 echo "Build record -> $BUILDINFO"

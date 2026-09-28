@@ -70,26 +70,40 @@ namespace SdtdConnect
             while (true)
             {
                 yield return null;
-                float now = Time.realtimeSinceStartup;
-                float dt = now - last;
-                last = now;
-                if (dt < HitchThresholdSec || !DiagToggle.Enabled) continue;
-                int n0 = GC.CollectionCount(0), n1 = GC.CollectionCount(1), n2 = GC.CollectionCount(2);
-                if (!announced)
+                // The first throw would end the coroutine, and the start latch
+                // (deliberate, so `diag on` mid-session keeps one monitor)
+                // would keep StartHitchMonitor from ever restarting it, so the
+                // session would report no hitches at all. Guard the body and
+                // release the latch instead.
+                try
                 {
-                    announced = true;
-                    Log.Out("[7dtd-fastconnect] hitch monitor: limitFpsPref "
-                        + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxLimitFpsInGame)
-                        + " vsyncPref " + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxVsync)
-                        + " loadPriority " + Application.backgroundLoadingPriority);
+                    float now = Time.realtimeSinceStartup;
+                    float dt = now - last;
+                    last = now;
+                    if (dt < HitchThresholdSec || !DiagToggle.Enabled) continue;
+                    int n0 = GC.CollectionCount(0), n1 = GC.CollectionCount(1), n2 = GC.CollectionCount(2);
+                    if (!announced)
+                    {
+                        announced = true;
+                        Log.Out("[7dtd-fastconnect] hitch monitor: limitFpsPref "
+                            + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxLimitFpsInGame)
+                            + " vsyncPref " + GamePrefs.GetInt(EnumGamePrefs.OptionsGfxVsync)
+                            + " loadPriority " + Application.backgroundLoadingPriority);
+                    }
+                    Log.Out("[7dtd-fastconnect] hitch " + (int)(dt * 1000) + "ms frame " + Time.frameCount
+                        + " gc +" + (n0 - gc0) + "/+" + (n1 - gc1) + "/+" + (n2 - gc2)
+                        + " pendingLoads " + LocalHostWorldLoad.PendingLoadCount()
+                        + " heap " + (GC.GetTotalMemory(false) >> BytesToMegabytesShift) + "MB"
+                        + " targetFps " + Application.targetFrameRate
+                        + " vsync " + QualitySettings.vSyncCount);
+                    gc0 = n0; gc1 = n1; gc2 = n2;
                 }
-                Log.Out("[7dtd-fastconnect] hitch " + (int)(dt * 1000) + "ms frame " + Time.frameCount
-                    + " gc +" + (n0 - gc0) + "/+" + (n1 - gc1) + "/+" + (n2 - gc2)
-                    + " pendingLoads " + LocalHostWorldLoad.PendingLoadCount()
-                    + " heap " + (GC.GetTotalMemory(false) >> BytesToMegabytesShift) + "MB"
-                    + " targetFps " + Application.targetFrameRate
-                    + " vsync " + QualitySettings.vSyncCount);
-                gc0 = n0; gc1 = n1; gc2 = n2;
+                catch (Exception ex)
+                {
+                    _hitchMonitorStarted = false;
+                    Log.Warning("[7dtd-fastconnect] hitch monitor stopped: " + ex.GetType().Name + ": " + ex.Message);
+                    yield break;
+                }
             }
         }
     }

@@ -151,8 +151,21 @@ start_zdtd() {
     >"$SCRATCH/zdtd-server-zero-nre.log" 2>&1) &
   server_pid=$!
   for _ in $(seq 1 40); do
-    if ss -tln | grep -Eq ":${PORT}\\b"; then
-      log "server up on $PORT"
+    # The listener must be this run's server. A port left held by an earlier
+    # server matches the same line, while this run's server has died on the
+    # bind failure, and every attempt below would then be scored against a
+    # server that is not running. Liveness is checked first, and the probe
+    # reads ss into a variable: an `ss | grep -q` pipeline under pipefail
+    # reports a live listener as absent when grep's early exit SIGPIPEs a
+    # still-writing ss.
+    if ! kill -0 "$server_pid" 2>/dev/null; then
+      log "server pid $server_pid exited before listening on $PORT"
+      tail -30 "$SCRATCH/zdtd-server-zero-nre.log" || true
+      return 1
+    fi
+    listeners="$(ss -tln 2>/dev/null || true)"
+    if grep -Eq ":${PORT}\\b" <<<"$listeners"; then
+      log "server up on $PORT (pid $server_pid)"
       return 0
     fi
     sleep 0.25
@@ -221,8 +234,22 @@ attempt=1
 while (( attempt <= MAX_ATTEMPTS )); do
   log "=== attempt $attempt/$MAX_ATTEMPTS ==="
   : >"$CLIENT_LOG_SRC"
+  # Per-attempt evidence logs are kept for 3 days, and one_shot's own copy is
+  # allowed to fail: a copy left behind by an earlier run would satisfy the
+  # existence test below and be scored as this attempt's evidence, turning a
+  # lost artifact into a PASS. Clear them with the client log.
+  rm -f "$SCRATCH/stock-join-zn${attempt}.log" "$SCRATCH/stock-join-znok2.log"
+  one_shot_rc=0
   CYCLE="zn$attempt" TIMEOUT_SEC="$TIMEOUT_SEC" START_SERVER=0 PORT="$PORT" HOST="$HOST" \
-    SCRATCH="$SCRATCH" bash "$ONE_SHOT" | tee "$SCRATCH/zero_nre-cycle-$attempt.txt" || true
+    SCRATCH="$SCRATCH" bash "$ONE_SHOT" 2>&1 | tee "$SCRATCH/zero_nre-cycle-$attempt.txt" || one_shot_rc=$?
+  one_shot_rc="${one_shot_rc:-0}"
+  # A cycle that died before writing its own result= line (missing server
+  # binary, exec failure) leaves the summary entry without a result field, so
+  # it reads like a truncated write rather than a cycle that never ran.
+  if (( one_shot_rc != 0 )) && ! grep -q "^result=" "$SCRATCH/zero_nre-cycle-$attempt.txt"; then
+    echo "result=one_shot_exit_$one_shot_rc" | tee -a "$SCRATCH/zero_nre-cycle-$attempt.txt" >/dev/null
+    log "WARN: one_shot_join.sh exited $one_shot_rc for attempt $attempt without a result line"
+  fi
   # one_shot names stock-join-${CYCLE}.log
   LOG_COPY="$SCRATCH/stock-join-zn${attempt}.log"
   if [[ ! -f "$LOG_COPY" ]]; then
@@ -246,6 +273,12 @@ while (( attempt <= MAX_ATTEMPTS )); do
     CYCLE="znok2" TIMEOUT_SEC="$TIMEOUT_SEC" START_SERVER=0 PORT="$PORT" HOST="$HOST" \
       SCRATCH="$SCRATCH" bash "$ONE_SHOT" | tee "$SCRATCH/zero_nre-cycle-confirm.txt" || true
     LOG2="$SCRATCH/stock-join-znok2.log"
+    if [[ ! -f "$LOG2" ]]; then
+      # Same stale-evidence trap as the per-attempt log above, and the confirm
+      # verdict is what writes the PASS file, so a lost artifact here must not
+      # be scored as a clean confirmation.
+      log "WARN: no client log for the confirmation cycle (one_shot copy and $CLIENT_LOG_SRC both unavailable)"
+    fi
     NRE2=$(count_nre_after_join "$LOG2")
     FOUND2=$(count_matches "Found own player entity with id" "$LOG2")
     log "confirm found=$FOUND2 nre=$NRE2"

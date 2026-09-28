@@ -101,7 +101,72 @@ and enum handling, so a patch bump would claim none of that.
   poll window. The launcher and `mute_client_audio.sh` share one
   `is_mute_wait` check, so a window the launcher announces is a window the
   helper runs.
-
+- A stored `PlayerName` that cannot be read is no longer overwritten. The
+  automation fallback swallowed the read failure and treated it as an empty
+  stored name, so a transient `GamePrefs` failure replaced the player's
+  identity with a generated one and saved it. The read failure is logged and
+  the pref is left alone.
+- A failed prefs write is named for what failed: the Discord and EULA accepts
+  shared one catch whose message blamed Discord for an EULA failure, which is
+  the one that blocks startup. They are separate catches now, and every
+  message in that file carries the exception type as the rest already did.
+- The three `World.LoadWorld` / `createWorld` / `StartAsServer` postfixes no
+  longer let their own failure escape into stock game code. The wrap ran the
+  local-host probe (and, in the world-load drain, the reflection prologue)
+  synchronously inside the postfix, so a throw there stopped the world from
+  loading and the failure was the game's to report. A failed wrap now logs and
+  leaves the stock enumerator in place.
+- The frame-hitch monitor reports a failure instead of going quiet. Its first
+  throw ended the coroutine, and the start latch meant nothing restarted it,
+  so `diag on` stopped reporting hitches for the rest of the session.
+- The console reply is written even when the game logger throws, and no
+  longer throws into the stock console dispatcher when it does.
+- A failed `Harmony` patch now logs the applied/skipped summary at error
+  severity. A game update that renames one target left the mod half-patched,
+  with the per-patch warnings easy to miss in a log the harnesses grep.
+- `package.sh` fails when the archive cannot be hashed instead of writing a
+  build record with an empty `sha256`, checks for `sha256sum` and `git` up
+  front (both are on the packaging path, and `check_prereqs.sh` now requires
+  them), writes the record through a temp file and a rename, and exits on
+  INT/TERM instead of running on into a "stage dir does not exist" error
+  after the trap already removed the stage.
+- The staged mod tree is never partial at its real path. `stage_mod.sh`
+  filled it in place, so a copy that failed part-way left a mod folder with
+  one or two of its three payload files for a later `repro_zip.sh` to archive
+  as if it were complete; the tree is filled under a temp name and moved into
+  place. `repro_zip.sh` likewise zips into a temp file and renames, so a
+  failed or interrupted `zip` leaves no truncated archive at the release path.
+- `zero_nre_join_loop.sh` no longer scores a stale log as this run's evidence.
+  The per-attempt and confirmation copies live for three days and the
+  one-shot's own copy is allowed to fail, so a lost artifact satisfied the
+  existence test and produced `PASS` from a previous run's log. Both are
+  cleared with the client log before each cycle, a missing confirmation log is
+  named, and a one-shot exit without a `result=` line is recorded as one.
+- `zero_nre_join_loop.sh` requires its own server to be the listener. The
+  readiness probe matched any listener on the port, so a port left held by an
+  earlier server let the loop spend all its attempts against a server that had
+  died on the bind failure.
+- The listen probe in `zero_nre_join_loop.sh` and `one_shot_join.sh` no
+  longer reports a live port as absent. `ss | grep -q` closes the pipe on the
+  first match, and under `pipefail` a still-writing `ss` takes SIGPIPE, which
+  becomes the pipeline status; the output is read into a variable first.
+- A `grep` error in `log_markers.sh` is no longer memoized as a miss. Status 2
+  (unreadable log, bad pattern) advanced the resume offset past bytes that
+  were never scanned, so the pattern answered "not seen" for the rest of the
+  cycle. The error is reported once and the offset is left alone.
+- A control log written from a client log that was never captured now says so.
+  `write_join_evidence` discarded `grep`'s error and wrote an empty evidence
+  section that read exactly like a log with no matching lines.
+- `restart_pair.sh` stops its server with TERM, then KILL, then a reap on the
+  not-ready path (it was TERM only, so a server that ignored it held the port
+  after the script reported failure), and sweeps the previous server by the
+  resolved `ZDTD` path rather than only by the default `zig-out/bin/zdtd`
+  layout, which a `ZDTD=` override made a no-op.
+- `changelog_gate.sh` checks the tagged section's entries and impact group
+  when that section is last in the file. The check only ran when a *later*
+  heading was reached, so a single-section changelog was never checked for
+  content at all, and the newest-section error now distinguishes a changelog
+  that runs ahead of the tag from one with no notes for it.
 - `make install` and `make uninstall` refuse an empty or root-level
   `MODS_DIR`. Either value collapses `INSTALL_DIR` to a top-level path
   that `uninstall` deletes recursively; the guard fails before anything

@@ -264,6 +264,15 @@ trap cleanup EXIT
 log "=== one_shot_join cycle=$(sanitize_log_text "$CYCLE") connect=$(sanitize_log_text "$CONNECT") timeout=${TIMEOUT_SEC}s ==="
 log "before clients: $(list_client_pids | tr '\n' ' ')"
 
+# ss is read into a variable rather than piped into grep -q: grep exits on the
+# first match and closes the pipe, so a still-writing ss takes SIGPIPE and
+# pipefail turns that into "no listener" for a port that is listening.
+port_listening() {
+  local listeners
+  listeners="$(ss -tln 2>/dev/null || true)"
+  grep -Eq ":${PORT}\\b" <<<"$listeners"
+}
+
 if [[ "$START_SERVER" == "1" ]]; then
   if [[ ! -x "$ZDTD_BIN" ]]; then
     log "missing zdtd binary: $ZDTD_BIN"
@@ -285,13 +294,13 @@ if [[ "$START_SERVER" == "1" ]]; then
   # the monotonic clock instead of reporting the poll count as seconds.
   listen_start=$(mono_sec)
   for _ in $(seq 1 40); do
-    if ss -tln | grep -Eq ":${PORT}\\b"; then
+    if port_listening; then
       log "server listening on $PORT after $(( $(mono_sec) - listen_start ))s"
       break
     fi
     sleep 0.5
   done
-  if ! ss -tln | grep -Eq ":${PORT}\\b"; then
+  if ! port_listening; then
     log "server failed to listen on $PORT"
     tail -40 "$SERVER_LOG_OUT" | tee -a "$LIFE_OUT" || true
     exit 3
@@ -300,7 +309,7 @@ if [[ "$START_SERVER" == "1" ]]; then
   sleep 1
 else
   log "START_SERVER=0; expecting existing listener on $PORT"
-  if ! ss -tln | grep -Eq ":${PORT}\\b"; then
+  if ! port_listening; then
     log "no listener on $PORT"
     exit 3
   fi

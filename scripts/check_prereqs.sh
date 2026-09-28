@@ -31,6 +31,14 @@ usage() {
 		'  PATH   the toolchain to inspect (default: this shell'"'"'s PATH)'
 }
 
+# A wrong argument count is a usage error like every other script here; the
+# case below only ever looks at $1, so trailing junk passed unnoticed.
+if (( $# > 1 )); then
+	echo "check_prereqs.sh: takes no arguments; got $#" >&2
+	usage >&2
+	exit 2
+fi
+
 case "${1-}" in
 --help | -h)
 	usage
@@ -86,6 +94,8 @@ advise() {
 report shellcheck "the suite fails without it; apt-get install shellcheck, brew install shellcheck"
 report zip "needed by the packaging gates; apt-get install zip, brew install zip"
 report unzip "needed by the packaging gates; apt-get install unzip, brew install unzip"
+report sha256sum "package.sh digests the zip into its build record and fails without it; apt-get install coreutils, brew install coreutils"
+report git "package.sh derives the version, the commit and SOURCE_DATE_EPOCH from it; apt-get install git, brew install git"
 report jq "needed by the audio-helper gates; apt-get install jq, brew install jq"
 report_compiler "the ConnectTarget gate compiles the real C#; install the SDK band pinned in global.json (apt-get install dotnet-sdk-8.0), or apt-get install mono-devel for mcs+mono"
 
