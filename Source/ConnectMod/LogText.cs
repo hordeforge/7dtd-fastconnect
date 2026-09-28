@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 
 namespace SdtdConnect
@@ -10,34 +11,65 @@ namespace SdtdConnect
     /// </summary>
     internal static class LogText
     {
-        // Unicode format characters a terminal renders as nothing (or as a
-        // line reorder) but a reader or a grep of the text still sees: the
-        // bidi overrides and embeddings, the LTR/RTR marks, the zero-width
-        // space/joiner/non-joiner, and the BOM. char.IsControl does not cover
-        // them (they are Cf, not Cc), so each is checked by range here.
-        static bool IsInvisibleFormat(char c)
+        /// <summary>
+        /// Every Unicode format character (general category Cf), which a
+        /// terminal renders as nothing (or lays the line out around) while the
+        /// bytes stay in the log, so a reader sees a different string than
+        /// grep does. char.IsControl does not cover them (they are Cf, not Cc),
+        /// so each block is checked by range here.
+        ///
+        /// The set is spelled out rather than asked of
+        /// CharUnicodeInfo.GetUnicodeCategory because the answer would come
+        /// from the runtime's Unicode database, and the runtime this mod ships
+        /// on is the Mono inside the game client, whose tables predate several
+        /// of these blocks: a category query there passes the Trojan Source
+        /// Egyptian format controls, the shorthand format controls and the
+        /// whole U+E0001 tag block through untouched. The list is the whole of
+        /// Cf as Unicode 15.1 defines it, which is what a current table
+        /// returns, and scripts/log_sanitize.sh carries the same set.
+        /// </summary>
+        static bool IsInvisibleFormat(int cp)
         {
-            return (c >= '\u200B' && c <= '\u200F')   // ZWSP, ZWNJ, ZWJ, LRM, RLM
-                || (c >= '\u2060' && c <= '\u2064')   // word joiner, invisible operators
-                || (c >= '\u2066' && c <= '\u2069')   // LRI, RLI, FSI, PDI
-                || (c >= '\u202A' && c <= '\u202E')   // LRE, RLE, PDF, LRO, RLO
-                || c == '\uFEFF';                    // BOM / zero-width no-break space
+            return (cp >= 0x00AD && cp <= 0x00AD)   // soft hyphen
+                || (cp >= 0x0600 && cp <= 0x0605)   // Arabic number signs
+                || (cp >= 0x061C && cp <= 0x061C)   // Arabic letter mark
+                || (cp >= 0x06DD && cp <= 0x06DD)   // Arabic end of ayah
+                || (cp >= 0x070F && cp <= 0x070F)   // Syriac abbreviation mark
+                || (cp >= 0x0890 && cp <= 0x0891)   // Arabic piastre/pound marks
+                || (cp >= 0x08E2 && cp <= 0x08E2)   // Arabic disputed end of ayah
+                || (cp >= 0x180E && cp <= 0x180E)   // Mongolian vowel separator
+                || (cp >= 0x200B && cp <= 0x200F)   // ZWSP, ZWNJ, ZWJ, LRM, RLM
+                || (cp >= 0x202A && cp <= 0x202E)   // LRE, RLE, PDF, LRO, RLO
+                || (cp >= 0x2060 && cp <= 0x2064)   // word joiner, invisible operators
+                || (cp >= 0x2066 && cp <= 0x206F)   // LRI, RLI, FSI, PDI, digit shapes
+                || (cp >= 0xFEFF && cp <= 0xFEFF)   // BOM / zero-width no-break space
+                || (cp >= 0xFFF9 && cp <= 0xFFFB)   // interlinear annotation
+                || (cp >= 0x110BD && cp <= 0x110BD) // Kaithi number sign
+                || (cp >= 0x110CD && cp <= 0x110CD) // Kaithi number sign above
+                || (cp >= 0x13430 && cp <= 0x1343F) // Egyptian hieroglyph format controls
+                || (cp >= 0x1BCA0 && cp <= 0x1BCA3) // shorthand format controls
+                || (cp >= 0x1D173 && cp <= 0x1D17A) // musical format controls
+                || (cp >= 0xE0001 && cp <= 0xE0001) // language tag
+                || (cp >= 0xE0020 && cp <= 0xE007F); // tag characters
         }
 
-        // char.IsControl covers C0, DEL and C1 but not the Unicode line and
-        // paragraph separators, which a log reader lays out as a line break
-        // even though grep does not: the same forged-marker shape, one layer
-        // down. The shell twin (scripts/log_sanitize.sh) flattens the same set.
-        static bool IsLineBreaking(char c)
+        /// <summary>
+        /// A code point that must not reach a log line verbatim: a control
+        /// character (a newline forges a marker a harness greps for), a
+        /// Unicode line/paragraph separator (a log reader lays it out as a
+        /// line break though grep does not), or an invisible format character
+        /// (renders as nothing, so the line reads as something it is not).
+        /// The C0, DEL and C1 controls all live in the BMP, so the char
+        /// overload answers for them and nothing else: a value above U+FFFF is
+        /// an astral code point or an unpaired surrogate half, and neither
+        /// char.IsControl nor a BMP range covers one.
+        /// </summary>
+        static bool IsLogUnsafe(int cp)
         {
-            return char.IsControl(c) || c == '\u2028' || c == '\u2029';
+            return (cp <= 0xFFFF && char.IsControl((char)cp))
+                || IsInvisibleFormat(cp)
+                || cp == 0x2028 || cp == 0x2029;
         }
-
-        // A character that must not reach a log line verbatim: a control or
-        // line-breaking character (a newline forges a marker a harness greps
-        // for) or an invisible format character (renders as nothing, so the
-        // line reads as something it is not).
-        static bool IsLogUnsafe(char c) => IsLineBreaking(c) || IsInvisibleFormat(c);
 
         /// <summary>
         /// Flattens control, line-breaking and invisible-format characters so
@@ -47,8 +79,14 @@ namespace SdtdConnect
         /// markers; an embedded newline could forge those markers without
         /// ever connecting, a U+2028 breaks the line in a reader that grep
         /// reads as one, and a bidi override could render a forged line
-        /// that reads differently from the text a grep sees. One character
-        /// becomes one space, so offsets and lengths are preserved.
+        /// that reads differently from the text a grep sees. One code point
+        /// becomes one space, so the UTF-16 length a downstream cap counts is
+        /// preserved.
+        ///
+        /// The walk is by code point, not by char: the tag characters
+        /// (U+E0020..U+E007F) and the Egyptian hieroglyph format controls are
+        /// format characters above the BMP, and a char-at-a-time loop would
+        /// test the two surrogate halves of each and find nothing.
         ///
         /// The single implementation of the rule: ConnectTarget, PlayerNames
         /// and EnvFlags delegate here, and scripts/log_sanitize.sh is the shell
@@ -65,16 +103,37 @@ namespace SdtdConnect
         internal static string SanitizeForLog(string value)
         {
             if (string.IsNullOrEmpty(value)) return value;
-            bool dirty = false;
-            foreach (char c in value)
+            StringBuilder sb = null;
+            int i = 0;
+            while (i < value.Length)
             {
-                if (IsLogUnsafe(c)) { dirty = true; break; }
+                int width = 1;
+                int cp = value[i];
+                if (char.IsHighSurrogate(value[i]) && i + 1 < value.Length
+                    && char.IsLowSurrogate(value[i + 1]))
+                {
+                    cp = char.ConvertToUtf32(value[i], value[i + 1]);
+                    width = 2;
+                }
+                bool flatten = IsLogUnsafe(cp);
+                if (sb == null)
+                {
+                    // Nothing unsafe yet, so the original string is still the
+                    // answer; the copy starts only at the first flattened code
+                    // point.
+                    if (!flatten)
+                    {
+                        i += width;
+                        continue;
+                    }
+                    sb = new StringBuilder(value.Length);
+                    sb.Append(value, 0, i);
+                }
+                if (flatten) sb.Append(' ', width);
+                else sb.Append(value, i, width);
+                i += width;
             }
-            if (!dirty) return value;
-            var sb = new StringBuilder(value.Length);
-            foreach (char c in value)
-                sb.Append(IsLogUnsafe(c) ? ' ' : c);
-            return sb.ToString();
+            return sb == null ? value : sb.ToString();
         }
 
         /// <summary>

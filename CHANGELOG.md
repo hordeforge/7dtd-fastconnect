@@ -245,6 +245,27 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Fixed
 
+- Every Unicode format character (Cf) is now flattened out of a value on its
+  way to a log line, in both `LogText.SanitizeForLog` and the shell twin
+  `sanitize_log_text`. The set was a hand-kept list of the bidi controls, the
+  zero-width joiners and the BOM, so U+00AD, U+061C, U+FFF9..U+FFFB,
+  U+206A..U+206F, the Egyptian hieroglyph format controls, the shorthand and
+  musical format controls, and the whole U+E0001 tag block reached the log
+  untouched.
+  A value ending in a tag run reads as the shorter plain one on a terminal and
+  still carries the bytes a harness greps. The C# walk also moved from `char`
+  to code point, because the tag and Egyptian blocks are above the BMP and a
+  per-char test only ever saw their surrogate halves. Both sides list the whole
+  of Cf as Unicode 15.1 defines it rather than asking
+  `CharUnicodeInfo.GetUnicodeCategory`, whose answer is the runtime's Unicode
+  database: the game's Mono predates several of these blocks, so a query there
+  would have passed all of them through.
+- The player-name cap no longer leaves half an emoji behind. The cut was
+  code-point-exact and surrogate-safe, but 24 code points is not a character
+  boundary: a name whose family emoji, flag, skin-tone modifier or accented
+  cluster straddled the cap was stored with a dangling ZWJ, a lone regional
+  indicator or a base-less combining mark, and rendered as a box on the
+  server's player list.
 - `coverage_badge.py` reported 0% coverage, and exited 0, for a report no line
   of which matched the filter. A profiler run that collected nothing therefore
   published a measurement. It now fails, naming the filter, and writes no

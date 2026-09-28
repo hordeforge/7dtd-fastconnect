@@ -740,6 +740,32 @@ static class TestMain
                 LogText.SanitizeForLog("a\u2066b\u2069c") == "a b c");
             Check("accented host unchanged",
                 LogText.SanitizeForLog("caf\u00E9.lan:27025") == "caf\u00E9.lan:27025");
+            // The rest of general category Cf. Each block below is one a
+            // category query on the Mono the game ships with does not know
+            // about, so a query-based rule would pass it whole while the
+            // rendered line reads as something the bytes do not spell.
+            Check("soft hyphen flattened to space",
+                LogText.SanitizeForLog("zd\u00ADtd.lan") == "zd td.lan");
+            Check("Arabic letter mark flattened to space",
+                LogText.SanitizeForLog("a\u061Cb") == "a b");
+            Check("interlinear annotation flattened to space",
+                LogText.SanitizeForLog("a\uFFF9b\uFFFBc") == "a b c");
+            // Above the BMP: a char-at-a-time walk tests the two surrogate
+            // halves of each and finds nothing, so the tag block (the
+            // invisible-tag spoofing vector) and the Trojan Source Egyptian
+            // format controls both reach the log intact.
+            Check("tag character flattened to spaces",
+                LogText.SanitizeForLog("a\U000E0061b") == "a  b");
+            Check("Egyptian format control flattened to spaces",
+                LogText.SanitizeForLog("a\U00013430b") == "a  b");
+            // A flattened astral code point keeps its UTF-16 length, so a cap
+            // counting units downstream still measures the same width.
+            Check("flattened astral keeps its UTF-16 length",
+                LogText.SanitizeForLog("a\U0001F600\U000E0061b").Length == 6);
+            // An unpaired half is not a format character and must survive: a
+            // cap must not be what turns a name into a replacement character.
+            Check("lone high surrogate passes through",
+                LogText.SanitizeForLog("a\ud83db") == "a\ud83db");
             // char.IsControl covers C0, DEL and C1; the Unicode line and
             // paragraph separators are the ones a log reader still lays out
             // as a line break, and the shell twin flattens the same set.
@@ -955,6 +981,53 @@ static class TestMain
                 TextUtil.TruncateToCodePoints("ab\ud800cd", 3) == "ab");
             Check("code-point count reads an astral character as one",
                 TextUtil.CodePointCount(emojiRun) == 3);
+
+            // A code-point boundary is still inside a grapheme cluster often
+            // enough to matter: the family emoji is four code points chained
+            // by three ZWJs, and a cap landing on one of those joiners left a
+            // name ending in a joiner that renders as a box on the server's
+            // player list.
+            string family = "\U0001F468\u200D\U0001F469\u200D\U0001F467\u200D\U0001F466";
+            Check("a cap landing on a ZWJ drops the dangling joiner",
+                TextUtil.TruncateToCodePoints(family + "tail", 2) == "\U0001F468");
+            Check("a cap inside the family keeps the whole family",
+                TextUtil.TruncateToCodePoints(family + "tail", 7) == family);
+            Check("a cap on a cluster boundary keeps every code point",
+                TextUtil.CodePointCount(TextUtil.TruncateToCodePoints(family + "x", 7)) == 7);
+            // A combining mark is the same case in the other alphabet: the
+            // NFD spelling is normalized to NFC first, so a name that still
+            // carries one is one the cap itself cut.
+            Check("a cap landing on a combining mark drops it",
+                TextUtil.TruncateToCodePoints("ab\u0301c", 3) == "ab");
+            // The whole name is one combining mark, so the cluster walk starts
+            // at the first code point and must not reach past the front of the
+            // string looking for the high surrogate of a pair that is not there.
+            Check("a cap over a lone combining mark yields nothing",
+                TextUtil.TruncateToCodePoints("\u0301b", 1) == "");
+            Check("a cap over a lone ZWJ yields nothing",
+                TextUtil.TruncateToCodePoints("\u200Db", 1) == "");
+            // A skin-tone modifier is a symbol, not a mark, and equally
+            // renderless without its base.
+            Check("a cap landing on a skin-tone modifier drops it",
+                TextUtil.TruncateToCodePoints("a\U0001F3FBb", 2) == "a");
+            // A flag is two regional indicators; half of one is a box.
+            string flag = "\U0001F1E9\U0001F1EA";
+            Check("a cap on a flag boundary keeps both halves",
+                TextUtil.TruncateToCodePoints(flag + "x", 2) == flag);
+            Check("a cap leaving one flag half drops it",
+                TextUtil.TruncateToCodePoints("a" + flag + "b", 2) == "a");
+            // The indicators run A..Z (U+1F1E6..U+1F1FF); a letter past J
+            // is still half a flag.
+            Check("a cap leaving half of a late-alphabet flag drops it",
+                TextUtil.TruncateToCodePoints("a\U0001F1FA\U0001F1F8b", 2) == "a");
+            Check("a cap that ends a run of three halves keeps two",
+                TextUtil.TruncateToCodePoints(flag + "\U0001F1EBx", 3) == flag);
+            // Nothing is lost off a name that was already inside the cap.
+            Check("a short cluster sequence is untouched",
+                TextUtil.TruncateToCodePoints(family, PlayerNames.MaxLength) == family);
+            Check("PlayerNames.Cap drops a joiner left at the boundary",
+                PlayerNames.Cap(new string('a', PlayerNames.MaxLength - 1) + "\u200Dx")
+                    == new string('a', PlayerNames.MaxLength - 1));
 
             // Echo truncation shares the unit and the pair rule.
             string echo = LogText.EchoForMessage(

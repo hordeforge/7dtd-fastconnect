@@ -250,11 +250,11 @@ the player's everyday profile.
 
 The name is normalized before it is stored: control and invisible-format
 characters become spaces, and anything past 24 characters is dropped (never
-mid-surrogate-pair). The name reaches the server and its logs, so a value
-carrying a newline or a bidi override would forge a line there. It is never
-written to the client log: only the line naming which source supplied it. What
-the mod stores, where it goes, and how to change or clear it is in
-[docs/PRIVACY.md](docs/PRIVACY.md).
+mid-surrogate-pair, never mid-emoji-sequence). The name reaches the server and
+its logs, so a value carrying a newline or a bidi override would forge a line
+there. It is never written to the client log: only the line naming which
+source supplied it. What the mod stores, where it goes, and how to change or
+clear it is in [docs/PRIVACY.md](docs/PRIVACY.md).
 
 Launch a peer named `atomic-peer`:
 
@@ -352,12 +352,12 @@ that hold for all of them:
   deliberate setting.
 - Values echoed to logs are neutralized first, so a terminal cannot be made to
   render a line differently from the text a harness greps for: control
-  characters (newline, the C1 block, U+2028/U+2029) become spaces, and the
-  invisible Unicode format characters (bidi overrides, LRM/RLM, zero-width
-  joiners, BOM) are dropped by `scripts/log_sanitize.sh`, which is why a value
-  echoed there is shorter than the one set. The mod's own echoes
-  (`Source/ConnectMod/LogText.cs`) blank each of those instead, keeping offsets
-  and lengths intact.
+  characters (newline, the C1 block, U+2028/U+2029) become spaces, and every
+  Unicode format character (bidi overrides, LRM/RLM, zero-width joiners, BOM,
+  the tag block, the Egyptian format controls) is dropped by
+  `scripts/log_sanitize.sh`, which is why a value echoed there is shorter than
+  the one set. The mod's own echoes (`Source/ConnectMod/LogText.cs`) blank each
+  of those instead, keeping offsets and lengths intact.
 - Invalid enum values either abort with the valid set (`GFX_API`) or warn and
   fall back (`CLIENT_MUTE`, `CLIENT_PLATFORM`, numeric timeouts); nothing is
   silently ignored.

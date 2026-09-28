@@ -15,14 +15,24 @@
 # degradation tests use (a helper with only bash on PATH must not lose the
 # flattening that keeps its warning one line).
 #
-# The Unicode format characters (bidi overrides and embeddings, LRM/RLM, the
-# zero-width joiners, the BOM) are invisible on a terminal but present in the
-# bytes, so a reader sees a different string than grep does. They are dropped
-# rather than blanked: each is invisible in every rendering, so a space left
-# behind would only misalign the value.
+# The Unicode format characters (general category Cf: the bidi controls, the
+# zero-width joiners, the BOM, the Egyptian hieroglyph format controls, the
+# tag block) are invisible on a terminal but present in the bytes, so a reader
+# sees a different string than grep does. They are dropped rather than blanked:
+# each is invisible in every rendering, so a space left behind would only
+# misalign the value.
 #
-# Every character is spelled as its UTF-8 bytes ($'\xNN', a raw byte in every
-# locale) rather than as a code point ($'\uXXXX'). A code-point escape is
+# The set is spelled out as code points rather than queried from a category
+# table, because the table belongs to the runtime and the two runtimes this
+# file must match do not agree on it: the mod runs on the Mono that ships with
+# the game, whose Unicode database predates the Egyptian format controls, the
+# shorthand format controls and the whole U+E0001 tag block, so a category
+# query there passes every Trojan Source and tag-spoofing character straight
+# through. The list below is the whole of Cf as Unicode 15.1 defines it, which
+# is what a current table returns.
+#
+# Every character is built from its UTF-8 bytes ($'\xNN', a raw byte in every
+# locale) rather than from a code-point escape ($'\uXXXX'), which is
 # decoded by the shell according to the locale in effect when the file is
 # sourced: under LC_ALL=C or POSIX, which a container, a systemd unit or a
 # bare Proton prefix hands these scripts as readily as en_US.UTF-8,
@@ -42,33 +52,50 @@
 # which under `set -e` would kill a script that did nothing wrong.
 if [[ -z "${LOG_INVISIBLE_FORMAT_CHARS[0]:-}" ]]; then
 
+# Whitespace-separated code points and inclusive lo-hi ranges, the whole of
+# Unicode general category Cf. Hex code points rather than literals, because a
+# literal here would be invisible to the next editor and unreviewable.
+LOG_INVISIBLE_FORMAT_SPEC='00ad 0600-0605 061c 06dd 070f 0890-0891 08e2 180e
+	200b-200f 202a-202e 2060-2064 2066-206f feff fff9-fffb 110bd 110cd
+	13430-1343f 1bca0-1bca3 1d173-1d17a e0001 e0020-e007f'
+
+# Sets REPLY to the UTF-8 encoding of code point $1, assembled from \xNN byte
+# escapes so the result is the same bytes in every locale. The hex is
+# formatted first and expanded by %b: printf's own format string expands \x,
+# not a variable holding the text "\xc2\x80", which it would take literally.
+log_utf8_char() {
+	local cp=$1 hex
+	if ((cp < 0x80)); then
+		printf -v hex '\\x%02x' "$cp"
+	elif ((cp < 0x800)); then
+		printf -v hex '\\x%02x\\x%02x' $((0xc0 | cp >> 6)) $((0x80 | (cp & 0x3f)))
+	elif ((cp < 0x10000)); then
+		printf -v hex '\\x%02x\\x%02x\\x%02x' $((0xe0 | cp >> 12)) \
+			$((0x80 | (cp >> 6 & 0x3f))) $((0x80 | (cp & 0x3f)))
+	else
+		printf -v hex '\\x%02x\\x%02x\\x%02x\\x%02x' $((0xf0 | cp >> 18)) \
+			$((0x80 | (cp >> 12 & 0x3f))) $((0x80 | (cp >> 6 & 0x3f))) \
+			$((0x80 | (cp & 0x3f)))
+	fi
+	printf -v REPLY '%b' "$hex"
+}
+
 # One character per array element, so the walk never slices a table string:
 # ${#str} and ${str:i:1} count characters under a UTF-8 locale and bytes
 # under C, which is the locale dependence this file is written to avoid.
-# A literal in this file would also be invisible to the next editor and
-# unreviewable, so each entry carries its code point as a comment.
-LOG_INVISIBLE_FORMAT_CHARS=(
-	$'\xe2\x80\x8b' # U+200B zero-width space
-	$'\xe2\x80\x8c' # U+200C zero-width non-joiner
-	$'\xe2\x80\x8d' # U+200D zero-width joiner
-	$'\xe2\x80\x8e' # U+200E left-to-right mark
-	$'\xe2\x80\x8f' # U+200F right-to-left mark
-	$'\xe2\x80\xaa' # U+202A left-to-right embedding
-	$'\xe2\x80\xab' # U+202B right-to-left embedding
-	$'\xe2\x80\xac' # U+202C pop directional formatting
-	$'\xe2\x80\xad' # U+202D left-to-right override
-	$'\xe2\x80\xae' # U+202E right-to-left override
-	$'\xe2\x81\xa0' # U+2060 word joiner
-	$'\xe2\x81\xa1' # U+2061 invisible function application
-	$'\xe2\x81\xa2' # U+2062 invisible times
-	$'\xe2\x81\xa3' # U+2063 invisible separator
-	$'\xe2\x81\xa4' # U+2064 invisible plus
-	$'\xe2\x81\xa6' # U+2066 left-to-right isolate
-	$'\xe2\x81\xa7' # U+2067 right-to-left isolate
-	$'\xe2\x81\xa8' # U+2068 first-strong isolate
-	$'\xe2\x81\xa9' # U+2069 pop directional isolate
-	$'\xef\xbb\xbf' # U+FEFF BOM / zero-width no-break space
-)
+LOG_INVISIBLE_FORMAT_CHARS=()
+log_expand_format_spec() {
+	local item lo hi i
+	for item in $LOG_INVISIBLE_FORMAT_SPEC; do
+		lo=$((16#${item%%-*}))
+		hi=$((16#${item##*-}))
+		for ((i = lo; i <= hi; i++)); do
+			log_utf8_char "$i"
+			LOG_INVISIBLE_FORMAT_CHARS+=("$REPLY")
+		done
+	done
+}
+log_expand_format_spec
 
 # U+0001 to U+001F and U+007F. U+0000 is absent because a shell variable
 # cannot hold it, so no value reaching this function carries one.
@@ -79,20 +106,15 @@ LOG_CONTROL_CHARS=(
 	$'\x19' $'\x1a' $'\x1b' $'\x1c' $'\x1d' $'\x1e' $'\x1f' $'\x7f'
 )
 
-# U+0080 to U+009F (the C1 block) and U+2028/U+2029. The C1 characters are
-# two-byte sequences, so they are generated rather than listed: 32 literal
-# lines of the same shape would drift from the range they claim to cover.
+# U+0080 to U+009F (the C1 block) and U+2028/U+2029, generated rather than
+# listed: 32 literal lines of the same shape would drift from the range they
+# claim to cover.
 LOG_C1_AND_SEPARATOR_CHARS=()
 log_utf8_c1_and_separators() {
-	# Every C1 character is U+0080..U+009F encoded as the two bytes C2 80..C2
-	# 9F. The hex is formatted first and expanded by %b: printf's own format
-	# string expands \x, not a variable holding the text "\xc2\x80", which it
-	# would take literally.
-	local i hex char
+	local i
 	for ((i = 0x80; i <= 0x9f; i++)); do
-		printf -v hex '\\xc2\\x%02x' "$i"
-		printf -v char '%b' "$hex"
-		LOG_C1_AND_SEPARATOR_CHARS+=("$char")
+		log_utf8_char "$i"
+		LOG_C1_AND_SEPARATOR_CHARS+=("$REPLY")
 	done
 	LOG_C1_AND_SEPARATOR_CHARS+=(
 		$'\xe2\x80\xa8' # U+2028 line separator
@@ -100,6 +122,7 @@ log_utf8_c1_and_separators() {
 	)
 }
 log_utf8_c1_and_separators
+readonly LOG_INVISIBLE_FORMAT_SPEC
 readonly -a LOG_INVISIBLE_FORMAT_CHARS LOG_CONTROL_CHARS LOG_C1_AND_SEPARATOR_CHARS
 
 fi
@@ -107,7 +130,7 @@ fi
 sanitize_log_text() {
 	local text="$1" c
 	# Each pass is a whole-value pattern substitution, so the value is walked
-	# once per character in each table: 54 of them for a value that has
+	# once per character in each table: 236 of them for a value that has
 	# nothing to flatten, which is the common case (a sanitized log line is
 	# mostly ordinary text). A presence test first skips the substitution
 	# when the character is absent, and it is the same match the

@@ -29,6 +29,19 @@ assert "zero-width space is dropped" flat $'1.2.3.4\u200b:27025' '1.2.3.4:27025'
 assert "BOM is dropped" flat $'\ufeff127.0.0.1' '127.0.0.1'
 assert "isolated LRI is dropped" flat $'a\u2066b\u2069c' 'abc'
 assert "plain target is unchanged" flat '127.0.0.1:27025' '127.0.0.1:27025'
+# The rest of general category Cf, including the blocks above the BMP that a
+# category query on the Mono the game ships on does not know about. The tag
+# block is the invisible-tag spoofing vector and the Egyptian controls are
+# the Trojan Source ones; a C# category query would let both through here.
+assert "soft hyphen is dropped" flat $'zd\u00ADtd.lan' 'zdtd.lan'
+assert "Arabic letter mark is dropped" flat $'a\u061Cb' 'ab'
+assert "interlinear annotation is dropped" flat $'a\uFFF9b\uFFFBc' 'abc'
+assert "tag character is dropped" flat $'a\U000E0061b' 'ab'
+assert "Egyptian format control is dropped" flat $'a\U00013430b' 'ab'
+assert "shorthand format control is dropped" flat $'a\U0001BCA0b' 'ab'
+# A tag run at the tail of a value is the shape the spoofing uses: nothing
+# renders, and the value reads as the shorter plain one.
+assert "trailing tag run is dropped" flat $'player\U000E007F\U000E007E' 'player'
 assert "steam URL form is unchanged" flat 'steam://connect/10.0.0.9:26900' 'steam://connect/10.0.0.9:26900'
 # Accented text must survive byte-for-byte: a naive UTF-8 lead-byte range
 # (0xC2 0x80-0x9f) would eat the 0xC2 of characters like U+00E9.
@@ -85,6 +98,8 @@ for loc in C POSIX C.UTF-8 en_US.UTF-8; do
 		flat_under_locale "$loc" $'a\xe2\x80\xa8result=joined' 'a result=joined'
 	assert "C1 NEL is still flattened under LC_ALL=$loc" \
 		flat_under_locale "$loc" $'a\xc2\x85b' 'a b'
+	assert "astral tag character is still dropped under LC_ALL=$loc" \
+		flat_under_locale "$loc" $'a\xf3\xa0\x81\xa1b' 'ab'
 	assert "astral and CJK text passes through under LC_ALL=$loc" \
 		flat_under_locale "$loc" $'\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x98\x80' $'\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x98\x80'
 done
