@@ -35,6 +35,24 @@
 
 declare -A SEEN_MARK=()
 
+# What the join harnesses read out of a client log, in one place.
+# one_shot_join.sh decides a cycle's result from JOIN_SUCCEEDED_RE and
+# zero_nre_join_loop.sh scores the same log afterwards (found=..., and the
+# line the NRE count starts from), so a marker added to the cycle verdict is
+# also a marker the loop counts. Two vocabularies would let a cycle the
+# launcher reports as joined be scored found=0, and the evidence would be a
+# stock-log string that moved, not a regression.
+# shellcheck disable=SC2034  # read by the join harnesses that source this file
+# shellcheck disable=SC2034  # read by the join harnesses that source this file
+JOIN_OWN_PLAYER_RE='Found own player entity with id'
+# shellcheck disable=SC2034  # read by the join harnesses that source this file
+JOIN_SUCCEEDED_RE="${JOIN_OWN_PLAYER_RE}|PlayerSpawnedInWorld|Spawned in world"
+# Counted after the join marker, not over the whole log: the boot phase
+# legitimately throws before the world exists, and only what follows the join
+# is the client-side defect this harness exists to catch.
+# shellcheck disable=SC2034  # read by the join harnesses that source this file
+JOIN_NRE_RE='NullReferenceException'
+
 # Bytes re-examined before the resume point on every scan.
 LOG_MARK_OVERLAP=262144
 

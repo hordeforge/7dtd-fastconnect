@@ -77,6 +77,31 @@ for f in one_shot_join.sh zero_nre_join_loop.sh restart_pair.sh; do
 	assert "$f sources the shared checks" grep -q 'config_validate.sh' "$ROOT/scripts/$f"
 	assert "$f validates PORT through is_tcp_port" grep -q 'if ! is_tcp_port "$PORT"' "$ROOT/scripts/$f"
 done
+
+# The join target has one owner. Every harness falls back to the same
+# loopback pair, that number is also the mod's own ConnectTarget.DefaultPort,
+# and a harness carrying a literal of its own would point a cycle at a port
+# the client no longer defaults to, which reads as a join timeout rather than
+# as the drift it is.
+assert "the shared connect port is a port is_tcp_port accepts" valid_port "$DEFAULT_CONNECT_PORT"
+mod_default_port() {
+	grep -oE 'public const int DefaultPort = [0-9]+' \
+		"$ROOT/Source/ConnectMod/ConnectTarget.cs" | grep -oE '[0-9]+$'
+}
+connect_port_matches_the_mod() {
+	local mod_port
+	mod_port="$(mod_default_port)"
+	[[ -n "$mod_port" && "$DEFAULT_CONNECT_PORT" == "$mod_port" ]]
+}
+assert "the shared connect port equals ConnectTarget.DefaultPort" connect_port_matches_the_mod
+for f in one_shot_join.sh zero_nre_join_loop.sh restart_pair.sh; do
+	assert "$f reads the shared connect port default" \
+		grep -q 'DEFAULT_CONNECT_PORT' "$ROOT/scripts/$f"
+	assert "$f reads the shared connect host default" \
+		grep -q 'DEFAULT_CONNECT_HOST' "$ROOT/scripts/$f"
+	assert "$f keeps no connect-port default of its own" not_grep ':-27025' "$ROOT/scripts/$f"
+	assert "$f keeps no connect-host default of its own" not_grep ':-127\.0\.0\.1' "$ROOT/scripts/$f"
+done
 # The seconds and attempt knobs reach $(( )) arithmetic and sleep(1) in both
 # join scripts, so each one is validated through the shared check rather than
 # through a copy of the digit test.

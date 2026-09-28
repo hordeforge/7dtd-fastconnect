@@ -49,13 +49,18 @@ source "$ROOT/scripts/config_validate.sh"
 # see scripts/log_sanitize.sh. Sourced before the value checks below so their
 # rejection lines carry a flattened value, not the raw one.
 source "$ROOT/scripts/log_sanitize.sh"
+# The join marker vocabulary this script scores one_shot_join.sh's cycles
+# with: see scripts/log_markers.sh. Sourced for its constants only; this
+# script reads a log copy on disk, not the live append-only log the cache
+# serves.
+source "$ROOT/scripts/log_markers.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
 # Bound accumulation: zero_nre creates per-attempt logs that would grow without
 # limit if the harness is run repeatedly (e.g. CI). Prune old cycles.
 find "$SCRATCH" -maxdepth 1 -type f \( -name 'stock-join-zn*.log' -o -name 'zero_nre-cycle-*.txt' -o -name 'zero_nre_summary.txt' \) -mtime +3 -delete 2>/dev/null || true
-PORT="${PORT:-27025}"
-HOST="${HOST:-127.0.0.1}"
+PORT="${PORT:-$DEFAULT_CONNECT_PORT}"
+HOST="${HOST:-$DEFAULT_CONNECT_HOST}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-6}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-90}"
 # Default root of the sibling zdtd checkout; empty when it is not checked
@@ -181,13 +186,16 @@ count_nre_after_join() {
     echo 9999
     return
   fi
-  # Last join marker; NREs are only counted after it.
-  join_line="$(grep -En 'Found own player entity with id' "$logf" 2>/dev/null | tail -1 | cut -d: -f1)"
+  # Last join marker; NREs are only counted after it. The marker set is the
+  # one one_shot_join.sh decides result= from, so a cycle this loop scores as
+  # joined and the cycle that declared it joined are reading the same log the
+  # same way (scripts/log_markers.sh).
+  join_line="$(grep -En "$JOIN_SUCCEEDED_RE" "$logf" 2>/dev/null | tail -1 | cut -d: -f1)"
   if [[ -z "$join_line" ]]; then
     echo 9998  # no join
     return
   fi
-  n="$(tail -n +"$join_line" "$logf" 2>/dev/null | grep -Ec 'NullReferenceException' || true)"
+  n="$(tail -n +"$join_line" "$logf" 2>/dev/null | grep -Ec "$JOIN_NRE_RE" || true)"
   echo "${n:-0}"
 }
 
@@ -215,8 +223,8 @@ log "start max_attempts=$MAX_ATTEMPTS"
 # PORT lands in --port argv and an ERE (":${PORT}\b"), so it must be a real
 # TCP port; TIMEOUT_SEC/MAX_ATTEMPTS get the numeric guard below.
 if ! is_tcp_port "$PORT"; then
-  log "WARN: PORT invalid ('$(sanitize_log_text "$PORT")'); using 27025"
-  PORT=27025
+  log "WARN: PORT invalid ('$(sanitize_log_text "$PORT")'); using $DEFAULT_CONNECT_PORT"
+  PORT="$DEFAULT_CONNECT_PORT"
 fi
 if ! is_bounded_uint "$MAX_ATTEMPTS"; then
   log "WARN: MAX_ATTEMPTS invalid ('$(sanitize_log_text "$MAX_ATTEMPTS")'); using 6"
@@ -270,7 +278,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
     log "WARN: no client log for attempt $attempt (one_shot copy and $CLIENT_LOG_SRC both unavailable)"
   fi
   NRE=$(count_nre_after_join "$LOG_COPY")
-  FOUND=$(count_matches "Found own player entity with id" "$LOG_COPY")
+  FOUND=$(count_matches "$JOIN_SUCCEEDED_RE" "$LOG_COPY")
   RESULT=$(grep -En "^result=" "$SCRATCH/zero_nre-cycle-$attempt.txt" | tail -1 || true)
   log "result_line=$RESULT found_own=$FOUND nre_after_join=$NRE"
   echo "attempt=$attempt found=$FOUND nre=$NRE $RESULT" >>"$SCRATCH/zero_nre_summary.txt"
@@ -289,7 +297,7 @@ while (( attempt <= MAX_ATTEMPTS )); do
       log "WARN: no client log for the confirmation cycle (one_shot copy and $CLIENT_LOG_SRC both unavailable)"
     fi
     NRE2=$(count_nre_after_join "$LOG2")
-    FOUND2=$(count_matches "Found own player entity with id" "$LOG2")
+    FOUND2=$(count_matches "$JOIN_SUCCEEDED_RE" "$LOG2")
     log "confirm found=$FOUND2 nre=$NRE2"
     if [[ "$FOUND2" != "0" && "$NRE2" == "0" ]]; then
       log "CONFIRM SUCCESS"

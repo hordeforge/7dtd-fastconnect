@@ -103,14 +103,14 @@ for pat in "${CYCLE_ARTIFACTS[@]}"; do
   prune_old_artifacts "$pat"
 done
 
-PORT="${PORT:-27025}"
-HOST="${HOST:-127.0.0.1}"
+PORT="${PORT:-$DEFAULT_CONNECT_PORT}"
+HOST="${HOST:-$DEFAULT_CONNECT_HOST}"
 # PORT feeds both --port argv and an ERE (":${PORT}\b"), so it must be a real
 # TCP port like TIMEOUT_SEC below: metacharacters would skew the listener
 # probe, and a number outside 1..65535 could never match it at all.
 if ! is_tcp_port "$PORT"; then
-  echo "WARN: PORT invalid ('$(sanitize_log_text "$PORT")'); using 27025." >&2
-  PORT=27025
+  echo "WARN: PORT invalid ('$(sanitize_log_text "$PORT")'); using $DEFAULT_CONNECT_PORT." >&2
+  PORT="$DEFAULT_CONNECT_PORT"
 fi
 # Bash cannot expand/export names starting with a digit, so read the canonical
 # 7DTD_CONNECT via printenv.
@@ -184,7 +184,9 @@ source "$ROOT/scripts/monotonic_clock.sh"
 source "$ROOT/scripts/join_evidence.sh"
 
 # Join success signal; some checks accept extra partial-progress markers too.
-JOINED_RE='Found own player entity with id|PlayerSpawnedInWorld|Spawned in world'
+# The marker set itself is shared with zero_nre_join_loop.sh, which scores this
+# cycle's log afterwards: see JOIN_SUCCEEDED_RE in scripts/log_markers.sh.
+JOINED_RE="$JOIN_SUCCEEDED_RE"
 # Derived from JOINED_RE so the soft set can never drop a strong marker when
 # the strong set grows (the kick check below relies on that containment).
 JOIN_SOFT_RE="$JOINED_RE|\[7dtd-fastconnect\] .*connected|Created player|Local Player"
@@ -384,7 +386,7 @@ while (( $(mono_sec) < deadline )); do
     # Strong join bar: PlayerId ProcessPackage created local player, no parse/create failures.
     if log_seen 'NET: LiteNetLib: Accepted by server'; then
       if log_seen 'EntityFactory CreateEntity: unknown type|NCSimple_Deserializer|Attempted to read past the end of the stream' \
-        && ! log_seen 'Found own player entity with id'; then
+        && ! log_seen "$JOIN_OWN_PLAYER_RE"; then
         result="parse_fail"
         break
       fi

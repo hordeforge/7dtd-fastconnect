@@ -13,6 +13,16 @@
 #
 # Source this file; do not execute it.
 
+# The join target every harness falls back to: the local zdtd pair on the
+# stock Connect-to-IP / ServerPort. One owner for the number, because it is
+# also the mod's ConnectTarget.DefaultPort, and a harness that carries its own
+# literal drifts from the client it is trying to join. The two are compared in
+# test_config_validate.sh, so changing one without the other fails a gate
+# rather than a run.
+# shellcheck disable=SC2034  # read by the harnesses that source this file
+DEFAULT_CONNECT_HOST=127.0.0.1
+DEFAULT_CONNECT_PORT=27025
+
 # Env values arrive with whatever spacing and case the caller's shell had, and
 # every documented enum value in this repo is lowercase. Both normalizers are
 # shared so each knob accepts the same shape instead of one being stricter by

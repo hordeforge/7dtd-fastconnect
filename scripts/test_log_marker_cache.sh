@@ -227,4 +227,39 @@ assert "large-window match survives" match_in_a_large_window_is_not_lost_to_sigp
 assert "idle poll skips the rescan" idle_poll_skips_the_rescan
 assert "size probe survives a non-GNU stat" stat_without_gnu_flags_does_not_break_matching
 
+# The marker vocabulary lives with the marker cache because both join
+# harnesses read a joined cycle out of the same client log: one_shot_join.sh
+# decides result=, zero_nre_join_loop.sh counts found= and the line its NRE
+# count starts from. A harness that spelled the markers out again would score
+# a joined cycle as found=0 the day the stock log stops printing one of them.
+shared_markers_answer_both_ways() {
+	log_marks_reset
+	: >"$LOG_MARK_FILE"
+	printf 'NET: Found own player entity with id 42\n' >>"$LOG_MARK_FILE"
+	log_seen "$JOIN_SUCCEEDED_RE" || return 1
+	: >"$LOG_MARK_FILE"
+	log_marks_reset
+	printf 'PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
+	log_seen "$JOIN_SUCCEEDED_RE" || return 1
+	: >"$LOG_MARK_FILE"
+	log_marks_reset
+	printf 'spawned nothing yet\n' >>"$LOG_MARK_FILE"
+	if log_seen "$JOIN_SUCCEEDED_RE"; then return 1; fi
+	! log_seen "$JOIN_NRE_RE"
+}
+assert "the shared join markers match a joined log and miss an unjoined one" \
+	shared_markers_answer_both_ways
+vocabulary_is_shared() {
+	local f
+	for f in one_shot_join.sh zero_nre_join_loop.sh; do
+		grep -q 'JOIN_SUCCEEDED_RE' "$ROOT/scripts/$f" || return 1
+		# Neither harness keeps its own copy of the markers, and the loop
+		# counts NREs from the shared pattern too.
+		if grep -q 'Found own player entity with id' "$ROOT/scripts/$f"; then return 1; fi
+		if grep -q "'NullReferenceException'" "$ROOT/scripts/$f"; then return 1; fi
+	done
+	grep -q 'JOIN_NRE_RE' "$ROOT/scripts/zero_nre_join_loop.sh"
+}
+assert "both join harnesses read the shared marker vocabulary" vocabulary_is_shared
+
 finish

@@ -42,7 +42,7 @@ source "$SCRIPTDIR/proton_paths.sh"
 source "$SCRIPTDIR/config_validate.sh"
 
 WORLD="$1"
-PORT="${2:-27025}"
+PORT="${2:-$DEFAULT_CONNECT_PORT}"
 # PORT goes to --port argv and into the client's 7DTD_CONNECT, so a value the
 # client could never join is a usage error (exit 2, same convention as
 # launch_client.sh GFX_API), not a fallback.
@@ -55,7 +55,7 @@ fi
 # down, with the same treatment PORT gets: the value reaches 7DTD_CONNECT and
 # the launcher's log, so a value carrying whitespace is a usage error. Unset
 # and empty mean the loopback default, as for every other knob.
-HOST="${HOST:-127.0.0.1}"
+HOST="${HOST:-$DEFAULT_CONNECT_HOST}"
 if [[ "$HOST" =~ [[:space:]] ]]; then
   echo "ERROR: host must be a single word, got '$HOST'" >&2
   exit 2
