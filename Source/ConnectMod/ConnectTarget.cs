@@ -21,7 +21,10 @@ namespace SdtdConnect
         // The server replaces every one of these at handshake, so they only
         // have to parse, not to be true. ServerVersion is the exception: the
         // running client's own version is used when it can be read, because a
-        // stale literal would advertise a mismatch against itself.
+        // stale literal would advertise a mismatch against itself. The literal
+        // below is therefore the fallback for an unreadable
+        // Constants.cVersionInformation, and it has to be updated when the game
+        // version moves: nothing else in the tree records that version.
         const string PlaceholderGameType = "7DTD";
         const string PlaceholderGameName = "zdtd";
         const string PlaceholderLevelName = "Navezgane";
@@ -156,12 +159,34 @@ namespace SdtdConnect
                 int firstColon = raw.IndexOf(':');
                 hasPort = firstColon >= 0 && firstColon == raw.LastIndexOf(':');
             }
-            if (hasPort || portArg == null) return raw;
+            if (hasPort)
+            {
+                // A host that already carries a port wins, so `connect
+                // host:1234 5678` joins 1234 while the operator asked for
+                // 5678. Name the token that was dropped instead of letting the
+                // join land somewhere they did not ask for.
+                if (portArg != null) WarnDroppedPortArg(raw, portArg);
+                return raw;
+            }
+            if (portArg == null) return raw;
             // Hostnames and IPv4 never contain ':', so a colon here means bare
             // IPv6; only the bracketed form survives TryParse with the port.
             return bracketed || raw.IndexOf(':') < 0
                 ? raw + ":" + portArg
                 : "[" + raw + "]:" + portArg;
+        }
+
+        // The console command merges once per invocation; the fuzz lane merges
+        // thousands of times, so the note is latched like the other one-shot
+        // launch-context warnings.
+        static bool _droppedPortArgWarned;
+
+        static void WarnDroppedPortArg(string host, string portArg)
+        {
+            if (_droppedPortArgWarned) return;
+            _droppedPortArgWarned = true;
+            Log.Warning("[7dtd-fastconnect] port argument '" + SanitizeForLog(portArg)
+                + "' ignored: '" + SanitizeForLog(host) + "' already carries a port");
         }
 
         public static bool TryParse(string raw, out string host, out int port, out string error)

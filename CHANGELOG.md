@@ -77,6 +77,16 @@ in the affected sections instead of being papered over.
 
 ### Fixed
 
+- Probe failures are announced once per probe, not once per process. A single
+  shared latch let the first throwing heartbeat mute every later notice,
+  including the synthetic platform id, which is the one failure that silently
+  changes the server-side player identity.
+- The pending-async-load counter announces a reflection failure once instead of
+  on every call. Both callers poll it per frame, so a game update that renames
+  a `LoadManager` field flooded the client log.
+- `connect <host> <port>` no longer discards the port argument in silence when
+  the host already carries one: the dropped token is named in the log, since
+  the join lands on the other port.
 - `make package` ships only the mod payload. The zip was built by copying the
   whole `dist/7dtd-fastconnect` build output, which MSBuild never prunes, so
   the release archive could carry `7dtd-fastconnect.pdb` and files a build had

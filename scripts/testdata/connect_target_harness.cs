@@ -344,6 +344,12 @@ static class TestMain
             // command makes.
             CheckMergeRoundTrip("1.2.3.4", "27015", "1.2.3.4", 27015);
             CheckMergeRoundTrip("zdtd.lan", null, "zdtd.lan", ConnectTarget.DefaultPort);
+
+            // A host that already carries a port keeps it, so the merged
+            // string must round-trip to that port and not to the argument the
+            // operator typed alongside it.
+            CheckMergeRoundTrip("1.2.3.4:5", "27015", "1.2.3.4", 5);
+            CheckMergeRoundTrip("[::1]:9", "27015", "::1", 9);
             CheckMergeRoundTrip("1.2.3.4:5", "27015", "1.2.3.4", 5);
             CheckMergeRoundTrip("steam://connect/1.2.3.4:9", "27015", "1.2.3.4", 9);
             CheckMergeRoundTrip("steam://connect/1.2.3.4", "27015", "1.2.3.4", 27015);

@@ -380,7 +380,16 @@ namespace SdtdConnect
             }
             catch (Exception ex)
             {
-                Log.Warning("[7dtd-fastconnect] pending load count failed: " + ex.Message);
+                // Both callers poll this per frame (the startup drain, and the
+                // hitch monitor), so a per-call warning would flood the log
+                // after a game update renames a field. Announce once, the same
+                // contract as the other probes.
+                //
+                // Unknown counts as drained: the startup drain then holds sync
+                // loading, which is the branch that does not depend on the
+                // answer, and the hitch monitor reports a backlog of 0 rather
+                // than a number it cannot read.
+                ProbeFailure.Once("pending load count", ex);
                 return 0;
             }
         }
