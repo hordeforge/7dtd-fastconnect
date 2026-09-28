@@ -53,6 +53,13 @@ in the affected sections instead of being papered over.
   answering as if it were `status`. A pasted port is truncated in the echo so
   the reason stays on screen.
 
+- The log-marker scanner skips the grep when the join log has not grown since
+  its last scan of that marker. The window is byte-identical, so the verdict
+  cannot differ, and the join log is bursty: most polls used to re-run `tail`
+  plus `grep` over an unchanged tail for the whole join budget. External
+  truncation (size below the offset) still falls back to a full scan, and a
+  poll still forks once whenever the log grew.
+
 - The player name applied at boot is no longer echoed to the client log. The
   line records only whether the name came from `7DTD_PLAYER_NAME` or from the
   `PlayerNames` fallback; the value itself (an OS account name, host name, or
@@ -76,6 +83,22 @@ in the affected sections instead of being papered over.
   renamed or dropped. `scripts/stage_mod.sh` now copies the two files
   `make install` installs and fails if the build did not produce them, so a
   partial build cannot be zipped under a release name.
+- Concurrent `launch_client.sh` runs no longer corrupt each other's
+  `platform.cfg` swap. The backup file is a single slot, so two launchers on
+  one install each backed up the other's config and left `platform.cfg` stuck
+  on Local with the Steam original lost. A launcher now holds an exclusive
+  `flock` on the install for as long as it owns the swap, takes no second
+  backup when another live launcher already holds it, and restores only a
+  backup it created itself. A missing or unusable `flock` degrades to the old
+  unlocked behavior with a warning rather than refusing to launch. Single
+  launcher launches, including the hard-kill self-heal, are unchanged.
+- The cross-platform `PlatformUserId` wait window is scoped to one contiguous
+  episode. The deadline was reset only when a user object was seen, so a
+  platform or user torn down in between left the previous deadline armed; the
+  next wait was already past due, skipped its whole window, and joined into
+  the null-reference the wait exists to avoid. The reset now also runs when
+  the platform is gone or was never cross-platform.
+
 - `launch_client.sh` trims the client-mute opt-out before matching it, so
   `CLIENT_MUTE=" 0"` (or `"OFF "`, `" No"`) is the opt-out the README documents
   instead of falling through to "any other non-empty value" and muting the
