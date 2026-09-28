@@ -22,6 +22,17 @@ Key env vars:
   CYCLE          label for this run's artifact filenames (default 1)
   START_SERVER   1 starts ../zdtd-server/zig-out/bin/zdtd first (default 0)
   SCRATCH        artifact dir (default ~/.cache/7dtd-fastconnect)
+  ZDTD_BIN       zdtd binary started when START_SERVER=1
+  WORLD_DIR      world the started server loads (default ../zdtd-server/worlds/zdtd_goal)
+  MAP_DIR / GAME_DIR
+                 map and dedicated-server install the started server uses
+  GAME / COMPAT / STEAM_ROOT / STEAM_APPID
+                 client install and Proton prefix, resolved exactly as
+                 launch_client.sh does; the cycle polls the client log in
+                 that prefix
+Booleans (START_SERVER) accept 1/true/yes/on and 0/false/no/off; any other
+value is read as on with a warning naming the variable. Numeric knobs fall
+back to their default with a warning.
 EOF
   exit 0
 fi
@@ -98,7 +109,12 @@ if ! [[ "$CYCLE" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$CYCLE" == .* ]]; then
   echo "WARN: CYCLE invalid ('$CYCLE'); using 1." >&2
   CYCLE=1
 fi
-START_SERVER="${START_SERVER:-0}"
+# START_SERVER reads the same boolean table as every other knob (and as the
+# mod's 7DTD_CONNECT_* flags), so `true`/`yes`/`on` start the server like `1`
+# and an empty value keeps the default. A `== "1"` test would instead read
+# START_SERVER=true as off and fail later as "no listener on PORT", naming the
+# port rather than the knob that was misspelled.
+START_SERVER="$(env_bool "START_SERVER=${START_SERVER-}" 0)"
 # Default root of the sibling zdtd checkout; empty when it is not checked
 # out here. A hard failure must wait for the point of use (START_SERVER=1
 # validates the binary) so START_SERVER=0 cycles run anywhere.

@@ -36,15 +36,11 @@ EOF
   exit 0
 fi
 
-# Env values arrive with whatever spacing and case the caller's shell had, and
-# every documented enum value here is lowercase. Both normalizers are shared so
-# each enum accepts the same shape instead of one being stricter by accident.
-trim() { local v="${1-}"; v="${v#"${v%%[![:space:]]*}"}"; printf '%s' "${v%"${v##*[![:space:]]}"}"; }
-lower() { printf '%s' "${1,,}"; }
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MUTE_HELPER="$SCRIPT_DIR/mute_client_audio.sh"
 source "$SCRIPT_DIR/proton_paths.sh"
+# Shared value checks (trim, lower, env_bool): see scripts/config_validate.sh.
+source "$SCRIPT_DIR/config_validate.sh"
 # Log-line flattening for attacker-shapable values (7DTD_CONNECT): see
 # scripts/log_sanitize.sh; same contract as LogText.SanitizeForLog.
 source "$SCRIPT_DIR/log_sanitize.sh"
@@ -110,26 +106,18 @@ if [[ -n "$CONNECT" ]]; then
   EXTRA_ARGS+=(-connect="$CONNECT")
 fi
 
-# Mute client audio by default (opt-out). Trim + case-fold before matching, so
-# "0", " Off " and "NO" all read as the documented opt-out instead of falling
-# through to "any other non-empty value" (the same shape as the CLIENT_PLATFORM
-# opt-out below, and the shell twin of the EnvFlags trim the mod applies to the
-# 7DTD_CONNECT_* flags). A blank value is not an opt-out: it trims to empty and
-# keeps the unset default, mute on, which is what EnvFlags.IsSetOn does with a
-# whitespace-only value.
-# The fallback chain runs on the trimmed value, not the raw one: a
-# whitespace-only CLIENT_MUTE is not set, and reading it as set left
-# MUTE_CLIENT empty, which reads as the opt-out downstream and silenced a
-# client the operator never opted out of.
-MUTE_CLIENT="$(trim "${CLIENT_MUTE-}")"
-if [[ -z "$MUTE_CLIENT" ]]; then
-  MUTE_CLIENT="$(trim "${SEVEN_DAYS_TO_DIE_CLIENT_MUTE-}")"
-fi
-MUTE_CLIENT="$(lower "${MUTE_CLIENT:-1}")"
-case "$MUTE_CLIENT" in
-  0 | false | no | off) MUTE_CLIENT="0" ;;
-  *) MUTE_CLIENT="1" ;;
-esac
+# Mute client audio by default (opt-out). env_bool applies the documented
+# table ("0", " Off " and "NO" all read as the opt-out; a blank value is not an
+# opt-out and keeps the default, mute on) and warns on a token outside it, so
+# a typo cannot silently mute a session the operator meant to hear. The alias
+# is a second candidate rather than a separate rule: a whitespace-only
+# CLIENT_MUTE is not set, and reading it as set left MUTE_CLIENT empty, which
+# reads as the opt-out downstream and silenced a client the operator never
+# opted out of.
+MUTE_CLIENT="$(env_bool \
+  "CLIENT_MUTE=${CLIENT_MUTE-}" \
+  "SEVEN_DAYS_TO_DIE_CLIENT_MUTE=${SEVEN_DAYS_TO_DIE_CLIENT_MUTE-}" \
+  1)"
 MUTE_WAIT="$(trim "${CLIENT_MUTE_TIMEOUT:-${SEVEN_DAYS_TO_DIE_CLIENT_MUTE_TIMEOUT:-60}}")"
 # Validated here, not only in the helper: the launcher is what announces the
 # poll window it starts, and the helper's own guard is for standalone use.

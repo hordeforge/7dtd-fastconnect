@@ -314,7 +314,10 @@ The join harnesses (`one_shot_join.sh`, `zero_nre_join_loop.sh`,
 `CYCLE`, `START_SERVER`, `ZDTD_BIN`, ...): each validates its value at startup
 and names the fallback it uses. `PORT` must be a real TCP port (1-65535, the
 same range the client accepts for `7DTD_CONNECT`); `restart_pair.sh` treats
-anything else as a usage error, the other two fall back to 27025.
+anything else as a usage error, the other two fall back to 27025. `START_SERVER`
+reads the boolean table above (`1` / `true` / `yes` / `on`, `0` / `false` /
+`no` / `off`), so `START_SERVER=true` starts the server instead of leaving the
+cycle to report "no listener on PORT".
 
 Every script in `scripts/` follows one contract: `-h` / `--help` prints the
 usage on stdout and exits 0 before touching disk or spawning a process, an

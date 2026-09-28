@@ -9,7 +9,15 @@ source "$ROOT/scripts/test_common.sh"
 
 assert "mute helper executable" test -x "$ROOT/scripts/mute_client_audio.sh"
 assert "launch_client references mute helper" grep -q 'mute_client_audio.sh' "$ROOT/scripts/launch_client.sh"
-assert "launch defaults mute on" grep -q 'MUTE_CLIENT:-1' "$ROOT/scripts/launch_client.sh"
+assert "launch defaults mute on" grep -q 'MUTE_CLIENT="\$(env_bool' "$ROOT/scripts/launch_client.sh"
+# The shared boolean reader takes the default as its last argument, so
+# default-on has to be checked at the end of the call, not on the line that
+# starts it. A function, not a pipeline: a bare `assert ... | tail` would make
+# the pipe the assert's own pipeline and trip set -e on the assert output.
+mute_default_is_one() {
+	grep -A3 'MUTE_CLIENT="\$(env_bool' "$ROOT/scripts/launch_client.sh" | tail -1 | grep -qx '  1)"'
+}
+assert "launch passes 1 as the mute default" mute_default_is_one
 assert "README documents the CLIENT_MUTE=0 opt-out command" \
 	grep -qF 'CLIENT_MUTE=0 ./scripts/launch_client.sh' "$ROOT/README.md"
 assert "launch documents opt-out" grep -q 'CLIENT_MUTE=0' "$ROOT/scripts/launch_client.sh"

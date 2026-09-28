@@ -894,6 +894,23 @@ def test_client_mute_opt_out_never_invokes_pactl(tmp_path: Path) -> None:
     assert mute_log.read_text(encoding="utf-8") == ""
 
 
+def test_unknown_client_mute_token_warns_and_stays_on(tmp_path: Path) -> None:
+    """A token outside the documented table reads as ON, like the mod's
+    EnvFlags does for the 7DTD_CONNECT_* flags, and says so: silently
+    coercing a typo made CLIENT_MUTE=ture indistinguishable from a
+    deliberate setting."""
+    _setup(tmp_path)
+    path, _mute_log = _pactl_invocation_log(tmp_path)
+    r = _launch(
+        tmp_path,
+        mute=True,
+        extra_env={"PATH": path, "CLIENT_MUTE": "ture"},
+    )
+    assert r.returncode == 0, r.stderr
+    assert "CLIENT_MUTE='ture' is not a documented boolean" in r.stderr
+    assert "Client mute: on" in r.stdout
+
+
 @pytest.mark.parametrize("value", [" 0", "OFF ", " No\t"])
 def test_client_mute_opt_out_tolerates_surrounding_whitespace(tmp_path: Path, value: str) -> None:
     """A padded opt-out is still the opt-out. The launcher case-folds but did

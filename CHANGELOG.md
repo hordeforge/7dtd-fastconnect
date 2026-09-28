@@ -152,6 +152,17 @@ in the affected sections instead of being papered over.
   harnesses, through the shared `scripts/config_validate.sh`. A value the
   client could never join is reported at startup instead of surfacing later as
   a listen or join timeout; `restart_pair.sh` calls it a usage error (exit 2).
+- `START_SERVER` reads the documented boolean table in `one_shot_join.sh`. It
+  was compared to `1`, so `START_SERVER=true` read as off and the cycle failed
+  much later as "no listener on PORT", naming the port instead of the knob.
+- `env_bool` in `scripts/config_validate.sh`, the shell twin of the mod's
+  `EnvFlags`, now also reads `CLIENT_MUTE`. An undocumented token there was
+  coerced to mute in silence, so `CLIENT_MUTE=ture` looked like a deliberate
+  setting while the mod's own `7DTD_CONNECT_*` flags warned about the same
+  mistake.
+- The join harnesses' `--help` lists the knobs they read but did not document
+  (`ZDTD_BIN`, `WORLD_DIR`, `MAP_DIR`, `GAME_DIR`, and the `GAME` / `COMPAT` /
+  `STEAM_ROOT` / `STEAM_APPID` prefix resolution).
 
 ### Changed
 

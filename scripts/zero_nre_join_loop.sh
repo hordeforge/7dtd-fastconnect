@@ -21,6 +21,14 @@ Key env vars:
   TIMEOUT_SEC    per-cycle join wait in seconds (default 90)
   ZDTD_BIN       zdtd binary (default ../zdtd-server/zig-out/bin/zdtd)
   SCRATCH        artifact dir (default ~/.cache/7dtd-fastconnect)
+  WORLD_DIR      world the started server loads (default ../zdtd-server/worlds/zdtd_goal)
+  MAP_DIR / GAME_DIR
+                 map and dedicated-server install the started server uses
+  GAME / COMPAT / STEAM_ROOT / STEAM_APPID
+                 client install and Proton prefix, resolved exactly as
+                 launch_client.sh does; each cycle polls the client log in
+                 that prefix
+Numeric knobs fall back to their default with a warning.
 EOF
   exit 0
 fi
