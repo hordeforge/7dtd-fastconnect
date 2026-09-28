@@ -14,13 +14,13 @@ the stock client.
 
 | Field | Where it comes from | Where it is written | Who else sees it |
 |---|---|---|---|
-| Player display name | env `7DTD_PLAYER_NAME`, or in automation mode the OS user name, then the machine name, then `player` (`Source/ConnectMod/PlayerNames.cs:54`) | the stock `EnumGamePrefs.PlayerName` pref in the client profile, via `GamePrefs.Set` and `Save()` (`Source/ConnectMod/ModApi.cs:196`) | the server it joins: the name travels in the login and lands in that server's logs and player list, which this repo does not control |
+| Player display name | env `7DTD_PLAYER_NAME`, or in automation mode the OS user name, then the machine name, then `player` (`Source/ConnectMod/PlayerNames.cs:58`) | the stock `EnumGamePrefs.PlayerName` pref in the client profile, via `GamePrefs.Set` and `Save()` (`Source/ConnectMod/ModApi.cs:190`) | the server it joins: the name travels in the login and lands in that server's logs and player list, which this repo does not control |
 | Synthetic platform id | FNV-1a hash of the machine name, else the OS user name, else a fixed value (`Source/ConnectMod/AuthFallbackPatches.cs:73`) | not stored by the mod; sent as the platform user id at join | the same server, which persists player data against it |
-| Harness artifacts | the client's own log file | `SCRATCH` (`~/.cache/7dtd-fastconnect` by default), pruned by age and count (`scripts/one_shot_join.sh:59`) | nobody; the files stay on the machine that ran the harness |
+| Harness artifacts | the client's own log file | `SCRATCH` (`~/.cache/7dtd-fastconnect` by default), pruned by age and by count (`scripts/one_shot_join.sh:85`, `:78`) | nobody; the files stay on the machine that ran the harness |
 
 The auth ticket is not on this list: with no Steam or EOS login the mod
 substitutes an **empty** ticket rather than a stored one
-(`Source/ConnectMod/AuthFallbackPatches.cs:11`, `:161`).
+(`Source/ConnectMod/AuthFallbackPatches.cs:18`, `:178`).
 
 ## The display name
 
@@ -31,12 +31,12 @@ substitutes an **empty** ticket rather than a stored one
   than storing an empty pref.
 - **Leave it alone**: outside automation mode, a client that already has a
   stored name and no `7DTD_PLAYER_NAME` writes nothing
-  (`Source/ConnectMod/ModApi.cs:163`).
+  (`Source/ConnectMod/ModApi.cs:159`).
 - **In automation mode** (`7DTD_CONNECT` or `-connect=` present), an empty
   stored pref is filled in from the OS user name so a Steam-less loopback join
   is not kicked for an empty name.
 - **Never in the client log**: the value itself is not logged. Only its source
-  is, as one of two fixed lines (`Source/ConnectMod/ModApi.cs:205`). The client
+  is, as one of two fixed lines (`Source/ConnectMod/ModApi.cs:200`). The client
   log is the artifact people paste into issue reports, so the name stays out of
   it; `scripts/test_player_name_override.sh` pins that invariant.
 
@@ -64,10 +64,11 @@ write; a public constant salt would not help against the same attack.
 ## Artifacts and retention
 
 The harness scripts keep their artifacts under `SCRATCH`: the client log copy,
-the launcher output, the per-cycle control log and the server log. They are
-pruned to the 20 newest of each kind and dropped after three days
-(`scripts/one_shot_join.sh:59`, `scripts/zero_nre_join_loop.sh:56`). A control
-log also holds up to 80 lines copied from the client log
+the launcher output, the per-cycle control log and the server log. Anything
+older than three days is deleted; `one_shot_join.sh` additionally keeps only
+the 20 newest of each kind
+(`scripts/one_shot_join.sh:78`, `:85`, `scripts/zero_nre_join_loop.sh:74`).
+A control log also holds up to 80 lines copied from the client log
 (`scripts/join_evidence.sh:35`), and the server-log tail the harnesses print
 when the server never listened.
 

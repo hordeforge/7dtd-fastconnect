@@ -25,9 +25,10 @@ and enum handling, so a patch bump would claim none of that.
   invocation; drop the argument. A mistyped flag can no longer start a client,
   a server, or a multi-minute build. The README states the shared contract and
   `test_cli_help.sh` pins it.
-- `PORT` outside 1-65535 is a usage error (exit 2) in the three join harnesses,
-  where a value the client could never join used to run the harness to a listen
-  or join timeout.
+- `PORT` outside 1-65535 is a usage error (exit 2) in `restart_pair.sh`, which
+  used to run to a listen or join timeout on a value the client could never
+  join. `one_shot_join.sh` and `zero_nre_join_loop.sh` keep the fallback they
+  always had: a warning naming the value, then the default port.
 - A port in `7DTD_CONNECT`, `-connect=` or `connect <host> <port>` is read as
   decimal digits only. `+80`, ` 80`, `1,234` and non-ASCII digits are now the
   rejection they are in the launcher's `PORT` check, which runs under
@@ -173,7 +174,7 @@ and enum handling, so a patch bump would claim none of that.
 - The local-host startup trace no longer builds its line when verbose tracing
   is off. `PerfTrace.Trace` gates the log write, but the caller concatenated
   the line first, so every step of a world load allocated a string that was
-  dropped. The call sites now test `PerfTrace.Enabled` before building one;
+  dropped. The call sites now test `DiagToggle.Enabled` before building one;
   the trace output is unchanged when diag is on.
 - A rejected target or a failed connect from the F1 console is logged at error
   severity, matching what the auto-join path already did for the same outcome.

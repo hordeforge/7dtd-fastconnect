@@ -45,8 +45,10 @@ command that installs it:
 make doctor
 ```
 
-- `shellcheck`, `zip`, `unzip`, `jq` from the system packages
-  (Debian/Ubuntu: `apt-get install shellcheck zip unzip jq`)
+- `shellcheck`, `zip`, `unzip`, `sha256sum`, `git`, `jq` from the system
+  packages. `scripts/check_prereqs.sh` requires all six; on Debian/Ubuntu that
+  is `apt-get install shellcheck zip unzip coreutils git jq` (`sha256sum`
+  comes with `coreutils`).
 - the dotnet SDK band pinned in `global.json` (`dotnet --version` must satisfy
   it), or `mcs` + `mono` for the same C# gate
 - [`uv`](https://docs.astral.sh/uv/) for the pinned Python gates:
@@ -414,8 +416,8 @@ without the server checked out.
 
 Every lifecycle entry point in `scripts/` (`launch_client.sh`, the three join
 harnesses, `mute_client_audio.sh`, `unmute_client_audio.sh`, `repro_zip.sh`,
-`package.sh`, `stage_mod.sh`, `assert_tool_pin.sh`, `check_game_root.sh`;
-`scripts/test_cli_help.sh`
+`package.sh`, `stage_mod.sh`, `assert_tool_pin.sh`, `check_prereqs.sh`,
+`check_game_root.sh`, `changelog_gate.sh`; `scripts/test_cli_help.sh`
 enumerates them) follows one contract: `-h` / `--help` prints the usage on
 stdout and exits 0 before touching disk or spawning a process, an argument a
 script cannot accept exits 2 with the usage on stderr, and a setup or runtime

@@ -72,7 +72,9 @@ doc_link_lands() {
 # a missing one, so the reference is resolved and the named line is read: the
 # page cannot drift onto an unrelated statement unnoticed.
 assert "the page links the name path back to the code" \
-	doc_link_lands ModApi.cs 196 'player name applied from'
+	doc_link_lands ModApi.cs 190 'GamePrefs.Set(EnumGamePrefs.PlayerName'
+assert "the page names where the fallback name is resolved" \
+	doc_link_lands PlayerNames.cs 58 'internal static string Resolve()'
 assert "the page covers the synthetic id the Steam-less path sends" \
 	doc_link_lands AuthFallbackPatches.cs 73 'static PlatformUserIdentifierAbs SyntheticId()'
 
