@@ -59,6 +59,17 @@ and enum handling, so a patch bump would claim none of that.
   `AnalysisLevel=latest` and `TreatWarningsAsErrors`. Both lanes previously
   printed compiler and analyzer warnings and passed anyway, so the nine
   production sources this gate compiles reached CI unanalyzed.
+- The pinned Python gates install through `--locked` instead of `--frozen`,
+  and `pyproject.toml` names pypi.org as the index they resolve from.
+  `--frozen` only promises not to rewrite `uv.lock`, so a pin edited in
+  `pyproject.toml` without a re-lock kept installing the versions the lock
+  still named, with nothing failing; `--locked` fails that run the way the
+  C# build already fails a drift. The named index is the same reason
+  `NuGet.config` clears the inherited sources: an inherited mirror could
+  otherwise answer for these package ids, and the per-artifact sha256 in
+  `uv.lock` is what makes the install verifiable. `required-version` refuses a
+  uv too old to read the lock, which would have to re-lock to use it.
+  `test_make_tool_pin.sh` holds all three in place.
 
 ### Fixed
 

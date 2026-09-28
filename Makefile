@@ -39,10 +39,15 @@ dotnet-version:
 # One way to invoke pytest, shared by `make test` and `make gate` so the two
 # cannot drift: the pinned dev toolchain through uv, else the pytest on PATH
 # once assert_tool_pin.sh proves it reports the == pin in pyproject.toml.
+# --locked, not --frozen: --frozen only promises to leave uv.lock alone, so a
+# pin edited in pyproject.toml without a re-lock silently keeps installing the
+# versions the lock still names, and the gate runs a toolchain no file in the
+# tree declares. --locked fails that run instead, which is the same
+# RestoreLockedMode the C# build already runs with.
 ifeq ($(shell command -v uv 2>/dev/null),)
 PYTEST := $(ROOT)/scripts/assert_tool_pin.sh pytest python3 -m pytest
 else
-PYTEST := uv run --frozen --group dev -- pytest
+PYTEST := uv run --locked --group dev -- pytest
 endif
 
 # One gate on its own, so an edit to one script is checked in seconds instead
@@ -77,7 +82,7 @@ help:
 	@echo "  coverage   line coverage of ConnectTarget plus the rendered badge"
 	@echo "  clean      remove dist/ and the C# bin/ and obj/ trees"
 	@echo "  dotnet-version  print the dotnet SDK version the build would use"
-	@echo "setup: make doctor (what is missing); uv sync --frozen --group dev for the"
+	@echo "setup: make doctor (what is missing); uv sync --locked --group dev for the"
 	@echo "        pinned ruff/mypy/pytest/yamllint; dotnet SDK band in global.json"
 
 # Runs dotnet from ROOT so global.json (the SDK pin) is always the one in this
@@ -98,7 +103,7 @@ build:
 # the badge filters to /Source/ so stub and harness lines stay out.
 coverage:
 	$(ROOT)/scripts/coverage-cs.sh
-	cd "$(ROOT)" && uv run --frozen --group dev python scripts/coverage_badge.py \
+	cd "$(ROOT)" && uv run --locked --group dev python scripts/coverage_badge.py \
 		coverage.svg "/Source/" coverage.cobertura.xml
 
 # The offline gate scripts, in run order. Explicit rather than a
@@ -158,13 +163,13 @@ test:
 	# yamllint joins the Python gates rather than staying a bare `command -v`
 	# probe: the hosted CI runner has no yamllint on PATH, so a probe-only gate
 	# printed a WARN and linted nothing there. Pinned in [dependency-groups]
-	# dev, so `uv run --frozen` gives CI the same version a maintainer gets.
+	# dev, so `uv run --locked` gives CI the same version a maintainer gets.
 	@if command -v uv >/dev/null; then \
 	  echo "yamllint:"; \
-	  cd "$(ROOT)" && uv run --frozen --group dev yamllint . && \
-	  uv run --frozen --group dev ruff check scripts && \
-	  uv run --frozen --group dev ruff format --check scripts && \
-	  uv run --frozen --group dev mypy --strict $(PY_SOURCES); \
+	  cd "$(ROOT)" && uv run --locked --group dev yamllint . && \
+	  uv run --locked --group dev ruff check scripts && \
+	  uv run --locked --group dev ruff format --check scripts && \
+	  uv run --locked --group dev mypy --strict $(PY_SOURCES); \
 	elif command -v ruff >/dev/null && command -v mypy >/dev/null && \
 	     command -v yamllint >/dev/null; then \
 	  cd "$(ROOT)" && "$(ROOT)/scripts/assert_tool_pin.sh" yamllint yamllint && \

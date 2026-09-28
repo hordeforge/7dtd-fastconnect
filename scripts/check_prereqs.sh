@@ -99,7 +99,7 @@ report git "package.sh derives the version, the commit and SOURCE_DATE_EPOCH fro
 report jq "needed by the audio-helper gates; apt-get install jq, brew install jq"
 report_compiler "the ConnectTarget gate compiles the real C#; install the SDK band pinned in global.json (apt-get install dotnet-sdk-8.0), or apt-get install mono-devel for mcs+mono"
 
-advise uv "no uv: the Python gates fall back to ruff/mypy/yamllint/pytest on PATH, each held to its == pin; install uv and run 'uv sync --frozen --group dev' for the same toolchain CI uses"
+advise uv "no uv: the Python gates fall back to ruff/mypy/yamllint/pytest on PATH, each held to its == pin; install uv and run 'uv sync --locked --group dev' for the same toolchain CI uses"
 
 if ((MISSING > 0)); then
 	printf 'doctor: %d required tool(s) missing; see above for the install command\n' "$MISSING" >&2

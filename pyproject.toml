@@ -7,6 +7,24 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = []
 
+# The Python gates install four pinned tools, so where they come from is part
+# of the build and is declared here instead of inherited, the same reason
+# NuGet.config clears the inherited sources. Without a named index uv honors
+# UV_DEFAULT_INDEX and any user-level config, and a mirror on another host can
+# answer for these package ids; uv.lock's per-artifact sha256 then fails the
+# install, or, if the mirror serves different bytes under the same name, the
+# gate runs against a toolchain no file in the tree describes.
+[tool.uv]
+# uv that cannot read the revision this uv.lock is written at would have to
+# re-lock to do anything with it, and the rewritten file is one the CI uv then
+# re-resolves, without the per-artifact hashes the install is verified
+# against. Refuse the command and name the upgrade instead.
+required-version = ">=0.9.0"
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
+
 [dependency-groups]
 dev = [
   "ruff==0.16.6",

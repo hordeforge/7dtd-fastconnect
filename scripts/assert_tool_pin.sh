@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Refuse a fallback gate run whose tool is not the one the project pins.
 #
-# The Makefile runs ruff/mypy/pytest through `uv run --frozen`, which installs
+# The Makefile runs ruff/mypy/pytest through `uv run --locked`, which installs
 # the exact versions from pyproject.toml's [dependency-groups] dev table and
 # verifies them against the sha256 hashes in uv.lock. When uv is missing the
 # Makefile falls back to whatever is on PATH; that binary is unpinned and its

@@ -110,12 +110,12 @@ assert "mute_client_audio.sh rejects a second argument" \
 	usage_rc "$ROOT/scripts/mute_client_audio.sh" 30 60
 
 # coverage_badge.py is the only Python entry point; it answers help the same way.
-assert "coverage_badge.py --help exits 0" run_help uv run --frozen --group dev \
+assert "coverage_badge.py --help exits 0" run_help uv run --locked --group dev \
 	python "$ROOT/scripts/coverage_badge.py" --help
 assert "coverage_badge.py --help prints a usage line to stdout" \
-	grep -q '^Usage:' <(uv run --frozen --group dev python \
+	grep -q '^Usage:' <(uv run --locked --group dev python \
 		"$ROOT/scripts/coverage_badge.py" --help 2>/dev/null)
 assert "coverage_badge.py without arguments exits 2" \
-	usage_rc uv run --frozen --group dev python "$ROOT/scripts/coverage_badge.py"
+	usage_rc uv run --locked --group dev python "$ROOT/scripts/coverage_badge.py"
 
 finish

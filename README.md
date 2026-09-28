@@ -46,8 +46,12 @@ make doctor
 - the dotnet SDK band pinned in `global.json` (`dotnet --version` must satisfy
   it), or `mcs` + `mono` for the same C# gate
 - [`uv`](https://docs.astral.sh/uv/) for the pinned Python gates:
-  `uv sync --frozen --group dev` installs ruff, mypy, pytest, and yamllint at
-  the exact versions in `pyproject.toml` / `uv.lock`. Without uv the gates fall
+  `uv sync --locked --group dev` installs ruff, mypy, pytest, and yamllint at
+  the exact versions in `pyproject.toml` / `uv.lock`, resolved from
+  `pypi.org` (named in `pyproject.toml`) and checked against the per-artifact
+  sha256 in `uv.lock`. The gates run the same `--locked` way, so a pin edited
+  without `uv lock` fails the run rather than installing the old version.
+  Without uv the gates fall
   back to those tools on `PATH`, each held to the same pin by
   `scripts/assert_tool_pin.sh`.
 

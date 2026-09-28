@@ -32,7 +32,7 @@ zip. The archive bytes are reproducible: entry mtimes come from
   assembly otherwise).
 - `zip` and `unzip` on PATH (`unzip` reads the finished archive back to check
   it).
-- `uv sync --group dev` for `make test`.
+- `uv sync --locked --group dev` for `make test`.
 
 ## Steps
 
