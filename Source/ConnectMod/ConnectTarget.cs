@@ -318,6 +318,27 @@ namespace SdtdConnect
             return false;
         }
 
+        /// <summary>
+        /// Waits for an in-flight lookup, bounded by <paramref name="timeoutMs"/>.
+        /// True when it completed inside the window.
+        ///
+        /// The wait handle is closed only on that path. The resolver completes
+        /// the operation by signalling that same handle, so closing it while
+        /// the lookup is still in flight makes the completing thread throw
+        /// ObjectDisposedException on a thread nothing joins. An abandoned
+        /// lookup is therefore left to run and the handle is released with it.
+        /// </summary>
+        static bool WaitForLookup(IAsyncResult pending, int timeoutMs)
+        {
+            if (!pending.AsyncWaitHandle.WaitOne(timeoutMs)) return false;
+            // Already disposed throws ObjectDisposedException; the handle is
+            // unreachable either way and the operation this waited for has
+            // returned, which is the only point closing it is safe at.
+            try { pending.AsyncWaitHandle.Close(); }
+            catch (ObjectDisposedException) { }
+            return true;
+        }
+
         // Resolves a hostname to an address, preferring IPv4 when DNS returns
         // mixed families (matches stock direct-connect UI). Literal IPs pass
         // through untouched.
@@ -333,40 +354,28 @@ namespace SdtdConnect
                 // the wait and report instead.
                 const int dnsTimeoutMs = 5000;
                 var pending = Dns.BeginGetHostEntry(host, null, null);
-                try
+                if (!WaitForLookup(pending, dnsTimeoutMs))
                 {
-                    if (!pending.AsyncWaitHandle.WaitOne(dnsTimeoutMs))
-                    {
-                        message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + LogText.EchoForMessage(host);
-                        return false;
-                    }
-                    var entry = Dns.EndGetHostEntry(pending);
-                    if (entry.AddressList == null || entry.AddressList.Length == 0)
-                    {
-                        message = "no IP for hostname " + LogText.EchoForMessage(host);
-                        return false;
-                    }
-                    // First address is the default; only a later one can
-                    // replace it, and only with IPv4. Starting at 1 keeps the
-                    // scan from re-testing the entry already used.
-                    ip = entry.AddressList[0].ToString();
-                    for (int i = 1; i < entry.AddressList.Length; i++)
-                    {
-                        if (entry.AddressList[i].AddressFamily == AddressFamily.InterNetwork)
-                        {
-                            ip = entry.AddressList[i].ToString();
-                            break;
-                        }
-                    }
+                    message = "DNS timed out after " + (dnsTimeoutMs / 1000) + "s for " + LogText.EchoForMessage(host);
+                    return false;
                 }
-                finally
+                var entry = Dns.EndGetHostEntry(pending);
+                if (entry.AddressList == null || entry.AddressList.Length == 0)
                 {
-                    // Close on an already-disposed wait handle throws
-                    // ObjectDisposedException; the handle is unreachable
-                    // either way and this runs on the success path of a
-                    // resolve the caller is about to use.
-                    try { pending.AsyncWaitHandle.Close(); }
-                    catch (ObjectDisposedException) { }
+                    message = "no IP for hostname " + LogText.EchoForMessage(host);
+                    return false;
+                }
+                // First address is the default; only a later one can
+                // replace it, and only with IPv4. Starting at 1 keeps the
+                // scan from re-testing the entry already used.
+                ip = entry.AddressList[0].ToString();
+                for (int i = 1; i < entry.AddressList.Length; i++)
+                {
+                    if (entry.AddressList[i].AddressFamily == AddressFamily.InterNetwork)
+                    {
+                        ip = entry.AddressList[i].ToString();
+                        break;
+                    }
                 }
                 return true;
             }

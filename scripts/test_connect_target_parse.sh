@@ -123,6 +123,7 @@ assert "EnvFlags opt-out/opt-in truthiness table" run_mode envflags
 assert "ConnectReady gate state machine" run_mode connectready
 assert "connect-request latch (one attempt at a time, released for a retry)" run_mode connectrequest
 assert "F1 console replies (usage, rejection, connect outcome, diag states)" run_mode console
+assert "bounded DNS wait (an abandoned lookup's handle outlives it)" run_mode lookupwait
 assert "PlayerNames fallback invariants (never empty, capped, trimmed)" run_mode playernames
 assert "ProbeFailure announce-once latch (per probe name)" run_mode probefailure
 assert "force-load-sync default-on / opt-out / snapshot contract" run_mode forcesync

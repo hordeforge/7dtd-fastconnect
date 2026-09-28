@@ -477,6 +477,60 @@ def test_concurrent_launcher_does_not_steal_the_platform_backup(tmp_path: Path) 
     assert (game / "platform.cfg.re-localbak").read_text(encoding="utf-8") == STEAM_CFG
 
 
+@pytest.mark.skipif(shutil.which("flock") is None, reason="swap lock needs flock")
+def test_swap_lock_does_not_outlive_the_launcher(tmp_path: Path) -> None:
+    """A completed launcher must not leave the install locked.
+
+    flock is held on the open file description, which a forked child shares
+    and an exec'd one keeps, so anything the launcher starts that outlives it
+    goes on holding the swap lock. That is the shape of the steam
+    -applaunch fallback: `steam -applaunch` returns as soon as it has handed
+    the game off, and the game keeps running for its own hours. The launcher
+    restores platform.cfg and exits, the next launcher is then refused the
+    install for the rest of that game's life even though no launcher holds
+    the swap, and that refusal path skips the self-heal which would put the
+    Steam config back.
+
+    The stub stands in for steam: it leaves a long-lived grandchild holding
+    the inherited descriptor and returns immediately, as the real launcher
+    does.
+    """
+    game = _setup(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    outliver = tmp_path / "outliver.pid"
+    _write_executable(
+        bin_dir / "steam",
+        # The outliver's streams are detached so it does not hold the
+        # launcher's captured stdout pipe open: it must outlive the launcher
+        # as a process, not as a reason for the caller to block on a read.
+        f"sleep 120 </dev/null >/dev/null 2>&1 &\necho $! > {shlex.quote(str(outliver))}\nexit 0\n",
+    )
+    r = _launch(
+        tmp_path,
+        extra_env={"PATH": stub_path(bin_dir), "PROTON": None, "COMPAT": None},
+    )
+    assert r.returncode == 0, r.stderr
+    outliver_pid = int(outliver.read_text(encoding="utf-8").strip())
+    try:
+        assert _process_alive(outliver_pid), "stub outliver died with the launcher"
+        lock = game / "platform.cfg.re-local.lock"
+        assert lock.exists(), "launcher took no platform lock to test"
+        probe = subprocess.run(
+            ["flock", "-n", str(lock), "true"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert probe.returncode == 0, (
+            "platform lock still held after the launcher exited "
+            f"(flock rc={probe.returncode}); a launched process inherited it"
+        )
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(outliver_pid, signal.SIGKILL)
+
+
 def _pgrep_pids(pattern: str) -> list[str]:
     out = subprocess.run(
         ["pgrep", "-f", pattern],

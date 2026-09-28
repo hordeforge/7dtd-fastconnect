@@ -25,6 +25,11 @@
 //                   before it reaches the client, and the latch releases for a
 //                   real retry (observed connection, left the session, or an
 //                   attempt that never reported back outliving its window)
+//   - `lookupwait`: ConnectTarget's bounded DNS wait. A lookup that gives up
+//                   inside the window is still running, so its wait handle
+//                   must stay open for the thread that completes it; a lookup
+//                   that finishes in the window reports success and releases
+//                   its handle
 //   - `connectready`: ConnectReady.IsReady gate state machine driven by a
 //                   manually advanced monotonic clock: gate chain order,
 //                   bounded cross-user wait measured from FIRST null-id
@@ -67,6 +72,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using SdtdConnect;
 
 static class TestMain
@@ -528,6 +534,65 @@ static class TestMain
         return Done();
     }
 
+    // A stand-in for an in-flight Dns.BeginGetHostEntry. Completing it
+    // signals the wait handle, exactly as the resolver does, so the
+    // abandoned-lookup contract is observable without a real wedged resolver.
+    sealed class FakeLookup : IAsyncResult
+    {
+        internal readonly ManualResetEvent Handle = new ManualResetEvent(false);
+        public WaitHandle AsyncWaitHandle { get { return Handle; } }
+        public object AsyncState { get { return null; } }
+        public object Result { get { return null; } }
+        public bool IsCompleted { get { return Handle.WaitOne(0); } }
+        public bool CompletedSynchronously { get { return false; } }
+        internal void Complete() { Handle.Set(); }
+    }
+
+    static readonly System.Reflection.MethodInfo WaitForLookup =
+        typeof(ConnectTarget).GetMethod("WaitForLookup", PrivateStatic);
+
+    // ConnectTarget bounds its DNS wait so a wedged resolver cannot freeze
+    // the menu thread, and the abandoned lookup is still running when the
+    // wait gives up. Closing the wait handle at that point disposes it out
+    // from under the resolver, which then throws ObjectDisposedException
+    // when it completes on its own thread. The wait must leave an
+    // uncompleted operation's handle open.
+    static int RunLookupWait()
+    {
+        // Abandoned: the wait gives up, and completing afterwards must not
+        // fault on a disposed handle.
+        var slow = new FakeLookup();
+        bool gaveUp = !(bool)WaitForLookup.Invoke(null, new object[] { slow, 0 });
+        Check("a lookup that does not finish in the window reports the timeout",
+            gaveUp);
+        Exception abandonThrow = null;
+        var t = new System.Threading.Thread(() =>
+        {
+            try { slow.Complete(); }
+            catch (Exception ex) { abandonThrow = ex; }
+        });
+        t.Start();
+        t.Join();
+        Check("an abandoned lookup's handle survives its later completion",
+            abandonThrow == null);
+
+        // Completed inside the window: the wait reports success and closes
+        // the handle, which is the only point closing it is safe at.
+        var quick = new FakeLookup();
+        quick.Complete();
+        bool done = (bool)WaitForLookup.Invoke(null, new object[] { quick, 5000 });
+        Check("a lookup that finishes in the window reports success", done);
+        Check("a completed lookup's handle is released", HandleClosed(quick));
+
+        return Done();
+    }
+
+    static bool HandleClosed(FakeLookup lookup)
+    {
+        try { lookup.Handle.WaitOne(0); return false; }
+        catch (ObjectDisposedException) { return true; }
+    }
+
     static int Run()
     {
         string[] a = Environment.GetCommandLineArgs();
@@ -541,6 +606,11 @@ static class TestMain
         if (mode == "console")
         {
             return RunConsole();
+        }
+
+        if (mode == "lookupwait")
+        {
+            return RunLookupWait();
         }
 
         if (mode == "connectready")

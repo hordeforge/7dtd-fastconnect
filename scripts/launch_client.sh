@@ -162,7 +162,17 @@ PLATFORM_BAK="$GAME/platform.cfg.re-localbak"
 # (and later restore) the other's config, ending with platform.cfg stuck on
 # Local and the player's Steam choice lost.
 PLATFORM_LOCK="$GAME/platform.cfg.re-local.lock"
-PLATFORM_LOCK_FD=""
+# Every child this launcher starts closes this fd, so only the launcher holds
+# the swap lock. A flock lives on the open file description, which a forked
+# child shares and an exec'd one keeps, so an inherited fd leaves the game and
+# the mute poller holding the lock for as long as they run: the launcher exits
+# and restores platform.cfg while its own game still reads the swapped file,
+# and the next launcher is refused the install for the rest of that process's
+# life even though no launcher holds it any more.
+# A number even when no lock was taken (no flock, or the open failed), so the
+# {PLATFORM_LOCK_FD}>&- redirections below are always well formed; closing an
+# fd that was never opened is a no-op.
+PLATFORM_LOCK_FD=9
 # Whether this process created the backup, and so may restore it.
 PLATFORM_SWAPPED=0
 
@@ -176,12 +186,12 @@ acquire_platform_lock() {
   fi
   if ! exec {PLATFORM_LOCK_FD}>>"$PLATFORM_LOCK"; then
     echo "WARN: cannot open $PLATFORM_LOCK; platform.cfg swap is not exclusive across launchers" >&2
-    PLATFORM_LOCK_FD=""
+    PLATFORM_LOCK_FD=9
     return 0
   fi
   if ! flock -n "$PLATFORM_LOCK_FD"; then
     exec {PLATFORM_LOCK_FD}>&-
-    PLATFORM_LOCK_FD=""
+    PLATFORM_LOCK_FD=9
     return 1
   fi
   return 0
@@ -307,7 +317,7 @@ start_mute_poll() {
     # the helper sits in dies with it. Signalling the shell alone left that
     # call running against an audio server nobody is waiting for any more.
     set -m
-    "$MUTE_HELPER" "$MUTE_WAIT" &
+    "$MUTE_HELPER" "$MUTE_WAIT" {PLATFORM_LOCK_FD}>&- &
     MUTE_PID=$!
     set +m
   else
@@ -415,7 +425,7 @@ if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   echo "Log: $LOGFILE"
   cd "$GAME"
   # Cannot mute after exec: run proton, mute in parallel, wait for the game.
-  env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe "${GFX_ARGS[@]}" -nogs -noeac -logfile "$WIN_LOGFILE" "${EXTRA_ARGS[@]}" "$@" &
+  env 7DTD_CONNECT="${CONNECT:-}" "$PROTON" run ./7DaysToDie.exe "${GFX_ARGS[@]}" -nogs -noeac -logfile "$WIN_LOGFILE" "${EXTRA_ARGS[@]}" "$@" {PLATFORM_LOCK_FD}>&- &
   game_pid=$!
   GAME_PID="$game_pid"
   start_mute_poll
@@ -436,7 +446,7 @@ echo "Proton not found; using steam -applaunch $STEAM_APPID (set UseEAC false in
 echo "Connect: $(sanitize_log_text "${CONNECT:-"(none)"}")"
 # Steam does not reliably pass -connect=; pass the canonical name through
 # `env` because bash cannot export a name starting with a digit.
-env 7DTD_CONNECT="${CONNECT:-}" steam -applaunch "$STEAM_APPID" -noeac "${GFX_ARGS[@]}" "${EXTRA_ARGS[@]}" "$@" &
+env 7DTD_CONNECT="${CONNECT:-}" steam -applaunch "$STEAM_APPID" -noeac "${GFX_ARGS[@]}" "${EXTRA_ARGS[@]}" "$@" {PLATFORM_LOCK_FD}>&- &
 steam_pid=$!
 start_mute_poll
 launch_status=0

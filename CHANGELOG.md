@@ -252,6 +252,13 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Fixed
 
+- A DNS lookup that outlives the 5 s connect wait no longer throws
+  `ObjectDisposedException` on the resolver thread: the wait handle is closed
+  only once the lookup has completed, and an abandoned one keeps its handle.
+- The game and the mute poller that `launch_client.sh` starts no longer
+  inherit the `platform.cfg` swap lock. They held it for as long as they ran,
+  so the next launcher was refused the swap after the one that took it had
+  exited and restored the file.
 - Every Unicode format character (Cf) is now flattened out of a value on its
   way to a log line, in both `LogText.SanitizeForLog` and the shell twin
   `sanitize_log_text`. The set was a hand-kept list of the bidi controls, the
