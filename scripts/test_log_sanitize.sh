@@ -47,6 +47,48 @@ assert "U+2029 paragraph separator is flattened" flat $'a\342\200\251b' 'a b'
 assert "multi-byte text is passed through byte-identical" \
 	flat $'zdtd.lan/\303\251\360\237\230\200' $'zdtd.lan/\303\251\360\237\230\200'
 
+# The helper runs in whatever locale its caller has. A $'\uXXXX' table is
+# decoded by the shell through that locale, so under LC_ALL=C or POSIX the
+# escapes stay literal text, the walk substitutes one ASCII character of the
+# escape at a time, and a value carrying one accented character comes out
+# mangled with its invisible characters still in it. Both are the defects
+# this gate exists to prevent, so they are pinned under a non-UTF-8 locale
+# and the result must match the UTF-8 one byte for byte.
+sanitize_under_locale() {
+	LC_ALL="$1" bash -c '
+		source "$1/scripts/log_sanitize.sh"
+		printf "%s" "$(sanitize_log_text "$2")"
+	' _ "$ROOT" "$2"
+}
+
+# The helper runs in whatever locale its caller has. A $'\uXXXX' table is
+# decoded by the shell through that locale, so under LC_ALL=C or POSIX the
+# escapes stay literal text, the walk substitutes one ASCII character of the
+# escape at a time, and a value carrying one accented character comes out
+# mangled with its invisible characters still in it. Both are the defects
+# this gate exists to prevent, so they are pinned under a non-UTF-8 locale
+# and the result must match the UTF-8 one byte for byte.
+# Takes the locale, input and expected output; compares as a command so it
+# fits assert, which runs its arguments.
+flat_under_locale() {
+	[[ "$(sanitize_under_locale "$1" "$2")" == "$3" ]]
+}
+
+for loc in C POSIX C.UTF-8 en_US.UTF-8; do
+	assert "accented value survives under LC_ALL=$loc" \
+		flat_under_locale "$loc" $'caf\xc3\xa9.lan:27025' $'caf\xc3\xa9.lan:27025'
+	# The corruption took the form of mangling the text and leaving the
+	# character the helper exists to remove, so both are asserted.
+	assert "bidi override is still dropped under LC_ALL=$loc" \
+		flat_under_locale "$loc" $'\xe2\x80\xaenidets\xe2\x80\xac' 'nidets'
+	assert "line separator is still flattened under LC_ALL=$loc" \
+		flat_under_locale "$loc" $'a\xe2\x80\xa8result=joined' 'a result=joined'
+	assert "C1 NEL is still flattened under LC_ALL=$loc" \
+		flat_under_locale "$loc" $'a\xc2\x85b' 'a b'
+	assert "astral and CJK text passes through under LC_ALL=$loc" \
+		flat_under_locale "$loc" $'\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x98\x80' $'\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x98\x80'
+done
+
 # The lifecycle scripts that persist attacker-shapable values must route them
 # through the helper; a new raw echo would reintroduce marker forging.
 for f in one_shot_join.sh launch_client.sh; do
