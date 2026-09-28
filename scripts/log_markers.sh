@@ -49,7 +49,6 @@ declare -A SEEN_MARK=()
 # launcher reports as joined be scored found=0, and the evidence would be a
 # stock-log string that moved, not a regression.
 # shellcheck disable=SC2034  # read by the join harnesses that source this file
-# shellcheck disable=SC2034  # read by the join harnesses that source this file
 JOIN_OWN_PLAYER_RE='Found own player entity with id'
 # shellcheck disable=SC2034  # read by the join harnesses that source this file
 JOIN_SUCCEEDED_RE="${JOIN_OWN_PLAYER_RE}|PlayerSpawnedInWorld|Spawned in world"

@@ -9,11 +9,8 @@ source "$ROOT/scripts/test_common.sh"
 # Help must print a usage line to stdout and exit 0. Run through a function so
 # set -e does not abort on the probe itself.
 run_help() {
-	set +e
-	"$@" >/dev/null 2>&1
-	local rc=$?
-	set -e
-	return "$rc"
+	run_rc "$@"
+	((RUN_RC == 0))
 }
 
 for script in launch_client.sh one_shot_join.sh zero_nre_join_loop.sh \
@@ -47,21 +44,15 @@ assert "restart_pair.sh --help creates no world dir" \
 # (pkill/mkdir) runs. usage_rc is an assert-style predicate: it succeeds only
 # when the wrapped script exited 2, since assert can only test success.
 usage_rc() {
-	set +e
-	"$@" >/dev/null 2>&1
-	local rc=$?
-	set -e
-	((rc == 2))
+	run_rc "$@"
+	((RUN_RC == 2))
 }
 usage_err() {
 	{ "$@" >/dev/null; } 2>&1
 }
 not_usage_rc() {
-	set +e
-	"$@" >/dev/null 2>&1
-	local rc=$?
-	set -e
-	((rc != 2))
+	run_rc "$@"
+	((RUN_RC != 2))
 }
 assert "repro_zip.sh wrong argc exits 2" \
 	usage_rc "$ROOT/scripts/repro_zip.sh" only-one-arg
