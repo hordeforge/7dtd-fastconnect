@@ -53,6 +53,7 @@ test:
 	$(ROOT)/scripts/test_cli_help.sh
 	$(ROOT)/scripts/test_monotonic_deadlines.sh
 	$(ROOT)/scripts/test_log_marker_cache.sh
+	$(ROOT)/scripts/test_log_marker_fuzz.sh
 	$(ROOT)/scripts/test_log_sanitize.sh
 	$(ROOT)/scripts/test_version_sync.sh
 	$(ROOT)/scripts/test_cycle_filename_guard.sh
