@@ -11,6 +11,24 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+Next release is a minor bump, `0.13.0`: the notes below add launcher
+configuration validation and a `HOST` knob, and change the launcher's argument
+and enum handling, so a patch bump would claim none of that.
+
+### Breaking
+
+- The scripts that take no positional arguments (`package.sh`,
+  `one_shot_join.sh`, `zero_nre_join_loop.sh`, `unmute_client_audio.sh`, and a
+  second argument to `mute_client_audio.sh`) exit 2 with the usage on stderr
+  where they used to ignore the argument and run. A wrapper that passed a stray
+  path or flag positionally, and watched it be discarded, now fails the
+  invocation; drop the argument. A mistyped flag can no longer start a client,
+  a server, or a multi-minute build. The README states the shared contract and
+  `test_cli_help.sh` pins it.
+- `PORT` outside 1-65535 is a usage error (exit 2) in the three join harnesses,
+  where a value the client could never join used to run the harness to a listen
+  or join timeout.
+
 ### Changed
 
 - `make test` fails when `shellcheck` is missing instead of printing a WARN
@@ -132,6 +150,65 @@ in the affected sections instead of being papered over.
   the `ZDTD_BIN` override whose binary is not named `zdtd` was invisible to
   the sweep, so the run left it ticking its world and holding the port, and
   the next run waited on that stale listener.
+- Probe failures are announced once per probe, not once per process. A single
+  shared latch let the first throwing heartbeat mute every later notice,
+  including the synthetic platform id, which is the one failure that silently
+  changes the server-side player identity.
+- The pending-async-load counter announces a reflection failure once instead of
+  on every call. Both callers poll it per frame, so a game update that renames
+  a `LoadManager` field flooded the client log.
+- `connect <host> <port>` no longer discards the port argument in silence when
+  the host already carries one: the dropped token is named in the log, since
+  the join lands on the other port.
+- `launch_client.sh` mutes the client again for a blank `CLIENT_MUTE`. A
+  whitespace-only value trimmed to empty, which the opt-out `case` then read as
+  "leave audio on", the opposite of the documented contract and of what the
+  mod's `EnvFlags` twin does. `test_blank_client_mute_keeps_the_mute_on_default`
+  pins it.
+- The launcher tests that stub `pactl` keep the host `PATH` behind the stub
+  directory instead of replacing it, so a machine whose `jq` lives outside the
+  stub directory no longer fails the mute assertions with the helper's
+  "jq required" warning.
+- `make package` ships only the mod payload. The zip was built by copying the
+  whole `dist/7dtd-fastconnect` build output, which MSBuild never prunes, so
+  the release archive could carry `7dtd-fastconnect.pdb` and files a build had
+  renamed or dropped. `scripts/stage_mod.sh` now copies the two files
+  `make install` installs and fails if the build did not produce them, so a
+  partial build cannot be zipped under a release name.
+- Concurrent `launch_client.sh` runs no longer corrupt each other's
+  `platform.cfg` swap. The backup file is a single slot, so two launchers on
+  one install each backed up the other's config and left `platform.cfg` stuck
+  on Local with the Steam original lost. A launcher now holds an exclusive
+  `flock` on the install for as long as it owns the swap, takes no second
+  backup when another live launcher already holds it, and restores only a
+  backup it created itself. A missing or unusable `flock` degrades to the old
+  unlocked behavior with a warning rather than refusing to launch. Single
+  launcher launches, including the hard-kill self-heal, are unchanged.
+- The cross-platform `PlatformUserId` wait window is scoped to one contiguous
+  episode. The deadline was reset only when a user object was seen, so a
+  platform or user torn down in between left the previous deadline armed; the
+  next wait was already past due, skipped its whole window, and joined into
+  the null-reference the wait exists to avoid. The reset now also runs when
+  the platform is gone or was never cross-platform.
+- `launch_client.sh` trims the client-mute opt-out before matching it, so
+  `CLIENT_MUTE=" 0"` (or `"OFF "`, `" No"`) is the opt-out the README documents
+  instead of falling through to "any other non-empty value" and muting the
+  session anyway. The mod's `EnvFlags` twin and the `CLIENT_PLATFORM` gate in
+  the same script already trimmed.
+- Invisible Unicode format characters (bidi overrides and embeddings, LRM/RLM,
+  the zero-width joiners, the BOM) are flattened in the log-sanitizing twins
+  (`ConnectTarget.SanitizeForLog` and `scripts/log_sanitize.sh`). They are not
+  control characters, so they survived both sanitizers: a terminal renders
+  nothing for them while `grep` still matches the bytes, which let a crafted
+  `7DTD_CONNECT` or `7DTD_PLAYER_NAME` value produce a line that reads back
+  differently from what the join harnesses grep for.
+- `7DTD_PLAYER_NAME` is normalized before it is stored in `GamePrefs`, not
+  only before it is echoed to the log. The name is sent to the server, so a
+  newline or bidi override in it could forge a line in a server log. The
+  length cap no longer truncates between the halves of a surrogate pair.
+- The CI badge job authenticates with an `http.extraheader` instead of a token
+  embedded in the git remote URL, which wrote `GITHUB_TOKEN` into `.git/config`
+  on the runner and into the process table for every git command.
 
 ### Added
 
@@ -149,7 +226,7 @@ in the affected sections instead of being papered over.
   unchanged (unknown means on); the log just stops looking like a deliberate
   setting. `1` / `true` / `yes` / `on` are now documented opt-in tokens.
 - `PORT` is checked against the real TCP range (1-65535) by the three join
-  harnesses, through the shared `scripts/config_validate.sh`. A value the
+  harnesses, through the shared `scripts/config_validate.sh`, so a value the
   client could never join is reported at startup instead of surfacing later as
   a listen or join timeout; `restart_pair.sh` calls it a usage error (exit 2).
 - `START_SERVER` reads the documented boolean table in `one_shot_join.sh`. It
@@ -163,6 +240,14 @@ in the affected sections instead of being papered over.
 - The join harnesses' `--help` lists the knobs they read but did not document
   (`ZDTD_BIN`, `WORLD_DIR`, `MAP_DIR`, `GAME_DIR`, and the `GAME` / `COMPAT` /
   `STEAM_ROOT` / `STEAM_APPID` prefix resolution).
+- A pushed `vX.Y.Z` tag runs `scripts/test_version_sync.sh` and
+  `scripts/changelog_gate.sh` before it is accepted. The tag gate previously
+  matched the version against `ModInfo.xml` alone, so a tag could ship with a
+  `ModApi.cs` or `pyproject.toml` still reading the previous version (the drift
+  that shipped 0.10.5 pointing at a 0.10.4 build), and it accepted a
+  `## [X.Y.Z]` heading with no notes under it. `changelog_gate.sh` also
+  requires the compare links at the foot of the file to name the tagged
+  version, which is a hand edit nothing else checks.
 
 ### Changed
 
@@ -186,13 +271,6 @@ in the affected sections instead of being papered over.
 - The two `IsReady` expiry notes (a platform identity that never arrived, so
   the join proceeds anyway) are logged at warning severity, since the join
   they precede is the one that fails authentication.
-
-- The scripts that take no positional arguments (`package.sh`,
-  `one_shot_join.sh`, `zero_nre_join_loop.sh`, `unmute_client_audio.sh`, and a
-  second argument to `mute_client_audio.sh`) now exit 2 with the usage on
-  stderr instead of ignoring the argument, so a mistyped flag cannot start a
-  client, a server, or a multi-minute build. The README states the shared
-  contract and `test_cli_help.sh` pins it.
 - `mute_client_audio.sh` names where a bad wait value came from (the
   `wait-seconds` argument or `CLIENT_MUTE_TIMEOUT`) instead of always pointing
   at the env var, and its help lists the statuses it can exit with.
@@ -235,9 +313,6 @@ in the affected sections instead of being papered over.
 - Every env read in the mod goes through one guarded helper. An environment
   that cannot be read now falls back to the default instead of throwing out of
   a static initializer while the mod loads.
-
-### Changed
-
 - The log-line hygiene helpers moved out of `ConnectTarget` into their own
   leaf module, `LogText`. `EnvFlags` (a low-level env reader) needed
   `ConnectTarget.SanitizeForLog` to flatten a bad env value, so the leaf
@@ -248,69 +323,6 @@ in the affected sections instead of being papered over.
   `LocalHostWorldLoadPatches.cs` into `PerfTrace.cs`. They are diagnostics, not
   part of the world-load workaround, and the other opt-in probes already live
   in their own `*Trace.cs` files.
-
-### Fixed
-
-- Probe failures are announced once per probe, not once per process. A single
-  shared latch let the first throwing heartbeat mute every later notice,
-  including the synthetic platform id, which is the one failure that silently
-  changes the server-side player identity.
-- The pending-async-load counter announces a reflection failure once instead of
-  on every call. Both callers poll it per frame, so a game update that renames
-  a `LoadManager` field flooded the client log.
-- `connect <host> <port>` no longer discards the port argument in silence when
-  the host already carries one: the dropped token is named in the log, since
-  the join lands on the other port.
-- `launch_client.sh` mutes the client again for a blank `CLIENT_MUTE`. A
-  whitespace-only value trimmed to empty, which the opt-out `case` then read as
-  "leave audio on", the opposite of the documented contract and of what the
-  mod's `EnvFlags` twin does. `test_blank_client_mute_keeps_the_mute_on_default`
-  pins it.
-- The launcher tests that stub `pactl` keep the host `PATH` behind the stub
-  directory instead of replacing it, so a machine whose `jq` lives outside the
-  stub directory no longer fails the mute assertions with the helper's
-  "jq required" warning.
-- `make package` ships only the mod payload. The zip was built by copying the
-  whole `dist/7dtd-fastconnect` build output, which MSBuild never prunes, so
-  the release archive could carry `7dtd-fastconnect.pdb` and files a build had
-  renamed or dropped. `scripts/stage_mod.sh` now copies the two files
-  `make install` installs and fails if the build did not produce them, so a
-  partial build cannot be zipped under a release name.
-- Concurrent `launch_client.sh` runs no longer corrupt each other's
-  `platform.cfg` swap. The backup file is a single slot, so two launchers on
-  one install each backed up the other's config and left `platform.cfg` stuck
-  on Local with the Steam original lost. A launcher now holds an exclusive
-  `flock` on the install for as long as it owns the swap, takes no second
-  backup when another live launcher already holds it, and restores only a
-  backup it created itself. A missing or unusable `flock` degrades to the old
-  unlocked behavior with a warning rather than refusing to launch. Single
-  launcher launches, including the hard-kill self-heal, are unchanged.
-- The cross-platform `PlatformUserId` wait window is scoped to one contiguous
-  episode. The deadline was reset only when a user object was seen, so a
-  platform or user torn down in between left the previous deadline armed; the
-  next wait was already past due, skipped its whole window, and joined into
-  the null-reference the wait exists to avoid. The reset now also runs when
-  the platform is gone or was never cross-platform.
-
-- `launch_client.sh` trims the client-mute opt-out before matching it, so
-  `CLIENT_MUTE=" 0"` (or `"OFF "`, `" No"`) is the opt-out the README documents
-  instead of falling through to "any other non-empty value" and muting the
-  session anyway. The mod's `EnvFlags` twin and the `CLIENT_PLATFORM` gate in
-  the same script already trimmed.
-- Invisible Unicode format characters (bidi overrides and embeddings, LRM/RLM,
-  the zero-width joiners, the BOM) are flattened in the log-sanitizing twins
-  (`ConnectTarget.SanitizeForLog` and `scripts/log_sanitize.sh`). They are not
-  control characters, so they survived both sanitizers: a terminal renders
-  nothing for them while `grep` still matches the bytes, which let a crafted
-  `7DTD_CONNECT` or `7DTD_PLAYER_NAME` value produce a line that reads back
-  differently from what the join harnesses grep for.
-- `7DTD_PLAYER_NAME` is normalized before it is stored in `GamePrefs`, not
-  only before it is echoed to the log. The name is sent to the server, so a
-  newline or bidi override in it could forge a line in a server log. The
-  length cap no longer truncates between the halves of a surrogate pair.
-- The CI badge job authenticates with an `http.extraheader` instead of a token
-  embedded in the git remote URL, which wrote `GITHUB_TOKEN` into `.git/config`
-  on the runner and into the process table for every git command.
 
 ## [0.12.0] - 2026-09-11
 

@@ -51,9 +51,20 @@ zip. The archive bytes are reproducible: entry mtimes come from
    manifest.
 
 3. **Write the notes.** Add a `## [X.Y.Z]` section to `CHANGELOG.md` and
-   leave `## [Unreleased]` holding only what is still unreleased. The release
-   tag gate requires the section; it does not require the notes to be
-   exhaustive.
+   leave `## [Unreleased]` holding only what is still unreleased. Move the
+   entries under the new heading, do not copy them: the notes that ship are
+   the ones under the tag's own section.
+
+   Update the link footers at the bottom of the file in the same change:
+   `[Unreleased]` must compare from the version being cut
+   (`.../compare/vX.Y.Z...HEAD`) and the new `[X.Y.Z]` line must name the
+   version. `scripts/changelog_gate.sh X.Y.Z` checks the section, its entries,
+   and both links without a tag:
+
+   ```bash
+   make gate GATE=scripts/test_changelog_gate.sh   # the gate's own tests
+   ./scripts/changelog_gate.sh 0.12.0              # this tree's notes
+   ```
 
 4. **Commit, push, tag.**
 
@@ -64,10 +75,10 @@ zip. The archive bytes are reproducible: entry mtimes come from
    ```
 
    The tag push runs `.github/workflows/release.yml`, which re-checks the tag
-   against `ModInfo.xml`, runs `scripts/test_version_sync.sh`, and requires the
-   `CHANGELOG.md` section. A red tag run means a declaration is wrong or the
-   notes are missing; fix the file and re-tag, do not push the tag past a
-   failing gate.
+   against `ModInfo.xml`, runs `scripts/test_version_sync.sh`, and runs
+   `scripts/changelog_gate.sh` on the tag. A red tag run means a declaration is
+   wrong or the notes are missing; fix the file and re-tag, do not push the tag
+   past a failing gate.
 
 5. **Build the archive, from the tagged commit.**
 

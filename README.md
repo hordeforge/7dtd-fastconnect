@@ -25,6 +25,12 @@ GitHub releases (`make package` produces `dist/7dtd-fastconnect-<tag>.zip`).
 Release notes and upgrade notes: [CHANGELOG.md](CHANGELOG.md). How to cut one,
 and how to roll one back: [docs/RELEASING.md](docs/RELEASING.md).
 
+**Versioning:** the project is `0.x`. A minor bump (`0.Y.0`) may change
+behavior, including the launcher and harness CLI and the environment variables
+the mod reads; a patch bump fixes behavior and adds no contract change. Every
+release section in the changelog carries its own breaking notes when there are
+any, and no version is re-tagged.
+
 ## Requirements
 
 - Stock client **EAC off** (`-noeac`; C# mods require it)

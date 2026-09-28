@@ -55,16 +55,8 @@ jobs:
       # build.
       - name: Check every version declaration agrees
         run: ./scripts/test_version_sync.sh
-      # Every released section in CHANGELOG.md matches a release tag (the
-      # untagged [Unreleased] section does not and is not gated), so a release
-      # with no notes is a release nobody can find the changes of.
-      - name: Check the changelog has a section for the tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME#v}"
-          if ! grep -qF -- "## [$TAG]" CHANGELOG.md; then
-            echo "ERROR: CHANGELOG.md has no '## [$TAG]' section; write the notes first" >&2
-            exit 1
-          fi
-          echo "ok: CHANGELOG.md has a section for $TAG"
+      # The notes for the tag, and the compare links that render them: a
+      # version heading with nothing under it passed the old heading-only grep,
+      # and the link footers are a hand edit on every release.
+      - name: Check the changelog has notes and links for the tag
+        run: ./scripts/changelog_gate.sh "${GITHUB_REF_NAME#v}"
