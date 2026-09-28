@@ -42,7 +42,8 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/proton_paths.sh"
-# Shared value checks (is_tcp_port): see scripts/config_validate.sh.
+# Shared value checks (is_tcp_port, is_bounded_uint): see
+# scripts/config_validate.sh.
 source "$ROOT/scripts/config_validate.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
@@ -191,11 +192,11 @@ if ! is_tcp_port "$PORT"; then
   log "WARN: PORT invalid ('$PORT'); using 27025"
   PORT=27025
 fi
-if [[ ! "$MAX_ATTEMPTS" =~ ^[0-9]+$ ]]; then
+if ! is_bounded_uint "$MAX_ATTEMPTS"; then
   log "WARN: MAX_ATTEMPTS invalid ('$MAX_ATTEMPTS'); using 6"
   MAX_ATTEMPTS=6
 fi
-if [[ ! "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
+if ! is_bounded_uint "$TIMEOUT_SEC"; then
   log "WARN: TIMEOUT_SEC invalid ('$TIMEOUT_SEC'); using 90"
   TIMEOUT_SEC=90
 fi

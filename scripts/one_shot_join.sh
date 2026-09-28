@@ -46,7 +46,8 @@ fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/proton_paths.sh"
-# Shared value checks (is_tcp_port): see scripts/config_validate.sh.
+# Shared value checks (is_tcp_port, is_bounded_uint): see
+# scripts/config_validate.sh.
 source "$ROOT/scripts/config_validate.sh"
 SCRATCH="${SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/7dtd-fastconnect}"
 mkdir -p "$SCRATCH"
@@ -89,14 +90,14 @@ CONNECT="${CONNECT:-$HOST:$PORT}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-240}"
 # Validate before the client is launched; arithmetic on a bad value would
 # otherwise abort mid-cycle with a cryptic error.
-if ! [[ "$TIMEOUT_SEC" =~ ^[0-9]+$ ]]; then
+if ! is_bounded_uint "$TIMEOUT_SEC"; then
   echo "WARN: TIMEOUT_SEC invalid ('$TIMEOUT_SEC'); using 240." >&2
   TIMEOUT_SEC=240
 fi
 # Post-join settle window; same numeric guard as TIMEOUT_SEC so a typo cannot
 # silently skip the settle (or sleep on garbage).
 SETTLE_SEC="${SETTLE_SEC:-0}"
-if ! [[ "$SETTLE_SEC" =~ ^[0-9]+$ ]]; then
+if ! is_bounded_uint "$SETTLE_SEC"; then
   echo "WARN: SETTLE_SEC invalid ('$SETTLE_SEC'); using 0." >&2
   SETTLE_SEC=0
 fi
