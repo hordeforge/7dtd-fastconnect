@@ -3,7 +3,7 @@
 # section, that section must carry entries, it must be the newest released
 # section, and the compare links at the foot of the file must name the tag. An
 # `## [Unreleased]` section must exist and every released section must carry
-# its release date.
+# its release date as a real calendar day.
 #
 # The tag workflow ran before with a single `grep` for the `## [X.Y.Z]`
 # heading, so a version heading with nothing under it passed, and the compare
@@ -132,12 +132,36 @@ fi
 # Every released section carries its release date, so a reader can place a
 # version in time and a gap between two versions is visible as one. Undated
 # headings passed the section check, which only proves the notes are there.
+#
+# The date is checked as a calendar date, not only as a shape: a shape check
+# admits 2026-13-01, 2026-02-30, and 2026-02-29, none of which is a day any
+# reader can place a release on, and the day count depends on the month and on
+# whether the year is a leap year. A release dated 2026-02-29 says it shipped on
+# a day that does not exist, which is exactly the gap the date is here to make
+# visible.
 if ! awk '
+    function days_in_month(y, m) {
+        if (m == 2) return ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) ? 29 : 28
+        return (m == 4 || m == 6 || m == 9 || m == 11) ? 30 : 31
+    }
     /^## \[/ {
         if ($0 ~ /^## \[Unreleased\]/) next
-        if ($0 !~ /^## \[[^]]+\] - [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) {
+        # Head is "## [X.Y.Z] - YYYY-MM-DD"; split on the separator so the
+        # version bracket cannot be mistaken for part of the date.
+        n = split($0, part, / - /)
+        if (n != 2 || !match(part[2], /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/)) {
             printf "ERROR: released section is undated or misdated: %s\n", $0 > "/dev/stderr"
             printf "ERROR: use `## [X.Y.Z] - YYYY-MM-DD` so the release can be placed in time\n" > "/dev/stderr"
+            rc = 1
+            next
+        }
+        split(part[2], d, "-")
+        y = d[1] + 0
+        m = d[2] + 0
+        day = d[3] + 0
+        if (y < 1970 || m < 1 || m > 12 || day < 1 || day > days_in_month(y, m)) {
+            printf "ERROR: released section carries a date that is not a real day: %s\n", $0 > "/dev/stderr"
+            printf "ERROR: write the calendar date the release shipped on, e.g. `## [X.Y.Z] - %04d-%02d-%02d`\n", 2026, 1, 31 > "/dev/stderr"
             rc = 1
         }
     }

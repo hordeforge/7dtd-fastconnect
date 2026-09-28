@@ -427,7 +427,19 @@ while (( $(mono_sec) < deadline )); do
       # PlayerId processed without CreateEntity error is partial success (in-world path)
       if log_seen 'PlayerId\([0-9]+, [0-9]+\)' && log_seen 'Allowed ChunkViewDistance' \
         && ! log_seen 'EntityFactory CreateEntity'; then
-        sleep 10
+        # The re-check window, bounded by what is left of the cycle budget. A
+        # fixed 10s here carried a cycle past TIMEOUT_SEC, and past the point
+        # the timeout is announced, by up to that window, and let a cycle that
+        # only joined after the budget had expired report joined. Sleep on
+        # the budget, not past it; one second when nothing is left, so the
+        # markers are still re-read before the poll gives up.
+        recheck_sec=$(( deadline - $(mono_sec) ))
+        if (( recheck_sec < 1 )); then
+          recheck_sec=1
+        elif (( recheck_sec > 10 )); then
+          recheck_sec=10
+        fi
+        sleep "$recheck_sec"
         # Same join bar as the primary check above; a private copy here would
         # drift when the marker set grows.
         if log_seen "$JOINED_RE"; then

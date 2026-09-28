@@ -40,6 +40,12 @@ for f in scripts/mute_client_audio.sh scripts/one_shot_join.sh; do
 		not_grep_re '\(\( *SECONDS *[<>=+-]' "$ROOT/$f"
 done
 
+# Every sleep inside one_shot_join.sh's bounded poll is charged against the
+# same deadline the loop tests. A fixed re-check window carried a cycle (and
+# its timeout verdict) past TIMEOUT_SEC by the length of that window.
+assert "one_shot_join.sh clamps its re-check sleep to the remaining budget" \
+	grep -q 'recheck_sec=$(( deadline - $(mono_sec) ))' "$ROOT/scripts/one_shot_join.sh"
+
 assert "mono_sec prints an integer" mono_output_is_integer
 assert "successive mono_sec reads never go backwards" mono_reads_never_go_backwards
 assert "mono_sec advances as time passes" mono_advances_with_time

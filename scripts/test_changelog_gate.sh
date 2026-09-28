@@ -48,6 +48,44 @@ write_changelog() {
 
 - A released fix with no impact group.
 " ;;
+		# A shape-only date check admits days that do not exist; month length
+		# and the leap year are what decide whether the day does.
+		day_30_of_february) section="## [0.13.0] - 2026-02-30
+
+### Fixed
+
+- A released fix dated on a day February 2026 never had.
+" ;;
+		month_13) section="## [0.13.0] - 2026-13-01
+
+### Fixed
+
+- A released fix dated in a month that does not exist.
+" ;;
+		leap_day_common_year) section="## [0.13.0] - 2026-02-29
+
+### Fixed
+
+- A released fix dated on a leap day in a common year.
+" ;;
+		day_zero) section="## [0.13.0] - 2026-10-00
+
+### Fixed
+
+- A released fix dated on day zero.
+" ;;
+		april_31) section="## [0.13.0] - 2026-04-31
+
+### Fixed
+
+- A released fix dated on a day April never has.
+" ;;
+		leap_day) section="## [0.13.0] - 2028-02-29
+
+### Fixed
+
+- A released fix dated on a real leap day.
+" ;;
 	esac
 	{
 		printf '# Changelog\n\n'
@@ -90,6 +128,12 @@ check "rejects a stale [Unreleased] compare link" stale_unreleased_link 0.13.0 f
 check "rejects a missing [version] link" no_version_link 0.13.0 fail
 check "rejects a missing [Unreleased] section" drop_unreleased 0.13.0 fail
 check "rejects a released section with no date" undated_section 0.13.0 fail
+check "rejects a release dated on a day February never has" day_30_of_february 0.13.0 fail
+check "rejects a release dated in month 13" month_13 0.13.0 fail
+check "rejects a leap day in a common year" leap_day_common_year 0.13.0 fail
+check "rejects a release dated on day zero" day_zero 0.13.0 fail
+check "rejects a release dated on a day April never has" april_31 0.13.0 fail
+check "accepts a release dated on a real leap day" leap_day 0.13.0 pass
 check "rejects a version older than the newest section" "" 0.12.0 fail
 check "rejects a version that never existed" "" 0.10.1 fail
 
