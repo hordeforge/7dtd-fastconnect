@@ -28,6 +28,16 @@ ifneq ($(DOTNET_ROOT),)
   export PATH := $(DOTNET_ROOT):$(PATH)
 endif
 
+# The CLI's own ambient state, so a build neither phones home nor depends on
+# the host's locale or on first-run state written outside the tree: telemetry
+# sends usage data off-host during the build, the first-run banner is
+# machine-local state, and DOTNET_CLI_UI_LANGUAGE pins the CLI's message
+# language so build output does not follow the caller's locale.
+export DOTNET_CLI_TELEMETRY_OPTOUT := 1
+export DOTNET_NOLOGO := 1
+export DOTNET_SKIP_FIRST_TIME_EXPERIENCE := 1
+export DOTNET_CLI_UI_LANGUAGE := en
+
 .PHONY: build install uninstall clean test gate coverage package help dotnet-version check-mods-dir check-game-root doctor
 
 # The SDK the build actually resolved under the DOTNET_ROOT search above, so

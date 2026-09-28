@@ -116,6 +116,22 @@ zip. The archive bytes are reproducible: entry mtimes come from
    place instead, `make install` copies the same files and needs no
    archive.
 
+   To prove the archive is reproducible rather than only well formed, build
+   the same commit a second time from a different directory and compare:
+
+   ```bash
+   git clone . "$PWD/../relcheck"          # or any second checkout of the tag
+   cd "$PWD/../relcheck"
+   SOURCE_DATE_EPOCH="$(git log -1 --pretty=%ct)" make package
+   diffoscope dist/7dtd-fastconnect-0.12.0.zip \
+               "$OLDPWD/dist/7dtd-fastconnect-0.12.0.zip"
+   ```
+
+   No output means the two builds agree byte for byte. `diffoscope` names the
+   first difference when they do not, which is the signal that something
+   outside the source reached the artifact (a toolchain pin, an unpinned
+   restore, a path that escaped `PathMap`).
+
 7. **Publish.** Create the GitHub release for the tag and attach
    `dist/7dtd-fastconnect-0.12.0.zip` (not the `.buildinfo`; that stays local
    unless you want it recorded). The release badge in the README reads this

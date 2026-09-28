@@ -26,10 +26,15 @@
     <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
     <!-- packages.lock.json records the resolved graph with a content hash
          each package, so restore cannot drift to a different reference
-         assembly set. Bump it with:
+         assembly set. The lock is enforced here, not only by the Makefile's
+         -p:RestoreLockedMode: an IDE, `dotnet build` by hand, or any other
+         restore that reaches this project would otherwise resolve freely and
+         rewrite the lockfile in the source tree.
+         Bump it with:
            dotnet restore Source/ConnectMod/ConnectMod.csproj \
-             -p:RestorePackagesWithLockFile=true -->
+             -p:RestoreLockedMode=false -p:RestorePackagesWithLockFile=true -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>true</RestoreLockedMode>
   </PropertyGroup>
   <ItemGroup>
     <!-- The SDK pulls this in implicitly for net48 on a non-Windows host, at
