@@ -21,9 +21,9 @@ deliberately adds no S2C packet handling (AGENTS.md rules 4-5).
 |---|---|---|---|
 | R1 | Auth downgrade under automation: empty auth ticket + synthetic platform identity let a Steam-less client join EAC-off LAN servers with a predictable identity | mod → server auth | Intentional by design; gated but worth an explicit deployment decision |
 | R2 | Attacker-shapable `-connect=` text (e.g. a clicked `steam://run` URL) aims the client's outbound join at an attacker-chosen host | desktop → launch context → outbound network | Parse validation only; accepted residual by design |
-| R3 | Log/marker forging via control characters and Unicode line separators in echoed env/argv values | launch context → client log → harness greps | Mitigated on both sides (`SanitizeForLog` twins); drift between the two implementations is the residual risk |
+| R3 | Log/marker forging via control characters and Unicode line separators in echoed env/argv values | launch context → client log → harness greps | Mitigated on both sides; one C# implementation plus a shell twin, which still differ in how they treat invisible-format characters (the residual risk) |
 | R4 | Release zips are built on a maintainer machine and attached manually; no build provenance attestation | build → runtime | Noted; no claim exists that CI builds them |
-| R5 | `pkill -9 -f '7DaysToDie'` / `pgrep -f` patterns match unrelated processes whose command line contains the substring | local operator tooling | No mitigation; local DoS blast radius |
+| R5 | `pkill -9 -f '7DaysToDie'` / `pgrep -f` patterns match unrelated processes whose command line contains the substring | local operator tooling | Partial: the children this run started are stopped by owned pid and process group (scripts/one_shot_join.sh:185-197), so only the `pgrep -f`/`pkill -f` sweeps stay pattern-based; local DoS blast radius |
 | R6 | Verbose diagnostics are unbounded: `diag on` makes the window trace emit per open/close and the hitch monitor emit per slow frame for the process lifetime, into the same log the join harnesses grep | local user → client log → harness/disk | Gated behind a local opt-in and a frame threshold; no volume cap |
 
 Risks are renumbered from the previous revision. The former R1, an
@@ -41,25 +41,25 @@ in client-log markers.
 ## Assets
 
 - **Local machine integrity**: game install and user config mutated by launch
-  scripts (`platform.cfg` swap, scripts/launch_client.sh:180-227) and by the
+  scripts (`platform.cfg` swap, scripts/launch_client.sh:180-246) and by the
   mod's own prefs writes (player name, EULA acceptance, Discord and intro
-  prefs, Source/ConnectMod/ModApi.cs:25-60,116-156). The mod writes no
+  prefs, Source/ConnectMod/ModApi.cs:54-62,126-172). The mod writes no
   arbitrary file: the block-id dumper that did was removed in v0.11.0.
 - **Player identity**: the platform id and display name the client presents to
   servers. Under automation this can be synthetic and predictable
   (Source/ConnectMod/AuthFallbackPatches.cs:49-95,
-  Source/ConnectMod/PlayerNames.cs:36-49) or env-selected
-  (Source/ConnectMod/ModApi.cs:116-156).
+  Source/ConnectMod/PlayerNames.cs:31-49) or env-selected
+  (Source/ConnectMod/ModApi.cs:126-172).
 - **Join-decision trust**: harnesses decide pass/fail by grepping client-log
-  markers (scripts/one_shot_join.sh:144,290-352; scripts/log_markers.sh:53).
+  markers (scripts/one_shot_join.sh:135,325-365; scripts/log_markers.sh:53,60-104).
   The log is therefore an asset: forged markers forge results, and a log the
   mod fills with diagnostics is a log the harness must still scan.
 - **Consent state**: automation force-accepts the EULA and skips news/Discord
-  gates (Source/ConnectMod/ModApi.cs:49-60, Source/ConnectMod/EulaSkip.cs:15-24).
+  gates (Source/ConnectMod/ModApi.cs:49-60, Source/ConnectMod/EulaSkip.cs:9-22).
 - **Session stability**: a Local host that hangs at "Initializing world" is
   the failure the local-host load patches exist to remove, so holding sync
   loading and the raised load priority must be released when startup ends
-  (Source/ConnectMod/LocalHostWorldLoadPatches.cs:116-128,344-363).
+  (Source/ConnectMod/LocalHostWorldLoadPatches.cs:72-84,123-133).
 - **Availability**: unattended launches must terminate; several bounded waits
   exist precisely so a wedged component cannot hang the machine's tooling
   (DNS 5 s, connect gate 45 s, prefab prewarm 60 s, async drain 60 s).
@@ -74,17 +74,18 @@ Every entry point reads data from outside the process boundary:
 
 | Entry point | Where parsed | Notes |
 |---|---|---|
-| Env `7DTD_CONNECT` | Source/ConnectMod/ConnectTarget.cs:294-303; scripts read it too (scripts/launch_client.sh:81,371,393; scripts/one_shot_join.sh:87,232,290; scripts/restart_pair.sh:142) | Attacker-shapable: a clicked `steam://run` URL chooses `-connect=` text (in-code rationale at ConnectTarget.cs:56-69 and LogText.cs:12-18) |
-| argv `-connect=` / `+connect=` / `+connect_lobby` | ConnectTarget.cs:305-338 | Same threat model as the env var |
+| Env `7DTD_CONNECT` | Source/ConnectMod/ConnectTarget.cs:228-236; scripts read it too (scripts/launch_client.sh:81,389,411; scripts/one_shot_join.sh:87,258,316; scripts/restart_pair.sh:142) | Attacker-shapable: a clicked `steam://run` URL chooses `-connect=` text (in-code rationale at ConnectTarget.cs:39-61 and LogText.cs:42-63) |
+| argv `-connect=` / `+connect=` / `+connect_lobby` | ConnectTarget.cs:238-274 | Same threat model as the env var |
 | F1 console `connect` / `7dtdconnect` / `joinip` | Source/ConnectMod/ConsoleCmdConnect.cs:8,27-51 | Local keyboard input; allowed in main menu (:23) |
 | F1 console `diag` / `7dtd_diag` / `zdiag` | Source/ConnectMod/ConsoleCmdDiag.cs:8,20-52 | Flips verbose traces at runtime; the console override outranks the env snapshot (Source/ConnectMod/DiagToggle.cs:19-47) |
 | Env `7DTD_PLAYER_NAME` | ModApi.cs:118-135 | Sets `GamePrefs.PlayerName`, persisted to the client profile |
 | Env `7DTD_CONNECT_AUTOMATION`, `7DTD_CONNECT_DEBUG`, `7DTD_CONNECT_FORCE_LOAD_SYNC` | Source/ConnectMod/AutomationMode.cs:12-24, Source/ConnectMod/DiagToggle.cs:5, Source/ConnectMod/BootUnblock.cs | Boolean flags; truthiness shared in Source/ConnectMod/EnvFlags.cs:12-38 |
 | Script env: `GAME`, `PROTON`, `COMPAT`, `STEAM_ROOT`, `GFX_API`, `CLIENT_MUTE_TIMEOUT`, `CLIENT_PLATFORM`, `PORT`, `HOST`, `TIMEOUT_SEC`, `SETTLE_SEC`, `CYCLE`, `SCRATCH`, `ZDTD_BIN`, `START_SERVER`, `WINEDLLOVERRIDES` | scripts/launch_client.sh:48-147,369; scripts/one_shot_join.sh:76-117; scripts/restart_pair.sh:36-52; scripts/mute_client_audio.sh:40-52 | Several are validated before use (see Mitigations); `GAME`/`PROTON`/`COMPAT` select executables by design. `WINEDLLOVERRIDES` is appended to, not overwritten (launch_client.sh:369), so anything already in the operator's env also reaches the Wine process |
 | Hardcoded process args added by the launcher | scripts/launch_client.sh:83 (`-skipintro -SkipNewsScreen=true -disablenativeinput`) | Not operator input, but they change what the client loads; `-disablenativeinput` was added for Proton boot stability, not for a security control |
-| Client log file written by the game process | parsed by scripts/log_markers.sh:60-130 from one_shot_join.sh:300-352, copied at one_shot_join.sh:354, rescanned by zero_nre_join_loop.sh:210,216-221 | Process-to-harness boundary; content is semi-trusted |
-| Outbound network connect | ConnectTarget.cs:404-469 (`ConnectionManager.Connect` at :460) after DNS resolution :347-399 | The only network traffic this repo initiates |
-| Engine load pipeline (Local host) | Source/ConnectMod/LocalHostWorldLoadPatches.cs:414-430 patches `World.LoadWorld`, `GameManager.createWorld`, `GameManager.StartAsServer` | No external input; the wrapping coroutines read engine internals by reflection (:365-392) and change global load settings (:72-84,344-363) |
+| Client log file written by the game process | parsed by scripts/log_markers.sh:60-104 from one_shot_join.sh:325-365, copied at one_shot_join.sh:380, rescanned by zero_nre_join_loop.sh:210,216-221 | Process-to-harness boundary; content is semi-trusted |
+| Server-influenced client-log lines copied into the harness control log | scripts/join_evidence.sh:29-39 (`write_join_evidence`), called from one_shot_join.sh:391 | The server chooses the text: names, world strings and errors reach the client log verbatim, and the control log is the file the harnesses grep for markers |
+| Outbound network connect | ConnectTarget.cs:339-409 (`ConnectionManager.Connect` at :395) after DNS resolution :281-336 | The only network traffic this repo initiates |
+| Engine load pipeline (Local host) | Source/ConnectMod/LocalHostWorldLoadPatches.cs:368-383 patches `World.LoadWorld`, `GameManager.createWorld`, `GameManager.StartAsServer` | No external input; the wrapping coroutines read engine internals by reflection (:310-346) and change global load settings (:72-84,280-308) |
 
 Deployment surface: GitHub Actions workflows run `make test` / coverage /
 tag-gating with least privilege and SHA-pinned actions
@@ -99,25 +100,29 @@ The release zip itself is built locally and attached manually
    client connects and what identity name it presents. Crossing point: the
    parsers above; sanitization at the log echo points only.
 2. **Launch context → outbound network**: `TryParse` output feeds
-   `ConnectionManager.Connect` directly (ConnectTarget.cs:288-342). There is
+   `ConnectionManager.Connect` directly (ConnectTarget.cs:222-277). There is
    no allow-list; any resolvable host:port is joined. Server responses are
    handled entirely by stock engine code; this mod adds no listener and no
    S2C parsing (AGENTS.md rule 5).
 3. **Game process → shell harnesses**: lifecycle scripts treat the client log
    as evidence. Marker regexes decide `result=joined`
-   (one_shot_join.sh:290-352). Anything able to write those bytes decides the
+   (one_shot_join.sh:325-365). Anything able to write those bytes decides the
    verdict; the scripts assume only the game writes them.
-4. **Scripts → on-disk config**: `CLIENT_PLATFORM=local` overwrites
+4. **Scripts → on-disk config**: `CLIENT_PLATFORM=local` replaces
    `$GAME/platform.cfg` after backing it up, restores on exit, self-heals a
    previous interrupted swap, refuses when the backup cannot restore, and holds
    an exclusive lock (`platform.cfg.re-local.lock`) so a second launcher on the
    same install reuses that swap instead of taking the single backup slot
-   (launch_client.sh:180-227). Failure here silently changes which platform
-   identity the user's next manual launch uses.
+   (scripts/launch_client.sh:180-246). The replacement is written to a temp
+   file in the same directory and renamed over the live config
+   (launch_client.sh:231-243), so a crash, a signal, or a full disk mid-write
+   leaves the Steam config in place rather than an empty file; a swap that
+   cannot be written is abandoned with the original intact. Failure here
+   silently changes which platform identity the user's next manual launch uses.
 5. **Automation mode → engine internals**: Harmony patches tagged
    `[AutomationPatch]` replace auth-ticket production and platform identity
    (AuthFallbackPatches.cs) and are applied only when automation boot mode is
-   on (ModApi.cs:62-86 skips them otherwise; gate detection at
+   on (ModApi.cs:62-75 skips them otherwise; gate detection at
    AutomationMode.cs:17-24 auto-enables whenever a launch target exists).
 6. **Local host session → engine load pipeline** (new in v0.12.0): the
    local-host world-load patches are *not* automation-gated; they activate on
@@ -125,15 +130,15 @@ The release zip itself is built locally and attached manually
    (LocalHostWorldLoadPatches.cs:51-53). The mod therefore rewrites engine
    coroutines, raises `Application.backgroundLoadingPriority` and
    `runInBackground`, and holds sync addressable loading through a private
-   static field (LocalHostWorldLoadPatches.cs:344-363) in ordinary host
-   play. Restores are in a `finally` (:116-128); a hard process kill mid-load
+   static field (LocalHostWorldLoadPatches.cs:280-308) in ordinary host
+   play. Restores are in a `finally` (:123-133); a hard process kill mid-load
    leaves nothing to restore because the state dies with the process.
 7. **Local user → client log** (new in v0.12.0): `diag on` or
    `7DTD_CONNECT_DEBUG` turns on per-window traces
    (Source/ConnectMod/WindowTrace.cs:14-24), the spawn/load heartbeats
    (Source/ConnectMod/LoadStateProbe.cs:11-15) and the Local-host hitch
    monitor, which runs for the whole process lifetime and logs every frame
-   over 0.2 s (LocalHostWorldLoadPatches.cs:177-230).
+   over 0.2 s (PerfTrace.cs:38-91).
 
 Privilege transitions: none. Everything runs as the desktop user; no service,
 no setuid, no elevated installer (`make install` copies files into the game's
@@ -146,13 +151,13 @@ no setuid, no elevated installer (`make install` copies files into the game's
 - *Spoofing/tampering*: crafted `-connect=` text redirects the join (R2);
   crafted control characters forge log lines and harness markers (R3).
 - *Repudiation*: weak. Launch echoes do record source labels ("auto-join from
-  7DTD_CONNECT=...", ModApi.cs:201; "Connect by IP ... (requested host=...)",
-  ConnectTarget.cs:455), so the origin of a join is visible in the log.
+  7DTD_CONNECT=...", ModApi.cs:204; "Connect by IP ... (requested host=...)",
+  ConnectTarget.cs:393), so the origin of a join is visible in the log.
 - *Information disclosure*: the join handshake reveals player identity to
   whichever host the target names. Nothing else leaves the process: the mod
   writes no files and opens no listener.
-- *DoS*: hostname resolution is bounded at 5 s (ConnectTarget.cs:355-363) and
-  the auto-join ready-wait at 45 s monotonic (ModApi.cs:236-246); a wedged
+- *DoS*: hostname resolution is bounded at 5 s (ConnectTarget.cs:291-303) and
+  the auto-join ready-wait at 45 s monotonic (ModApi.cs:234-246); a wedged
   resolver cannot freeze the menu thread indefinitely.
 - *Elevation of privilege*: none available; the mod runs entirely inside the
   game process with no additional authority.
@@ -171,6 +176,12 @@ no setuid, no elevated installer (`make install` copies files into the game's
 - *Tampering*: forged success markers flip `result=joined` without a server
   (abuse case A2). Values the *mod* echoes are flattened first (R3
   mitigation); values other local processes write are trusted implicitly.
+- *Tampering via the server*: a hostile server names itself in lines that
+  reach the client log verbatim, and those lines are copied into the control
+  log the harnesses grep. The copy is sanitized and written behind a `  log: `
+  prefix (join_evidence.sh:29-39), so a copied line cannot read as a marker;
+  what remains is that the server chooses which lines the operator sees, up to
+  80 of them per cycle.
 - *DoS*: a diagnostic flood (R6) grows the file the poller greps; the
   memoized matcher bounds the re-scan cost per pattern, but the first pass
   over a multi-megabyte log and the harness's overall time budget are both
@@ -179,12 +190,12 @@ no setuid, no elevated installer (`make install` copies files into the game's
 **Scripts → on-disk config / processes**
 
 - *Tampering/availability*: the `platform.cfg` swap has backup, refuse-on-
-  unrestorable, and self-heal paths (launch_client.sh:180-227), and is exclusive
+  unrestorable, atomic-rename, and self-heal paths (launch_client.sh:180-246), and is exclusive
   across concurrent launchers via `flock`; residual risk is losing the user's
   platform selection if both copies die mid-run.
 - *Process targeting*: kill sweeps match substrings of any user's command line
   (`pkill -9 -f '7DaysToDie'`, restart_pair.sh:114; `pgrep -f
-  '[/]7DaysToDie.exe|wine64-preloader.*7DaysToDie'`, one_shot_join.sh:137),
+  '[/]7DaysToDie.exe|wine64-preloader.*7DaysToDie'`, one_shot_join.sh:166),
   so an unrelated process whose argv mentions the string gets killed (R5).
 
 **Local host session → engine load pipeline**
@@ -194,9 +205,9 @@ no setuid, no elevated installer (`make install` copies files into the game's
   creation semantics. The count is a fixed property of the game build, so a
   game update is the trigger, not an attacker.
 - *Denial of service*: a wedged LoadManager is bounded (prefab prewarm 60 s,
-  :141-170; async drain 60 s, :315-323) and the drain result is logged, so a
+  :148-177; async drain 60 s, :259-270) and the drain result is logged, so a
   silent hang is not possible; but the sync-loading hold is released only
-  from `Flatten`'s `finally` (:116-128, :357-363). Losing that release leaves
+  from `Flatten`'s `finally` (:123-133, :204-209). Losing that release leaves
   the client in forced sync loading for the rest of the session.
 - *Information disclosure*: the raised load priority and `runInBackground`
   are process-local Unity settings, restored in the same `finally`; no data
@@ -205,7 +216,7 @@ no setuid, no elevated installer (`make install` copies files into the game's
 **Local user → client log**
 
 - *DoS*: unbounded diagnostic output (R6). The window trace is documented as
-  spamming every tick in normal play (WindowTrace.cs:9-12), and the hitch
+  spamming every tick in normal play (WindowTrace.cs:7-11), and the hitch
   monitor logs every frame over 0.2 s forever. Both need the local user to
   opt in, so this is self-inflicted, but the log is shared with the harness
   that grades joins.
@@ -224,15 +235,18 @@ no setuid, no elevated installer (`make install` copies files into the game's
 | Connect-ready gate capped at 45 s monotonic | unbounded wait on a never-settling platform login | ModApi.cs:230-269; Source/ConnectMod/ConnectReady.cs |
 | Automation gating of identity/auth Harmony patches | limits R1 to automation launches | `[AutomationPatch]` attribute (AutomationMode.cs:5-8) skipped unless enabled (ModApi.cs:70-72); gate auto-on only with a launch target or explicit env (AutomationMode.cs:17-24) |
 | Local-host load patches scoped to non-automation Local sessions | R1-style identity/auth changes must not reach ordinary host play; the load wrapper is the one engine change that does (boundary 6) | LocalHostWorldLoadPatches.cs:51-53 |
-| Bounded load waits (prefab prewarm 60 s, async drain 60 s) with logged timeout | silent startup hang | LocalHostWorldLoadPatches.cs:156-167,315-333 |
-| Load-priority / force-sync restore in `finally` | leaving the client in a modified global state | LocalHostWorldLoadPatches.cs:116-128,344-363 |
-| Hitch monitor started once per process | one eternal coroutine per hosted session | LocalHostWorldLoadPatches.cs:177-184 |
-| EULA gate handled once per process | a repeated `windowEula` request re-saving prefs and re-firing `MainMenuOpened` at every mod | EulaSkip.cs:17-19,50,72; pinned by scripts/test_eula_gate_once.sh |
+| Bounded load waits (prefab prewarm 60 s, async drain 60 s) with logged timeout | silent startup hang | LocalHostWorldLoadPatches.cs:163-172,259-270 |
+| Load-priority / force-sync restore in `finally` | leaving the client in a modified global state | LocalHostWorldLoadPatches.cs:72-84,123-133,280-308 |
+| Hitch monitor started once per process | one eternal coroutine per hosted session | PerfTrace.cs:38-41 (latch at :21), started from LocalHostWorldLoadPatches.cs:137 |
+| EULA gate handled once per process | a repeated `windowEula` request re-saving prefs and re-firing `MainMenuOpened` at every mod | EulaSkip.cs:19,50-72; pinned by scripts/test_eula_gate_once.sh |
+| `platform.cfg` swap written to a temp file and renamed over the live config | a crash, signal, or full disk mid-write leaving an empty config under the client that reads it next | scripts/launch_client.sh:231-243; same reasoning for the backup copy at :212-221; pinned by scripts/test_launch_client_platform.py |
+| Detached launcher and server stopped by owned process group, not by pid alone | orphaned Proton/mute-poller children stacking one per cycle, and the launcher's `platform.cfg` restore trap never running | `signal_owned` (scripts/one_shot_join.sh:185-197) checks liveness and signals the group only when the child leads it, used at one_shot_join.sh:242-251; pinned by scripts/test_one_shot_launcher_group.sh |
 | Staged mod folder emptied before staging | a reused stage root shipping files the payload no longer has | scripts/stage_mod.sh:70-75; pinned by scripts/test_stage_mod.sh |
-| install/uninstall refuse an empty or root `MODS_DIR` | `rm -rf $(INSTALL_DIR)` on a top-level path built from an unset variable | Makefile:156,164,168-180; pinned by scripts/test_stage_mod.sh |
-| Diagnostic traces gated behind `7DTD_CONNECT_DEBUG` / `diag on` | R6 log volume in normal play | DiagToggle.cs:5,19-30; WindowTrace.cs:14-17; LocalHostWorldLoadPatches.cs:212,233-237; LoadStateProbe.cs:11-15 |
+| install/uninstall refuse an empty or root `MODS_DIR` | `rm -rf $(INSTALL_DIR)` on a top-level path built from an unset variable | Makefile:164-175,177-186; pinned by scripts/test_stage_mod.sh |
+| Diagnostic traces gated behind `7DTD_CONNECT_DEBUG` / `diag on` | R6 log volume in normal play | DiagToggle.cs:11,29-59; WindowTrace.cs:14-34; LocalHostWorldLoadPatches.cs:113-121,155-159,222-224; LoadStateProbe.cs:11-15 |
 | Announce-once probe failures | a dead probe reading as a healthy quiet join | ProbeFailure.cs:15-43 |
 | Player-name cap (24 code points, NFC, never cutting a surrogate pair), control/invisible-format flattening, and never-empty fallback | oversized/injected names reaching prefs; one name in two spellings, or a cap that corrupts an emoji name into U+FFFD | PlayerNames.cs:16-81, TextUtil.cs:22-85, ModApi.cs:122-169 |
+| Copied evidence lines sanitized *and* prefixed `  log: ` before entering the control log | a server-supplied line reading as a harness marker, and a U+2028/C1 NEL inside one splitting it for a reader | scripts/join_evidence.sh:29-39; cap of 80 lines per cycle at :27; pinned by scripts/test_join_evidence.sh |
 | `CYCLE` filename guard (safe charset, no leading dot) | path traversal in cycle artifact filenames | one_shot_join.sh:103-110; pinned by scripts/test_cycle_filename_guard.sh |
 | Numeric guards on `PORT`/`TIMEOUT_SEC`/`SETTLE_SEC`/`WAIT_SECONDS` | regex/arithmetic skew from metacharacters | one_shot_join.sh:76-101, restart_pair.sh:36-52, mute_client_audio.sh:40-52 |
 | One boolean table for every env flag (`env_bool`, the shell twin of `EnvFlags`): documented tokens only, an undocumented token read as on with a warning naming the variable and the value | a typo in a flag (`CLIENT_MUTE=ture`, `START_SERVER=true`) silently taking the opposite side of the opt-in/opt-out table | scripts/config_validate.sh:33-62; used by one_shot_join.sh:117 and launch_client.sh:117; pinned by scripts/test_config_validate.sh |
@@ -241,13 +255,20 @@ no setuid, no elevated installer (`make install` copies files into the game's
 | Log-marker memoization contract (append-only assumption documented) | stale matches after truncation; repeated re-scan of a growing log | scripts/log_markers.sh:1-32 |
 | CI least privilege + SHA-pinned actions; tag/version agreement gate | supply-chain injection via moved tags/actions | .github/workflows/ci.yml:15-23,30-41; .github/workflows/release.yml:18-45 |
 
-Single points of failure: the R3 defense rests entirely on the two
-`SanitizeForLog` twins staying behaviorally identical; the tests pin each side
-separately but nothing pins their equivalence. The automation gate is the only
-control separating normal play from all identity/auth patches, and boundary 6
-is the one place where a non-automation code path deliberately reaches past
-it, so the local-host gate (`IsNormalLocalHost`) is the single check standing
-between ordinary host play and the load rewrite.
+Single points of failure: the R3 defense is one C# implementation
+(`LogText.SanitizeForLog`) and one shell function (`sanitize_log_text`); the
+tests pin each side separately but nothing pins their equivalence, and the two
+do not agree on the invisible-format characters today. C# replaces each with a
+space, preserving offsets and lengths (LogText.cs:73-76); the shell twin
+deletes them outright (log_sanitize.sh:29-32) and flattens only control, C1 and
+the two separators. Neither reaches a log in a form a reader lays out as a
+second line, so forging stays closed, but the two sides are not the same rule
+and a future change to one is not automatically a change to the other. The
+automation gate is the only control separating normal play from all
+identity/auth patches, and boundary 6 is the one place where a non-automation
+code path deliberately reaches past it, so the local-host gate
+(`IsNormalLocalHost`) is the single check standing between ordinary host play
+and the load rewrite.
 
 ## Named gaps (unmitigated; ranked)
 
@@ -264,7 +285,7 @@ These are recorded, not fixed, here. Fixes belong to sec-review.
    operator's own env choice beyond the source label in the log.
 3. **R6 - unbounded diagnostic output**: no rate limit, size cap, or
    auto-expiry on the window trace or the hitch monitor
-   (WindowTrace.cs:14-24, LocalHostWorldLoadPatches.cs:201-230). A session
+   (WindowTrace.cs:14-24, PerfTrace.cs:53-91). A session
    left with `diag on` and a stalling renderer writes unbounded lines into the
    same log the join harness greps. Gating is the only control, and the gate
    is a local user toggle.
@@ -284,25 +305,25 @@ These are recorded, not fixed, here. Fixes belong to sec-review.
 - **A1 - Redirected join**: a launcher shortcut or URL handler plants
   `-connect=<attacker>:<port>`; the operator sees the game boot normally and
   the mod auto-joins the attacker's host. Enabling path:
-  `TryFromLaunchContext` (ConnectTarget.cs:288-342) → `OnMainMenuOpened`
-  auto-join (ModApi.cs:172-222) → `TryConnect`. The log does name the source
-  (ModApi.cs:201), which is the only tripwire.
+  `TryFromLaunchContext` (ConnectTarget.cs:222-277) → `OnMainMenuOpened`
+  auto-join (ModApi.cs:175-225) → `TryConnect`. The log does name the source
+  (ModApi.cs:204), which is the only tripwire.
 - **A2 - Harness result forgery**: any local process able to append
   `Found own player entity with id` to the client log before the poller reads
   it flips the cycle verdict to `joined`. Enabling path: `log_seen`
-  (log_markers.sh:60-101) reading `CLIENT_LOG_SRC` (one_shot_join.sh:135,285).
+  (log_markers.sh:60-104) reading `CLIENT_LOG_SRC` (one_shot_join.sh:135,325).
   Trusted implicitly; acceptable for a local test harness, but the model must
   say so.
 - **A3 - Flag semantics abuse**: `EnvFlags.IsSetOn` treats any non-opt-out
-  value as true (EnvFlags.cs:23-26), so garbage like `7DTD_CONNECT_DEBUG=x`
+  value as true (EnvFlags.cs:35-40), so garbage like `7DTD_CONNECT_DEBUG=x`
   enables verbose tracing (and R6's log volume) rather than failing loudly.
   Documented behavior, listed so nobody mistakes it for validation.
 - **A4 - Diagnostic log flooding**: an operator debugging a stalling Local
   host leaves `diag on` on and walks away. The hitch monitor then writes a
   line per frame over 0.2 s for as long as the session lives
-  (LocalHostWorldLoadPatches.cs:206-229), filling the log the join harness
+  (PerfTrace.cs:53-91), filling the log the join harness
   scans. Enabling path: `diag on` (ConsoleCmdDiag.cs:30-35) → `DiagToggle.Set`
-  (DiagToggle.cs:40-47) → `HitchMonitor` loop (:201-230). Self-inflicted, and
+  (DiagToggle.cs:53-59) → `StartHitchMonitor` latch (PerfTrace.cs:38-48). Self-inflicted, and
   the harness cost is bounded by `log_seen`'s per-pattern offsets, but nothing
   in the code stops it.
 
