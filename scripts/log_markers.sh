@@ -54,7 +54,19 @@ log_seen() {
 		return "${SEEN_MARK[$re]}"
 	fi
 	local size
-	size="$(stat -c %s "$LOG_MARK_FILE" 2>/dev/null)" || return 1
+	# Byte count via `wc -c` on a redirected stdin, the one size probe that
+	# behaves the same on every host. GNU `stat -c` is not understood by the
+	# BSD/macOS stat, and its failure here was silent rather than loud: the
+	# substitution failed, log_seen answered "not seen" for every pattern, and
+	# the join poll in one_shot_join.sh reported a timeout for a cycle that had
+	# actually joined. The existence test comes first: a redirected wc on a log
+	# the game has not created yet fails in the shell, and the discarded stderr
+	# on the command cannot silence that. Strip the padding some wc builds print
+	# before the count.
+	[[ -f "$LOG_MARK_FILE" ]] || return 1
+	size="$(wc -c <"$LOG_MARK_FILE" 2>/dev/null)" || return 1
+	size="${size//[[:space:]]/}"
+	[[ "$size" =~ ^[0-9]+$ ]] || return 1
 	local off="${MARK_OFFSET[$re]:-0}"
 	# No bytes appended since this pattern's last scan: the window that scan
 	# covered is byte-identical, so grep would return the same verdict. The

@@ -179,6 +179,24 @@ match_in_a_large_window_is_not_lost_to_sigpipe() {
 	return "$rc"
 }
 
+# The size probe must not depend on GNU stat. A host whose stat rejects `-c`
+# (BSD, macOS) used to make log_seen answer "not seen" for every pattern, so
+# the join poll timed out on a cycle that had actually joined. A stat that
+# refuses -c must leave the verdict unchanged.
+stat_without_gnu_flags_does_not_break_matching() {
+	local bindir="$WORK/no-gnu-stat"
+	mkdir -p "$bindir"
+	printf '#!/bin/sh\nexit 1\n' >"$bindir/stat"
+	chmod +x "$bindir/stat"
+	: >"$LOG_MARK_FILE"
+	printf 'NET: PlayerSpawnedInWorld\n' >>"$LOG_MARK_FILE"
+	(
+		PATH="$bindir:$PATH"
+		log_marks_reset
+		log_seen 'PlayerSpawnedInWorld'
+	)
+}
+
 assert "missing log is not seen" missing_log_is_not_seen
 assert "miss flips when matching bytes arrive" miss_flips_when_bytes_arrive
 assert "cached positive survives other-marker misses" positive_sticks_after_miss_on_other_marker
@@ -189,5 +207,6 @@ assert "truncated log falls back to full scan" truncated_log_resets_offset
 assert "conditionally queried pattern skips no bytes" conditionally_queried_pattern_misses_nothing
 assert "large-window match survives" match_in_a_large_window_is_not_lost_to_sigpipe
 assert "idle poll skips the rescan" idle_poll_skips_the_rescan
+assert "size probe survives a non-GNU stat" stat_without_gnu_flags_does_not_break_matching
 
 finish
