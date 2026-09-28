@@ -221,6 +221,10 @@ namespace SdtdConnect
             string hostPart = raw;
             int portPart = DefaultPort;
 
+            // The port suffix is split off by whichever grammar matches, then
+            // range-checked once; both grammars reject a bad port the same way.
+            string portText = null;
+
             // IPv6 in brackets: [addr]:port
             if (raw.StartsWith("["))
             {
@@ -232,14 +236,7 @@ namespace SdtdConnect
                 }
                 hostPart = raw.Substring(1, close - 1);
                 if (close + 1 < raw.Length && raw[close + 1] == ':')
-                {
-                    string portText = raw.Substring(close + 2);
-                    if (!TryParsePort(portText, out portPart))
-                    {
-                        error = BadPortError(portText);
-                        return false;
-                    }
-                }
+                    portText = raw.Substring(close + 2);
             }
             else
             {
@@ -248,16 +245,15 @@ namespace SdtdConnect
                 if (colon > 0 && colon < raw.Length - 1
                     && raw.IndexOf(':') == colon) // single colon → not bare IPv6
                 {
-                    string portText = raw.Substring(colon + 1);
-                    if (!TryParsePort(portText, out portPart))
-                    {
-                        error = BadPortError(portText);
-                        return false;
-                    }
+                    portText = raw.Substring(colon + 1);
                     hostPart = raw.Substring(0, colon);
                 }
-                else
-                    hostPart = raw;
+            }
+
+            if (portText != null && !TryParsePort(portText, out portPart))
+            {
+                error = BadPortError(portText);
+                return false;
             }
 
             if (string.IsNullOrWhiteSpace(hostPart))

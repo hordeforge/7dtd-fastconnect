@@ -39,11 +39,11 @@ namespace SdtdConnect
         /// that reads differently from the text a grep sees. One character
         /// becomes one space, so offsets and lengths are preserved.
         ///
-        /// The single implementation of the rule: ConnectTarget delegates
-        /// here, and scripts/log_sanitize.sh is the shell twin. A second copy
-        /// inside ConnectTarget had already drifted, keeping control
-        /// characters only, so the -connect= warning paths echoed bidi
-        /// overrides and a BOM straight into the client log.
+        /// Used by EnvFlags and the console echo path.
+        /// ConnectTarget.SanitizeForLog is the stricter twin every
+        /// launch-context value goes through: it keeps this character set and
+        /// adds the U+2028/U+2029 separators a log reader lays out as a line
+        /// break. scripts/log_sanitize.sh is the shell twin of that one.
         /// </summary>
         internal static string SanitizeForLog(string value)
         {
