@@ -1125,6 +1125,9 @@ static class TestMain
                 cappedName.Length > 0 && !char.IsHighSurrogate(cappedName[cappedName.Length - 1]));
             Check("Normalize returns null for null", PlayerNames.Normalize(null) == null);
             Check("Normalize returns null for empty", PlayerNames.Normalize("") == null);
+            Check("Normalize trims whitespace exposed by the length cap",
+                PlayerNames.Normalize(new string('a', PlayerNames.MaxLength - 1) + " tail")
+                    == new string('a', PlayerNames.MaxLength - 1));
             // A value that is nothing but stripped characters normalizes to
             // nothing, which is the signal the caller falls back on.
             Check("Normalize empties a value of only invisible characters",

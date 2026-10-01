@@ -254,6 +254,8 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Fixed
 
+- Display names remain trimmed when the length cap exposes a space at the end, including the .NET test lane used by CI.
+
 - The changelog test reads the shipped version from ModInfo.xml, so a release bump does not leave the gate checking the previous release.
 - A DNS lookup that outlives the 5 s connect wait no longer throws
   `ObjectDisposedException` on the resolver thread: the wait handle is closed
