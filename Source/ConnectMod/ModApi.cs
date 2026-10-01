@@ -12,7 +12,7 @@ namespace SdtdConnect
     public class ModApi : IModApi
     {
         public const string HarmonyId = "com.7dtd.connect";
-        public const string Version = "0.12.0";
+        public const string Version = "0.13.0";
         public const string PlayerNameEnv = "7DTD_PLAYER_NAME";
         static bool _autoTried;
 

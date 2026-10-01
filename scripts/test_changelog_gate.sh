@@ -116,8 +116,9 @@ check() {
 	fi
 }
 
-assert "the shipped changelog has notes and links for 0.12.0" \
-	"$GATE" 0.12.0
+shipped="$(sed -n 's/.*<Version value="\([^" ]*\)".*/\1/p' "$ROOT/ModInfo.xml")"
+assert "the shipped changelog has notes and links for $shipped" \
+	"$GATE" "$shipped"
 
 check "accepts a complete section" "" 0.13.0 pass
 check "accepts a version with a leading v" "" v0.13.0 pass

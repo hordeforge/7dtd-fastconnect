@@ -31,7 +31,7 @@ namespace SdtdConnect
         internal static string Normalize(string raw)
         {
             if (string.IsNullOrEmpty(raw)) return null;
-            string clean = Cap(LogText.SanitizeForLog(raw).Trim());
+            string clean = Cap(LogText.SanitizeForLog(raw).Trim()).TrimEnd();
             // A name of nothing but flattened characters has no spelling
             // left, so it is absent, not empty: the documented return for a
             // name that normalized away, and what Resolve's fallback reads.
