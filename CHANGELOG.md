@@ -11,7 +11,9 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
-Next release is a minor bump, `0.13.0`: the notes below add launcher
+## [0.13.0] - 2026-10-01
+
+This is a minor release: the notes below add launcher
 configuration validation and a `HOST` knob, and change the launcher's argument
 and enum handling, so a patch bump would claim none of that.
 
@@ -252,6 +254,7 @@ and enum handling, so a patch bump would claim none of that.
 
 ### Fixed
 
+- The changelog test reads the shipped version from ModInfo.xml, so a release bump does not leave the gate checking the previous release.
 - A DNS lookup that outlives the 5 s connect wait no longer throws
   `ObjectDisposedException` on the resolver thread: the wait handle is closed
   only once the lookup has completed, and an abandoned one keeps its handle.
@@ -900,7 +903,8 @@ jumped straight from 0.9.5 to 0.10.2: releases 0.10.0 and 0.10.1 do not exist.
   `7DTD_CONNECT_DEBUG=1`.
 - Proton prefix derived from `GAME`, overridable Steam paths and Mods dir.
 
-[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.5...v0.11.0
 [0.10.5]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.4...v0.10.5
