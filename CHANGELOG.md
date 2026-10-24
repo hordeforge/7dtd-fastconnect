@@ -11,6 +11,8 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-25
+
 ### Changed
 
 - Re-verified against V3.3.0 (b18): `AliveFlagsTrace` still binds
@@ -914,7 +916,8 @@ jumped straight from 0.9.5 to 0.10.2: releases 0.10.0 and 0.10.1 do not exist.
   `7DTD_CONNECT_DEBUG=1`.
 - Proton prefix derived from `GAME`, overridable Steam paths and Mods dir.
 
-[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.10.5...v0.11.0
