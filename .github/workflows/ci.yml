@@ -91,9 +91,13 @@ jobs:
           export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
           export GIT_CONFIG_VALUE_0="$auth"
           url="https://github.com/${GITHUB_REPOSITORY}.git"
-          if git ls-remote --exit-code --heads origin badges >/dev/null 2>&1; then
-            git clone --depth 1 --branch badges "$url" badge-repo
-          else
+          # Clone the published branch whenever it exists. Probing it first with
+          # ls-remote conflated "no such branch" with "the probe failed", and the
+          # failed probe's answer (init a fresh root commit) is rejected by the
+          # remote that does exist. A failed clone is the one signal that means
+          # the branch is genuinely absent.
+          if ! git clone --depth 1 --branch badges "$url" badge-repo 2>/dev/null; then
+            rm -rf badge-repo
             git init -q -b badges badge-repo
           fi
           # make coverage already rendered the badge at the repo root from the
