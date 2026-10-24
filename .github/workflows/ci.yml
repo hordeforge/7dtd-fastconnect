@@ -72,7 +72,10 @@ jobs:
       # $DOTNET_ROOT/tools, which the hosted image does not export, so
       # scripts/coverage-cs.sh would answer the missing tool with SKIP + exit
       # 0 and the job would have gone on to fail on a stale badge.
-      - run: dotnet tool restore --tool-path "$HOME/.dotnet/tools"
+      # --tool-path belongs to `dotnet tool install`; restore ignores it and
+      # exits on the unrecognized option. The tools land in the default
+      # $HOME/.dotnet/tools, which the next line puts on PATH.
+      - run: dotnet tool restore
       - run: echo "$HOME/.dotnet/tools" >>"$GITHUB_PATH"
       - run: make coverage
       - name: Publish the badge to the badges branch
