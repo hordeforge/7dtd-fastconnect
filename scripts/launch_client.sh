@@ -417,8 +417,8 @@ WIN_LOGFILE="C:/users/$PREFIX_USER/AppData/Roaming/7DaysToDie/logs/output_log_cl
 if [[ -n "$PROTON" && -d "$COMPAT" ]]; then
   export STEAM_COMPAT_DATA_PATH="$COMPAT"
   export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$STEAM_ROOT}"
-  # V 3.2 InControl calls XInputGetState at boot; Proton's xinput1_3
-  # hard-crashes there on a Steam-free Local client.
+  # V 3.2.0 InControl calls XInputGetState at boot (V3.3.0 client not checked);
+  # Proton's xinput1_3 hard-crashes there on a Steam-free Local client.
   export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:+$WINEDLLOVERRIDES;}xinput1_3.dll=d;xinput1_4.dll=d;xinput9_1_0.dll=d"
   echo "Proton: $PROTON"
   echo "Connect: $(sanitize_log_text "${CONNECT:-"(none; use F1 connect after menu)"}")"

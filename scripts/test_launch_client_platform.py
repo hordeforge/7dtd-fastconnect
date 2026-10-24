@@ -619,9 +619,10 @@ def test_eac_off_and_render_flags_reach_game(tmp_path: Path) -> None:
 
 
 def test_proton_disables_xinput_dlls(tmp_path: Path) -> None:
-    """V 3.2 InControl still calls XInputGetState after -disablenativeinput;
-    Proton's xinput1_3 crashes a Steam-free Local client unless those DLLs
-    are disabled. Keep a caller-supplied WINEDLLOVERRIDES prefix."""
+    """On V3.2.0 InControl still called XInputGetState after -disablenativeinput
+    (V3.3.0 client not checked); Proton's xinput1_3 crashes a Steam-free Local
+    client unless those DLLs are disabled. Keep a caller-supplied
+    WINEDLLOVERRIDES prefix."""
     _setup(tmp_path)
     record = tmp_path / "winedll.txt"
     _write_executable(

@@ -87,8 +87,8 @@ commit, SDK version, epoch, and sha256.
 |---|---|
 | TFP intro splash video | Process arg **`-skipintro`** (must be on argv; splash runs before mods) |
 | News “click to continue” | **`-SkipNewsScreen=true`** + Harmony forces `shownNewsScreenOnce` / blocks `XUiC_NewsScreen.Open` |
-| InControl native input | Process arg **`-disablenativeinput`**. V 3.2.0 turns native input on by default; that plugin crashes Proton before mods load |
-| Proton XInput | `WINEDLLOVERRIDES` disables `xinput1_3.dll`, `xinput1_4.dll`, `xinput9_1_0.dll`. InControl still calls `XInputGetState` after `-disablenativeinput`; Proton's stub crashes a Steam-free Local client |
+| InControl native input | Process arg **`-disablenativeinput`**. V 3.2.0 turned native input on by default (observed on V3.2.0; not re-checked against the V3.3.0 client); that plugin crashes Proton before mods load |
+| Proton XInput | `WINEDLLOVERRIDES` disables `xinput1_3.dll`, `xinput1_4.dll`, `xinput9_1_0.dll`. On V3.2.0 InControl still called `XInputGetState` after `-disablenativeinput`; Proton's stub crashes a Steam-free Local client |
 | EULA accept gate | Harmony forces the `HasAcceptedLatestEula` getter true and blocks the `windowEula` window: `EulaLatestVersion` / `EulaVersionAccepted` are written and saved, then the main menu is reopened |
 | Opener movie on world load | `showOpenerMovieOnLoad = false`, `OptionsIntroMovieEnabled = false` |
 | Discord login / SDK | `GamePrefs.DiscordDisabled=true` + Harmony skips `DiscordManager.Init` and Discord first-time menu |

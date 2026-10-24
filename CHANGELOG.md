@@ -11,6 +11,15 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+### Changed
+
+- Re-verified against V3.3.0 (b18): `AliveFlagsTrace` still binds
+  `NetPackageEntityAliveFlags.ProcessPackage`, `SpawnedFlagBit` 8 is still the
+  bit the package sets, and both fields it reads still exist, so the patch
+  needed no code change. The InControl/Proton notes now name V3.2.0 as the
+  build they were observed on; the V3.3.0 client has not been checked, so the
+  launcher flags stay.
+
 ## [0.13.0] - 2026-10-01
 
 This is a minor release: the notes below add launcher
