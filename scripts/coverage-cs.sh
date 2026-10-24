@@ -42,8 +42,20 @@ if ! command -v dotnet >/dev/null 2>&1; then
 	echo "SKIP: dotnet SDK not found; cannot run the coverage lane" >&2
 	exit 0
 fi
-if ! command -v dotnet-coverage >/dev/null 2>&1; then
-	echo "SKIP: dotnet-coverage not found (dotnet tool restore --tool-path <dir>, version pinned in .config/dotnet-tools.json)" >&2
+# The tool is a local tool: .config/dotnet-tools.json pins it and
+# `dotnet tool restore` puts it in the SDK's tool cache, so there is no
+# `dotnet-coverage` launcher on PATH. Invoke it through the SDK instead. An
+# install outside the manifest is still accepted when the launcher exists.
+cov() {
+	if command -v dotnet-coverage >/dev/null 2>&1; then
+		dotnet-coverage "$@"
+	else
+		dotnet dotnet-coverage "$@"
+	fi
+}
+if ! command -v dotnet-coverage >/dev/null 2>&1 &&
+	! dotnet tool list 2>/dev/null | grep -q '^dotnet-coverage'; then
+	echo "SKIP: dotnet-coverage not restored (dotnet tool restore, version pinned in .config/dotnet-tools.json)" >&2
 	exit 0
 fi
 
@@ -66,7 +78,7 @@ fi
 
 modes=(argv argvenv automation connectready envflags forcesync launchctx parse playernames sanitize)
 for m in "${modes[@]}"; do
-	dotnet-coverage collect -f cobertura -o "cov-$m.xml" -- dotnet "$dll" "$m" > /dev/null 2>&1 || {
+	cov collect -f cobertura -o "cov-$m.xml" -- dotnet "$dll" "$m" > /dev/null 2>&1 || {
 		echo "FAIL: harness mode $m under the coverage profiler" >&2
 		exit 1
 	}
@@ -76,5 +88,5 @@ done
 # depend on the merger overwriting a file it already wrote, and a failed
 # merge must leave no previous report behind for the badge to render.
 rm -f "$root/coverage.cobertura.xml"
-dotnet-coverage merge -f cobertura -o "$root/coverage.cobertura.xml" cov-*.xml > /dev/null
+cov merge -f cobertura -o "$root/coverage.cobertura.xml" cov-*.xml > /dev/null
 echo "OK: $root/coverage.cobertura.xml"
