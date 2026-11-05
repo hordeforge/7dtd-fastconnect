@@ -9,9 +9,10 @@ namespace SdtdConnect
     static class Patch_NetPackageEntityAliveFlags_Process
     {
         // Stock EntityAlive flag bit reporting "spawned" in the wire flags.
-        // V3.3.0 (b18) ProcessPackage IL=99 still tests it with ldc.i4.8, and the
-        // package still derives from NetPackageEntityTargeted (Int32 entityId)
-        // with the same UInt16 flags field, so this patch binds unchanged.
+        // V3.4.0 (b10) ProcessPackage IL=99 still tests it with ldc.i4.8 on the
+        // UInt16 flags field (Spawned is bit 8), and the package still derives
+        // from NetPackageEntityTargeted (Int32 entityId) with the same UInt16
+        // flags field, so this patch binds unchanged.
         const int SpawnedFlagBit = 8;
 
         static void Prefix(NetPackageEntityAliveFlags __instance)

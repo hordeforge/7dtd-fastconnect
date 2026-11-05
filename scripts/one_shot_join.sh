@@ -214,6 +214,15 @@ source "$ROOT/scripts/monotonic_clock.sh"
 # scripts/join_evidence.sh (needs sanitize_log_text from the line above).
 source "$ROOT/scripts/join_evidence.sh"
 
+# The client log is append-only for this whole cycle (truncated when the run
+# starts, then only ever appended to by the game), so once a marker has
+# matched it can never un-match.
+# The join poll runs every 2s against a log that grows by megabytes;
+# re-grepping every already-decided marker from byte zero each poll is wasted
+# I/O competing with the loading client. See scripts/log_markers.sh.
+LOG_MARK_FILE="$CLIENT_LOG_SRC"
+source "$ROOT/scripts/log_markers.sh"
+
 # Join success signal; some checks accept extra partial-progress markers too.
 # The marker set itself is shared with zero_nre_join_loop.sh, which scores this
 # cycle's log afterwards: see JOIN_SUCCEEDED_RE in scripts/log_markers.sh.
@@ -228,15 +237,6 @@ list_client_pids() {
   # each spawn walks /proc.
   pgrep -f '[/]7DaysToDie\.exe|wine64-preloader.*7DaysToDie' 2>/dev/null || true
 }
-
-# The client log is append-only for this whole cycle (truncated when the run
-# starts, then only ever appended to by the game), so once a marker has
-# matched it can never un-match.
-# The join poll runs every 2s against a log that grows by megabytes;
-# re-grepping every already-decided marker from byte zero each poll is wasted
-# I/O competing with the loading client. See scripts/log_markers.sh.
-LOG_MARK_FILE="$CLIENT_LOG_SRC"
-source "$ROOT/scripts/log_markers.sh"
 
 # Signals a tracked child, and the whole process group when that child leads
 # one. The launcher is started with setsid, so its pgid is its pid: stopping

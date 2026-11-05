@@ -1,6 +1,6 @@
 [project]
 name = "7dtd-fastconnect-dev"
-version = "0.14.0"
+version = "0.15.0"
 description = "Dev tooling for 7dtd-fastconnect offline gates (ruff/mypy/pytest/yamllint)"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -44,7 +44,7 @@ dev = [
 # would leave the client advertising the previous build. test_version_sync.sh
 # fails instead.
 [tool.fastconnect]
-game-version = "V.3.1.4"
+game-version = "V.3.40.10"
 
 [tool.pytest.ini_options]
 testpaths = ["scripts"]

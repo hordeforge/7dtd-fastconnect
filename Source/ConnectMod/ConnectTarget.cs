@@ -27,12 +27,13 @@ namespace SdtdConnect
         // Constants.cVersionInformation, and it has to be updated when the game
         // version moves: the same value is recorded in pyproject.toml
         // ([tool.fastconnect] game-version) and test_version_sync.sh fails if
-        // the two drift.
+        // the two drift. V3.4.0 b10 builds VersionInformation(1, 3, 40, 10),
+        // so the four-field wire string is V.3.40.10.
         const string PlaceholderGameType = "7DTD";
         const string PlaceholderGameName = "zdtd";
         const string PlaceholderLevelName = "Navezgane";
         const string PlaceholderGameMode = "Survival";
-        const string PlaceholderServerVersion = "V.3.1.4";
+        const string PlaceholderServerVersion = "V.3.40.10";
         const int PlaceholderWorldSize = 6144;
         const int PlaceholderMaxPlayers = 8;
 

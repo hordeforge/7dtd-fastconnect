@@ -63,7 +63,7 @@ make doctor
 
 Everything else is a game-side requirement:
 
-- Stock client **EAC off** (`-noeac`; C# mods require it)
+- Stock client V3.4.0 (b10), build `26309840` (client `Assembly-CSharp.dll` sha256 `cb54022ccc862aa673e0ee55dafe67d842b364c8`), **EAC off** (`-noeac`; C# mods require it)
 - `0_TFP_Harmony` present (stock)
 - Game at `~/.local/share/Steam/steamapps/common/7 Days To Die` (override with `GAME=`)
 - dotnet SDK 8 for `make build` / `make package` (band pinned by `global.json`,
@@ -87,8 +87,8 @@ commit, SDK version, epoch, and sha256.
 |---|---|
 | TFP intro splash video | Process arg **`-skipintro`** (must be on argv; splash runs before mods) |
 | News “click to continue” | **`-SkipNewsScreen=true`** + Harmony forces `shownNewsScreenOnce` / blocks `XUiC_NewsScreen.Open` |
-| InControl native input | Process arg **`-disablenativeinput`**. V 3.2.0 turned native input on by default (observed on V3.2.0; not re-checked against the V3.3.0 client); that plugin crashes Proton before mods load |
-| Proton XInput | `WINEDLLOVERRIDES` disables `xinput1_3.dll`, `xinput1_4.dll`, `xinput9_1_0.dll`. On V3.2.0 InControl still called `XInputGetState` after `-disablenativeinput`; Proton's stub crashes a Steam-free Local client |
+| InControl native input | Process arg **`-disablenativeinput`**. V 3.2.0 turned native input on by default; the flag stays because a Steam-free Local client has no other switch, and the V3.4.0 join recorded in `CHANGELOG.md` ran with it |
+| Proton XInput | `WINEDLLOVERRIDES` disables `xinput1_3.dll`, `xinput1_4.dll`, `xinput9_1_0.dll`. On V3.2.0 InControl still called `XInputGetState` after `-disablenativeinput`; Proton's stub crashes a Steam-free Local client. The V3.4.0 join ran with these overrides; the crash path was not re-probed |
 | EULA accept gate | Harmony forces the `HasAcceptedLatestEula` getter true and blocks the `windowEula` window: `EulaLatestVersion` / `EulaVersionAccepted` are written and saved, then the main menu is reopened |
 | Opener movie on world load | `showOpenerMovieOnLoad = false`, `OptionsIntroMovieEnabled = false` |
 | Discord login / SDK | `GamePrefs.DiscordDisabled=true` + Harmony skips `DiscordManager.Init` and Discord first-time menu |

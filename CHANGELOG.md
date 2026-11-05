@@ -11,6 +11,42 @@ in the affected sections instead of being papered over.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-05
+
+Requires 7 Days to Die V3.4.0 (b10); V3.3.0 (b18) is the prior pin.
+
+### Changed
+
+- Retargeted to V3.4.0 (b10). The advertised server-version fallback
+  (`ConnectTarget.PlaceholderServerVersion`, mirrored as
+  `[tool.fastconnect] game-version`) is now `V.3.40.10`, the four-field
+  SerializableString V3.4.0 builds from `VersionInformation(1, 3, 40, 10)`;
+  it had been stale at `V.3.1.4`. The AliveFlags trace was re-read against
+  the new assembly: `NetPackageEntityAliveFlags.ProcessPackage` is still
+  IL=99 testing bit 8 on the UInt16 `flags` field, and the package still
+  derives from `NetPackageEntityTargeted` (`Int32 entityId`), so no code
+  change.
+- Live-verified on V3.4.0 b10: the client loaded 0.15.0, auto-joined from
+  `7DTD_CONNECT`, advertised `ver=V.3.40.10`, and logged
+  `Found own player entity with id 171`; the dedicated server logged
+  `PlayerLogin: maci/V 3.4.0`, the full `[Auth]` chain, and
+  `PlayerSpawnedInWorld (reason: EnterMultiplayer, ...): EntityID=171`.
+  A Steam-free Local client needs the dedicated install's `platform.cfg` to
+  read `crossplatform=None` and
+  `serverplatforms=Steam,XBL,PSN,LAN,Local,`, with `EACEnabled=false` in
+  the server config.
+- The InControl and Proton launch notes now name what was measured for
+  V3.4.0: the launcher flags stayed, and the join above ran with them; the
+  native-input default and the Proton XInput crash were not re-probed.
+
+### Fixed
+
+- `scripts/one_shot_join.sh` aborted before launching the client: it read
+  `JOIN_SUCCEEDED_RE` before `scripts/log_markers.sh`, which defines the
+  marker set, was sourced, so `set -u` killed the cycle with
+  `JOIN_SUCCEEDED_RE: unbound variable`. The marker file is now sourced
+  where the marker set is first read.
+
 ## [0.14.0] - 2026-10-25
 
 ### Changed
@@ -916,7 +952,8 @@ jumped straight from 0.9.5 to 0.10.2: releases 0.10.0 and 0.10.1 do not exist.
   `7DTD_CONNECT_DEBUG=1`.
 - Proton prefix derived from `GAME`, overridable Steam paths and Mods dir.
 
-[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/hordeforge/7dtd-fastconnect/compare/v0.11.0...v0.12.0
